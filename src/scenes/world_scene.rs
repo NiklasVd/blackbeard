@@ -65,15 +65,36 @@ impl WorldScene {
         }
     }
 
-    fn handle_contacts(&self) {
-        for contact in self.game.borrow().physics.get_contacts().iter() {
+    fn handle_contacts(&self, ctx: &mut Context) -> tetra::Result {
+        let contacts = self.game.borrow().physics.get_contacts();
+        for contact in contacts.iter() {
             match contact {
                 ContactEvent::Started(coll1, coll2) => {
-                    println!("{:?} and {:?} have contact!", coll1, coll2);
+                    let ship1 = self.ships.get(&coll1.0);
+                    let ship2 = self.ships.get(&coll2.0);
+                    if ship1.is_some() {
+                        let ship1 = ship1.unwrap();
+                        if ship2.is_some() {
+                            let ship2 = ship2.unwrap();
+                            ship1.borrow_mut()
+                                .collision_with_ship(ctx, ship2.clone())?;
+                            ship2.borrow_mut().collision_with_ship(ctx, ship1.clone())?;
+                        }
+                        else {
+                            ship1.borrow_mut().collision_with_object(ctx)?;
+                        }
+                    }
+                    else {
+                        if ship2.is_some() {
+                            let ship2 = ship2.unwrap();
+                            ship2.borrow_mut().collision_with_object(ctx)?;
+                        }
+                    }
                 },
                 _ => ()
             }
         }
+        Ok(())
     }
 }
 
@@ -93,7 +114,7 @@ impl State for WorldScene {
             ship.borrow_mut().update(ctx)?;
         }
         self.handle_intersections();
-        self.handle_contacts();
+        self.handle_contacts(ctx)?;
 
         Ok(())
     }

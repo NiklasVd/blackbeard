@@ -1,5 +1,5 @@
 use tetra::{Context, Event, State, graphics::{Color, DrawParams, Texture}};
-use crate::{Entity, GC, Timer, V2, world_scene::WorldScene};
+use crate::{GC, Timer, V2, world_scene::WorldScene};
 
 pub enum SceneType {
     Startup,

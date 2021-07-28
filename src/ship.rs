@@ -1,6 +1,6 @@
 use std::f32::consts::PI;
-use tetra::{Context, State, graphics::{Color, DrawParams, Texture, text::Text}};
-use crate::{Entity, EntityType, GC, MASS_FORCE_SCALE, Transform, V2, conv_vec, disassemble_iso, get_angle, get_texture_origin, pi_to_pi2_range, polar_to_cartesian};
+use tetra::{Context, State, graphics::{Color, DrawParams, Texture, text::Text}, math::Clamp};
+use crate::{Entity, EntityType, GC, MASS_FORCE_SCALE, Rcc, Transform, V2, conv_vec, disassemble_iso, get_angle, get_texture_origin, pi_to_pi2_range, polar_to_cartesian};
 
 const BASE_MOVEMENT_FORCE: f32 = 10.0 * MASS_FORCE_SCALE;
 const BASE_TORQUE_FORCE: f32 = 1000.0 * MASS_FORCE_SCALE;
@@ -8,22 +8,27 @@ const TARGET_POS_DIST_MARGIN: f32 = 75.0;
 const TARGET_ROT_MARGIN: f32 = PI / 34.0;
 
 pub struct ShipAttributes {
+    pub health: u16,
+    pub stability: u16,
     pub movement_speed: f32,
     pub turn_rate: f32,
-    pub cannon_damage: f32,
-    pub ram_damage: f32
+    pub cannon_damage: u16,
+    pub ram_damage: u16
 }
 
 impl ShipAttributes {
     pub fn caravel() -> ShipAttributes {
         ShipAttributes {
-            movement_speed: 8.5, turn_rate: 6.0, cannon_damage: 3.0, ram_damage: 2.0
+            health: 100, stability: 80,
+            movement_speed: 8.5, turn_rate: 6.0,
+            cannon_damage: 30, ram_damage: 20
         }
     }
 }
 
 pub struct Ship {
-    // Health
+    pub curr_health: u16,
+    pub name: String,
     pub target_pos: Option<V2>,
     pub attr: ShipAttributes,
     pub transform: Transform,
@@ -38,14 +43,52 @@ impl Ship {
         let ship_texture = game_ref.assets.load_texture(ctx, "Caravel.png".to_owned(), true)?;
         let handle = game_ref.physics.build_ship_collider(
             ship_texture.width() as f32 * 0.5, ship_texture.height() as f32 * 0.5);
-        let label = Text::new(format!("Cpt. {}", name), game_ref.assets.font.clone());
+        let label = Text::new("", game_ref.assets.font.clone());
+        let attr = ShipAttributes::caravel();
         std::mem::drop(game_ref);
         Ok(Ship {
-            target_pos: None, attr: ShipAttributes::caravel(),
+            curr_health: attr.health, name,
+            target_pos: None, attr,
             transform: Transform::new(get_texture_origin(ship_texture.clone()),
                 handle, game.clone()),
-            ship_texture: ship_texture, label, game, 
+            ship_texture: ship_texture, label, game
         })
+    }
+
+    pub fn take_damage(&mut self, ctx: &mut Context, damage: u16) -> tetra::Result {
+        println!("Cpt. {}'s ship took {} damage.", self.name, damage);
+        if self.curr_health < damage {
+            self.curr_health = 0;
+        }
+        else {
+            self.curr_health -= damage;
+        }
+
+        self.curr_health = self.curr_health.clamped(0, self.attr.health);
+        if self.curr_health == 0 {
+            self.destroy(ctx)?;
+        }
+        Ok(())
+    }
+
+    pub fn destroy(&mut self, ctx: &mut Context) -> tetra::Result {
+        self.curr_health = 0;
+        self.ship_texture = self.game.borrow_mut().assets.load_texture(ctx, 
+            "Destroyed Caravel.png".to_owned(), true)?;
+        println!("Cpt. {}'s ship has been destroyed!", self.name);
+        Ok(())
+    }
+
+    pub fn collision_with_ship(&mut self, ctx: &mut Context, other: Rcc<Ship>)
+        -> tetra::Result {
+        println!("Cpt .{}'s and Cpt. {}'s ships collided!",
+            self.name, other.borrow().name);
+        self.take_damage(ctx, other.borrow().attr.ram_damage)
+    }
+
+    pub fn collision_with_object(&mut self, ctx: &mut Context) -> tetra::Result {
+        println!("Cpt. {}'s ship collided with an object!", self.name);
+        self.take_damage(ctx, 100 - self.attr.stability) // ?
     }
 
     pub fn set_target_pos(&mut self, pos: V2) {
@@ -80,6 +123,11 @@ impl Ship {
             }
         }
     }
+
+    fn update_label(&mut self) {
+        self.label.set_content(format!("Cpt. {} [{}/{} HP]", self.name,
+            self.curr_health, self.attr.health));
+    }
 }
 
 impl Entity for Ship {
@@ -91,6 +139,7 @@ impl Entity for Ship {
 impl State for Ship {
     fn update(&mut self, _ctx: &mut Context) -> tetra::Result {
         self.move_to_target_pos();
+        self.update_label();
         Ok(())
     }
 

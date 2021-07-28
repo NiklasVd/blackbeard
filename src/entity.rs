@@ -1,5 +1,7 @@
 use tetra::{State};
 
+use crate::Rcc;
+
 pub enum EntityType {
     Ship = 0,
     Island = 1

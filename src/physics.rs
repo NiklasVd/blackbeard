@@ -53,7 +53,7 @@ impl Physics {
             .linear_damping(1.5).angular_damping(2.5).build();
         let rb_handle = self.rb_set.insert(rb);
         let coll = ColliderBuilder::cuboid(half_x * 0.85, half_y * 0.85)
-            .density(1.0).friction(2.0).restitution(0.1)
+            .density(1.0).friction(2.0).restitution(0.8)
             .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
             .user_data(EntityType::Ship.to_num()).build();
         let coll_handle = self.coll_set.insert_with_parent(coll, rb_handle,
