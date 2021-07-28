@@ -13,7 +13,7 @@ pub fn conv_vec(vec: V2) -> Vector<Real> {
     Vector::new(vec.x, vec.y)
 }
 
-pub fn deassemble_iso(iso: &Isometry<Real>) -> (V2, f32) {
+pub fn disassemble_iso(iso: &Isometry<Real>) -> (V2, f32) {
     (V2::new(iso.translation.vector.x, iso.translation.vector.y), iso.rotation.angle())
 }
 

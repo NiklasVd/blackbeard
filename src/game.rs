@@ -1,6 +1,6 @@
 use std::{cell::RefCell , rc::Rc};
 use tetra::{Context, State, graphics::{self, Color}};
-use crate::{Assets, Cam, Entity, Physics, Settings, World, scenes::scenes::{Scenes}};
+use crate::{Assets, Cam, Physics, Settings, World, scenes::scenes::{Scenes}};
 
 pub type Rcc<T> = Rc<RefCell<T>>;
 pub type GC = Rcc<GameContainer>;
@@ -36,7 +36,7 @@ impl Game {
         
         Ok(Game {
             container: gc.clone(),
-            scenes: Scenes::init(ctx, gc)?
+            scenes: Scenes::setup(ctx, gc)?
         })
     }
 }

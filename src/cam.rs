@@ -23,20 +23,20 @@ impl Cam {
 
 impl State for Cam {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
-        if is_key_down(ctx, Key::Up) {
+        if is_key_down(ctx, Key::W) {
             self.instance.position.y -= self.movement_speed * UPDATE_TICK_RATE;
         }
-        if is_key_down(ctx, Key::Down) {
+        if is_key_down(ctx, Key::S) {
             self.instance.position.y += self.movement_speed * UPDATE_TICK_RATE;
         }
-        if is_key_down(ctx, Key::Left) {
+        if is_key_down(ctx, Key::A) {
             self.instance.position.x -= self.movement_speed * UPDATE_TICK_RATE;
         }
-        if is_key_down(ctx, Key::Right) {
+        if is_key_down(ctx, Key::D) {
             self.instance.position.x += self.movement_speed * UPDATE_TICK_RATE;
         }
 
-        if is_mouse_scrolled_up(ctx)   {
+        if is_mouse_scrolled_up(ctx) {
             self.instance.scale += CAM_ZOOM_RATE * UPDATE_TICK_RATE;
             self.instance.scale = self.instance.scale.clamped(V2::new(0.2, 0.2), V2::one() * 1.3);
         }

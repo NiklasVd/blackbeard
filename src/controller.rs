@@ -10,19 +10,17 @@ pub struct Controller {
 }
 
 impl Controller {
-    pub fn possess_ship(&mut self, ship: Rcc<Ship>) {
-        self.possessed_ship = Some(ship);
-    }
-}
-
-impl Entity<Controller> for Controller {
-    fn init(ctx: &mut Context, game: GC) -> tetra::Result<Controller> {
+    pub fn new(ctx: &mut Context, game: GC) -> tetra::Result<Controller> {
         let target_x = game.borrow_mut().assets.load_texture(
             ctx, "X.png".to_owned(), false)?;
         Ok(Controller {
             possessed_ship: None, target_x: target_x.clone(),
             target_x_origin: get_texture_origin(target_x), game
         })
+    }
+
+    pub fn possess_ship(&mut self, ship: Rcc<Ship>) {
+        self.possessed_ship = Some(ship);
     }
 }
 

@@ -26,6 +26,15 @@ pub struct Scenes {
 }
 
 impl Scenes {
+    pub fn setup(ctx: &mut Context, game: GC) -> tetra::Result<Scenes> {
+        let mut startup_scene = StartupScene::new(ctx, game.clone())?;
+        startup_scene.enter(ctx);
+        Ok(Scenes {
+            curr_scene: Box::new(startup_scene),
+            game
+        })
+    }
+
     pub fn load_scene(&mut self, ctx: &mut Context, mut scene: Box<dyn Scene>)
         -> tetra::Result {
         self.curr_scene.exit(ctx)?;
@@ -33,17 +42,6 @@ impl Scenes {
         scene.enter(ctx)?;
         self.curr_scene = scene;
         Ok(())
-    }
-}
-
-impl Entity<Scenes> for Scenes {
-    fn init(ctx: &mut Context, game: GC)
-        -> tetra::Result<Scenes> {
-        let startup_scene = StartupScene::new(ctx, game.clone())?;
-        Ok(Scenes {
-            curr_scene: Box::new(startup_scene),
-            game
-        })
     }
 }
 

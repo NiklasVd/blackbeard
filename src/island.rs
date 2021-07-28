@@ -1,5 +1,5 @@
 use tetra::{Context, State, graphics::Texture};
-use crate::{Entity, GC, Transform, get_texture_origin};
+use crate::{Entity, EntityType, GC, Transform, get_texture_origin};
 
 pub struct Island {
     pub transform: Transform,
@@ -7,8 +7,8 @@ pub struct Island {
     game: GC
 }
 
-impl Entity<Island> for Island {
-    fn init(ctx: &mut Context, game: GC) -> tetra::Result<Island> {
+impl Island {
+    pub fn build(ctx: &mut Context, game: GC) -> tetra::Result<Island> {
         let mut game_ref = game.borrow_mut();
         let texture = game_ref.assets.load_texture(ctx, "Island 1.png".to_owned(), true)?;
         let handle = game_ref.physics.build_island_collider(
@@ -20,6 +20,12 @@ impl Entity<Island> for Island {
                 get_texture_origin(texture.clone()), handle, game.clone()),
             texture, game
         })
+    }
+}
+
+impl Entity for Island {
+    fn get_type(&self) -> EntityType {
+        EntityType::Island
     }
 }
 
