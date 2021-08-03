@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+
 mod game;
 mod ship;
 mod physics;
@@ -14,8 +16,10 @@ mod util;
 mod settings;
 mod world;
 mod cam;
-mod island;
+mod object;
 mod transform;
+mod id;
+mod sprite;
 
 pub use game::*;
 pub use ship::*;
@@ -29,8 +33,10 @@ pub use util::*;
 pub use settings::*;
 pub use world::*;
 pub use cam::*;
-pub use island::*;
+pub use object::*;
 pub use transform::*;
+pub use id::*;
+pub use sprite::*;
 
 use tetra::ContextBuilder;
 use std::io::{Read, stdin};

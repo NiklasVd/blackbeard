@@ -1,11 +1,11 @@
+use std::{collections::HashMap};
 use tetra::{Context, Event, State, graphics::{Color, DrawParams, Texture}, input::{MouseButton}};
-use crate::{Entity, GC, Rcc, Ship, V2, get_texture_origin};
+use crate::{GC, Player, Rcc, Sprite, SpriteOrigin, V2, wrap_rcc};
 
 pub struct Controller {
-    //pub players: HashMap<String, Player>
-    pub possessed_ship: Option<Rcc<Ship>>,
-    target_x: Texture,
-    target_x_origin: V2,
+    pub players: HashMap<u16, Rcc<Player>>,
+    pub local_player: Option<Rcc<Player>>,
+    target_x: Sprite,
     game: GC
 }
 
@@ -14,40 +14,37 @@ impl Controller {
         let target_x = game.borrow_mut().assets.load_texture(
             ctx, "X.png".to_owned(), false)?;
         Ok(Controller {
-            possessed_ship: None, target_x: target_x.clone(),
-            target_x_origin: get_texture_origin(target_x), game
+            players: HashMap::new(), local_player: None,
+            target_x: Sprite::new(target_x, SpriteOrigin::Centre), game
         })
     }
 
-    pub fn possess_ship(&mut self, ship: Rcc<Ship>) {
-        self.possessed_ship = Some(ship);
+    pub fn add_player(&mut self, player: Player) -> Rcc<Player> {
+        let player_idn = player.id.n;
+        let player_ref = wrap_rcc(player);
+        self.players.insert(player_idn, player_ref.clone());
+        player_ref
+    }
+
+    pub fn set_local_player(&mut self, local_player: Rcc<Player>) {
+        self.local_player = Some(local_player)
     }
 }
 
 impl State for Controller {
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
-        if self.possessed_ship.is_none() {
-            return Ok(())
-        }
-        
-        if let Some(target_pos) = self.possessed_ship.as_ref().unwrap().borrow().target_pos {
-            self.target_x.draw(ctx, DrawParams {
-                position: target_pos, origin: self.target_x_origin, scale: V2::one(),
-                rotation: 0.0, color: Color::WHITE
-            });
+        if let Some(target_pos) = self.local_player.as_ref().unwrap().borrow()
+            .possessed_ship.borrow().target_pos {
+            self.target_x.draw(ctx, target_pos, 0.0);
         }
         Ok(())
     }
 
     fn event(&mut self, ctx: &mut Context, event: Event) -> tetra::Result {
-        if self.possessed_ship.is_none() {
-            return Ok(())
-        }
-
         match event {
             Event::MouseButtonPressed { button } if button == MouseButton::Right => {
                 let mouse_pos = self.game.borrow().cam.get_mouse_pos(ctx);
-                self.possessed_ship.as_ref().unwrap().borrow_mut()
+                self.local_player.as_ref().unwrap().borrow().possessed_ship.borrow_mut()
                     .set_target_pos(mouse_pos);
             }
             _ => ()

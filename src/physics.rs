@@ -1,7 +1,7 @@
 use crossbeam_channel::{Receiver};
-use rapier2d::{math::Real, na::{Isometry2}, prelude::{ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, ColliderBuilder, ColliderHandle, ColliderSet, ContactEvent, IntegrationParameters, IntersectionEvent, IslandManager, JointSet, NarrowPhase, PhysicsPipeline, RigidBody, RigidBodyBuilder, RigidBodyHandle, RigidBodySet}};
-use tetra::{State, graphics::{Color, DrawParams}, math::Vec2};
-use crate::{EntityType, conv_vec};
+use rapier2d::{math::Real, na::{Isometry2}, prelude::{ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, ColliderBuilder, ColliderHandle, ColliderSet, ContactEvent, IntegrationParameters, InteractionGroups, IntersectionEvent, IslandManager, JointSet, NarrowPhase, PhysicsPipeline, QueryPipeline, Ray, RigidBody, RigidBodyBuilder, RigidBodyHandle, RigidBodySet}};
+use tetra::{State, graphics::{Color, DrawParams}, math::{Vec2}};
+use crate::{EntityType, conv_vec, conv_vec_point};
 
 pub const MASS_FORCE_SCALE: f32 = 1000.0;
 
@@ -22,7 +22,8 @@ pub struct Physics {
     intersection_receiver: Receiver<IntersectionEvent>,
     contact_receiver: Receiver<ContactEvent>,
     event_handler: ChannelEventCollector,
-    physics_pipeline: PhysicsPipeline
+    physics_pipeline: PhysicsPipeline,
+    query_pipeline: QueryPipeline
 }
 
 impl Physics {
@@ -44,13 +45,14 @@ impl Physics {
             intersection_receiver,
             contact_receiver,
             event_handler,
-            physics_pipeline: PhysicsPipeline::new()
+            physics_pipeline: PhysicsPipeline::new(),
+            query_pipeline: QueryPipeline::new()
         }
     }
 
     pub fn build_ship_collider(&mut self, half_x: f32, half_y: f32) -> PhysicsHandle {
         let rb = RigidBodyBuilder::new_dynamic()
-            .linear_damping(1.5).angular_damping(2.5).build();
+            .linear_damping(2.5).angular_damping(2.5).build();
         let rb_handle = self.rb_set.insert(rb);
         let coll = ColliderBuilder::cuboid(half_x * 0.85, half_y * 0.85)
             .density(1.0).friction(2.0).restitution(0.8)
@@ -61,15 +63,20 @@ impl Physics {
         PhysicsHandle(rb_handle, coll_handle)
     }
 
-    pub fn build_island_collider(&mut self, half_x: f32, half_y: f32) -> PhysicsHandle {
+    pub fn build_object_collider(&mut self, half_x: f32, half_y: f32) -> PhysicsHandle {
         let rb = RigidBodyBuilder::new_static().build();
         let rb_handle = self.rb_set.insert(rb);
         let coll = ColliderBuilder::cuboid(half_x, half_y).density(4.0)
             .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
-            .user_data(EntityType::Island.to_num()).build();
+            .user_data(EntityType::Object.to_num()).build();
         let coll_handle = self.coll_set.insert_with_parent(coll, rb_handle,
             &mut self.rb_set);
         PhysicsHandle(rb_handle, coll_handle)
+    }
+
+    pub fn remove_collider(&mut self, handle: PhysicsHandle) {
+        self.rb_set.remove(handle.0, &mut self.island_manager, &mut self.coll_set,
+            &mut self.joint_set);
     }
 
     pub fn get_rb(&self, rb_handle: RigidBodyHandle) -> &RigidBody {
@@ -111,6 +118,15 @@ impl Physics {
         }
         events
     }
+
+    pub fn cast_ray(&self, from: V2, dir: V2, dist: f32) -> Option<ColliderHandle> {
+        let ray = Ray::new(conv_vec_point(from), conv_vec(dir));
+        if let Some((coll_handle, _)) = self.query_pipeline.cast_ray(
+            &self.coll_set, &ray, dist, false,InteractionGroups::all(), None) {
+            return Some(coll_handle)
+        }
+        return None
+    }
 }
 
 impl State for Physics {
@@ -119,6 +135,7 @@ impl State for Physics {
             &mut self.island_manager, &mut self.broad_phase, &mut self.narrow_phase,
             &mut self.rb_set, &mut self.coll_set, &mut self.joint_set,
             &mut self.ccd_solver, &(), &self.event_handler);
+        self.query_pipeline.update(&mut self.island_manager, &self.rb_set, &self.coll_set);
         Ok(())
     }
 }

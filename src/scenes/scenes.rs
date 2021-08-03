@@ -1,6 +1,9 @@
 use tetra::{Context, Event, State, graphics::{Color, DrawParams, Texture}};
 use crate::{GC, Timer, V2, world_scene::WorldScene};
 
+const STARTUP_TIME: f32 = 3.0;
+const STARTUP_TIME_DEBUG: f32 = 0.5; 
+
 pub enum SceneType {
     Startup,
     Menu,
@@ -28,7 +31,7 @@ pub struct Scenes {
 impl Scenes {
     pub fn setup(ctx: &mut Context, game: GC) -> tetra::Result<Scenes> {
         let mut startup_scene = StartupScene::new(ctx, game.clone())?;
-        startup_scene.enter(ctx);
+        startup_scene.enter(ctx)?;
         Ok(Scenes {
             curr_scene: Box::new(startup_scene),
             game
@@ -73,7 +76,7 @@ pub struct StartupScene {
 impl StartupScene {
     pub fn new(ctx: &mut Context, game: GC) -> tetra::Result<StartupScene> {
         Ok(StartupScene {
-            timer: Timer::new(3.0),
+            timer: Timer::start(STARTUP_TIME_DEBUG),
             logo: game.borrow_mut().assets.load_texture(ctx, "Logo.png".to_owned(), false)?,
             game: game.clone()
         })

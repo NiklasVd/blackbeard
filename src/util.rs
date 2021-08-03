@@ -1,5 +1,5 @@
 use std::f32::consts::PI;
-use rapier2d::{math::{Isometry, Real, Vector}};
+use rapier2d::{math::{Isometry, Real, Vector}, na::Point2};
 use tetra::graphics::Texture;
 use crate::V2;
 
@@ -11,6 +11,10 @@ pub fn conv_rvec(m_vec: Vector<Real>) -> V2 {
 
 pub fn conv_vec(vec: V2) -> Vector<Real> {
     Vector::new(vec.x, vec.y)
+}
+
+pub fn conv_vec_point(vec: V2) -> Point2<f32> {
+    Point2::new(vec.x, vec.y)
 }
 
 pub fn disassemble_iso(iso: &Isometry<Real>) -> (V2, f32) {
@@ -40,10 +44,6 @@ pub fn polar_to_cartesian(dist: f32, angle: f32) -> V2 {
     V2::new(dist * angle.cos(), dist * angle.sin())
 }
 
-pub fn get_texture_origin(tex: Texture) -> V2 {
-    V2::new(tex.width() as f32 * 0.5, tex.height() as f32 * 0.5)
-}
-
 pub struct Timer {
     pub curr_time: f32,
     pub max: f32
@@ -52,12 +52,22 @@ pub struct Timer {
 impl Timer {
     pub fn new(max: f32) -> Timer {
         Timer {
+            curr_time: max, max
+        }
+    }
+
+    pub fn start(max: f32) -> Timer {
+        Timer {
             curr_time: 0.0, max
         }
     }
 
     pub fn update(&mut self) {
         self.curr_time += UPDATE_TICK_RATE;
+    }
+
+    pub fn is_running(&self) -> bool {
+        !self.is_over()
     }
 
     pub fn is_over(&self) -> bool {
@@ -69,5 +79,11 @@ impl Timer {
         self.is_over()
     }
 
+    pub fn reset(&mut self) {
+        self.curr_time = 0.0;
+    }
 
+    pub fn end(&mut self) {
+        self.curr_time = self.max;
+    }
 }
