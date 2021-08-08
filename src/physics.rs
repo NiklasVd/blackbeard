@@ -1,5 +1,5 @@
 use crossbeam_channel::{Receiver};
-use rapier2d::{math::Real, na::{Isometry2}, prelude::{ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, ColliderBuilder, ColliderHandle, ColliderSet, ContactEvent, IntegrationParameters, InteractionGroups, IntersectionEvent, IslandManager, JointSet, NarrowPhase, PhysicsPipeline, QueryPipeline, Ray, RigidBody, RigidBodyBuilder, RigidBodyHandle, RigidBodySet}};
+use rapier2d::{math::Real, na::{Isometry2}, prelude::{ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, Collider, ColliderBuilder, ColliderHandle, ColliderSet, ContactEvent, IntegrationParameters, InteractionGroups, IntersectionEvent, IslandManager, JointSet, NarrowPhase, PhysicsPipeline, QueryPipeline, Ray, RigidBody, RigidBodyBuilder, RigidBodyHandle, RigidBodySet}};
 use tetra::{State, graphics::{Color, DrawParams}, math::{Vec2}};
 use crate::{EntityType, conv_vec, conv_vec_point};
 
@@ -79,6 +79,14 @@ impl Physics {
             &mut self.joint_set);
     }
 
+    pub fn get_coll(&self, coll_handle: ColliderHandle) -> &Collider {
+        self.coll_set.get(coll_handle).unwrap()
+    }
+
+    pub fn get_coll_type(&self, coll_handle: ColliderHandle) -> EntityType {
+        EntityType::to_entity_type(self.get_coll(coll_handle).user_data)
+    }
+
     pub fn get_rb(&self, rb_handle: RigidBodyHandle) -> &RigidBody {
         self.rb_set.get(rb_handle).unwrap()
     }
@@ -119,13 +127,17 @@ impl Physics {
         events
     }
 
-    pub fn cast_ray(&self, from: V2, dir: V2, dist: f32) -> Option<ColliderHandle> {
-        let ray = Ray::new(conv_vec_point(from), conv_vec(dir));
+    pub fn cast_ray(&self, ray: Ray, dist: f32) -> Option<ColliderHandle> {
         if let Some((coll_handle, _)) = self.query_pipeline.cast_ray(
             &self.coll_set, &ray, dist, false,InteractionGroups::all(), None) {
             return Some(coll_handle)
         }
         return None
+    }
+
+    pub fn cast_ray2(&self, from: V2, dir: V2, dist: f32) -> Option<ColliderHandle> {
+        let ray = Ray::new(conv_vec_point(from), conv_vec(dir));
+        self.cast_ray(ray, dist)
     }
 }
 

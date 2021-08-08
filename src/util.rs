@@ -1,9 +1,11 @@
 use std::f32::consts::PI;
 use rapier2d::{math::{Isometry, Real, Vector}, na::Point2};
-use tetra::graphics::Texture;
+use tetra::{Context, time::get_delta_time};
 use crate::V2;
 
-pub const UPDATE_TICK_RATE: f32 = 1.0 / 60.0;
+pub fn get_dt(ctx: &mut Context) -> f32 {
+    get_delta_time(ctx).as_secs_f32()
+}
 
 pub fn conv_rvec(m_vec: Vector<Real>) -> V2 {
     V2::new(m_vec.x, m_vec.y)
@@ -15,6 +17,10 @@ pub fn conv_vec(vec: V2) -> Vector<Real> {
 
 pub fn conv_vec_point(vec: V2) -> Point2<f32> {
     Point2::new(vec.x, vec.y)
+}
+
+pub fn conv_point_vec(point: Point2<f32>) -> V2 {
+    V2::new(point.x, point.y)
 }
 
 pub fn disassemble_iso(iso: &Isometry<Real>) -> (V2, f32) {
@@ -62,8 +68,8 @@ impl Timer {
         }
     }
 
-    pub fn update(&mut self) {
-        self.curr_time += UPDATE_TICK_RATE;
+    pub fn update(&mut self, ctx: &mut Context) {
+        self.curr_time += get_dt(ctx);
     }
 
     pub fn is_running(&self) -> bool {
@@ -74,8 +80,8 @@ impl Timer {
         self.curr_time >= self.max
     } 
 
-    pub fn run(&mut self) -> bool {
-        self.update();
+    pub fn run(&mut self, ctx: &mut Context) -> bool {
+        self.update(ctx);
         self.is_over()
     }
 

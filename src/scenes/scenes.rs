@@ -99,7 +99,7 @@ impl Scene for StartupScene {
 
 impl State for StartupScene {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
-        self.timer.update();
+        self.timer.update(ctx);
         Ok(())
     }
 

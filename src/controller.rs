@@ -1,6 +1,6 @@
 use std::{collections::HashMap};
-use tetra::{Context, Event, State, graphics::{Color, DrawParams, Texture}, input::{MouseButton}};
-use crate::{GC, Player, Rcc, Sprite, SpriteOrigin, V2, wrap_rcc};
+use tetra::{Context, Event, State, input::{MouseButton}};
+use crate::{GC, Player, Rcc, Sprite, SpriteOrigin, wrap_rcc};
 
 pub struct Controller {
     pub players: HashMap<u16, Rcc<Player>>,
@@ -15,7 +15,7 @@ impl Controller {
             ctx, "X.png".to_owned(), false)?;
         Ok(Controller {
             players: HashMap::new(), local_player: None,
-            target_x: Sprite::new(target_x, SpriteOrigin::Centre), game
+            target_x: Sprite::new(target_x, SpriteOrigin::Centre, None), game
         })
     }
 

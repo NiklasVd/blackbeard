@@ -9,20 +9,26 @@ pub enum SpriteOrigin {
 
 pub struct Sprite {
     pub texture: Texture,
-    pub origin: V2
+    pub origin: V2,
+    pub translation: Option<(V2, f32)>
 }
 
 impl Sprite {
-    pub fn new(texture: Texture, origin: SpriteOrigin) -> Sprite {
-        let origin = match origin {
+    pub fn new(texture: Texture, origin: SpriteOrigin,
+        translation: Option<(V2, f32)>) -> Sprite {
+        Sprite {
+            texture: texture.clone(), origin: Self::resolve_origin(texture, origin),
+            translation
+        }
+    }
+
+    pub fn resolve_origin(texture: Texture, origin: SpriteOrigin) -> V2 {
+        match origin {
             SpriteOrigin::TopLeft => V2::zero(),
             SpriteOrigin::BottomRight => V2::new(texture.width() as f32,
                 texture.height() as f32),
             SpriteOrigin::Centre => V2::new(texture.width() as f32 * 0.5,
                 texture.height() as f32 * 0.5)
-        };
-        Sprite {
-            texture, origin
         }
     }
 

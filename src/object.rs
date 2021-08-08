@@ -1,4 +1,4 @@
-use tetra::{Context, State, graphics::Texture};
+use tetra::{Context};
 use crate::{Entity, EntityType, GC, Sprite, SpriteOrigin, Transform, V2};
 
 pub struct Object {
@@ -22,9 +22,9 @@ impl Object {
         -> tetra::Result<Object> {
         let mut game_ref = game.borrow_mut();
         let sprite = Sprite::new(game_ref.assets.load_texture(
-            ctx, tex_name.to_owned(), true)?, SpriteOrigin::Centre);
+            ctx, tex_name.to_owned(), true)?, SpriteOrigin::Centre, None);
         let handle = game_ref.physics.build_object_collider(
-            sprite.texture.width() as f32 * 0.5, sprite.texture.height() as f32 * 0.5);
+            sprite.texture.width() as f32 * 0.4, sprite.texture.height() as f32 * 0.4);
         std::mem::drop(game_ref);
 
         let mut transform = Transform::new(handle, game.clone());

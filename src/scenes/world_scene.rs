@@ -1,7 +1,7 @@
 use std::{collections::{HashMap}};
 use rapier2d::{data::Index, prelude::ContactEvent};
 use tetra::{Context, Event, State};
-use crate::{Controller, Entity, GC, ID, Object, Player, Rcc, Ship, V2, wrap_rcc};
+use crate::{Controller, Entity, EntityType, GC, ID, Object, Player, Rcc, Ship, V2, wrap_rcc};
 use super::scenes::{Scene, SceneType};
 
 pub struct WorldScene {
@@ -82,35 +82,57 @@ impl WorldScene {
     }
 
     fn handle_contacts(&self, ctx: &mut Context) -> tetra::Result {
-        let contacts = self.game.borrow().physics.get_contacts();
+        let game_ref = self.game.borrow();
+        let contacts = game_ref.physics.get_contacts();
+        if contacts.len() == 0 {
+            return Ok(())
+        }
+        
+        let mut ship_collisions = Vec::new();
+        let mut object_collisions = Vec::new();
         for contact in contacts.iter() {
             match contact {
-                ContactEvent::Started(coll1, coll2) => {
-                    // TODO: Rewrite using collider user-data to see if ship or object
-                    let ship1 = self.ships.get(&coll1.0);
-                    let ship2 = self.ships.get(&coll2.0);
-                    if ship1.is_some() {
-                        let ship1 = ship1.unwrap();
-                        if ship2.is_some() {
-                            let ship2 = ship2.unwrap();
-                            ship1.borrow_mut()
-                                .collision_with_ship(ctx, ship2.clone());
-                            ship2.borrow_mut().collision_with_ship(ctx, ship1.clone());
-                        }
-                        else {
-                            ship1.borrow_mut().collision_with_object(ctx);
-                        }
-                    }
-                    else {
-                        if ship2.is_some() {
-                            let ship2 = ship2.unwrap();
-                            ship2.borrow_mut().collision_with_object(ctx);
+                ContactEvent::Started(coll1_handle, coll2_handle) => {
+                    let coll1_type = game_ref.physics.get_coll_type(coll1_handle.clone());
+                    let coll2_type = game_ref.physics.get_coll_type(coll2_handle.clone());
+                    
+                    match coll1_type {
+                        EntityType::Ship => {
+                            let ship1 = self.get_ship(coll1_handle.0);
+                            match coll2_type {
+                                EntityType::Ship => { // Both colliders are ships
+                                    let ship2 = self.get_ship(coll2_handle.0);
+                                    ship_collisions.push((ship1, ship2));
+                                },
+                                EntityType::Object => { // Only the first collider is a ship
+                                    object_collisions.push(ship1);
+                                },
+                            }
+                        },
+                        EntityType::Object => {
+                            match coll2_type {
+                                EntityType::Ship => { // Only the second colliders is a ship
+                                    let ship2 = self.get_ship(coll2_handle.0);
+                                    object_collisions.push(ship2);
+                                },
+                                _ => () // Both colliders are objects
+                            }
                         }
                     }
                 },
                 _ => ()
             }
         }
+        std::mem::drop(game_ref);
+
+        for ship_coll in ship_collisions.iter() {
+            ship_coll.0.borrow_mut().collision_with_ship(ctx, ship_coll.1.clone());
+            ship_coll.1.borrow_mut().collision_with_ship(ctx, ship_coll.0.clone());
+        }
+        for obj_coll in object_collisions.iter() {
+            obj_coll.borrow_mut().collision_with_object(ctx);
+        }
+
         Ok(())
     }
 

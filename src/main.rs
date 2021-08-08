@@ -20,6 +20,7 @@ mod object;
 mod transform;
 mod id;
 mod sprite;
+mod animated_sprite;
 
 pub use game::*;
 pub use ship::*;
@@ -37,6 +38,7 @@ pub use object::*;
 pub use transform::*;
 pub use id::*;
 pub use sprite::*;
+pub use animated_sprite::*;
 
 use tetra::ContextBuilder;
 use std::io::{Read, stdin};
