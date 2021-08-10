@@ -54,7 +54,7 @@ impl Physics {
         let rb = RigidBodyBuilder::new_dynamic()
             .linear_damping(2.5).angular_damping(2.5).build();
         let rb_handle = self.rb_set.insert(rb);
-        let coll = ColliderBuilder::cuboid(half_x * 0.85, half_y * 0.85)
+        let coll = ColliderBuilder::cuboid(half_x * 0.9, half_y * 0.835)
             .density(1.0).friction(2.0).restitution(0.8)
             .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
             .user_data(EntityType::Ship.to_num()).build();

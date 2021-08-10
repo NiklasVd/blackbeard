@@ -21,6 +21,7 @@ mod transform;
 mod id;
 mod sprite;
 mod animated_sprite;
+mod cannon;
 
 pub use game::*;
 pub use ship::*;
@@ -39,6 +40,7 @@ pub use transform::*;
 pub use id::*;
 pub use sprite::*;
 pub use animated_sprite::*;
+pub use cannon::*;
 
 use tetra::ContextBuilder;
 use std::io::{Read, stdin};

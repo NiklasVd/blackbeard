@@ -1,73 +1,90 @@
 use std::{collections::{HashMap}};
 use rapier2d::{data::Index, prelude::ContactEvent};
 use tetra::{Context, Event, State};
-use crate::{Controller, Entity, EntityType, GC, ID, Object, Player, Rcc, Ship, V2, wrap_rcc};
+use crate::{CannonBall, Controller, Entity, GC, ID, Object, Player, Rcc, Ship, V2, wrap_rcc};
 use super::scenes::{Scene, SceneType};
 
+pub type Entities = HashMap<Index, Rcc<dyn Entity>>;
+
 pub struct WorldScene {
-    pub ships: HashMap<Index, Rcc<Ship>>,
-    pub objects: HashMap<Index, Rcc<Object>>,
     pub controller: Controller,
+    entities: Entities,
     game: GC
 }
 
 impl WorldScene {
     pub fn new(ctx: &mut Context, game: GC) -> tetra::Result<WorldScene> {
         let mut world_scene = WorldScene {
-            ships: HashMap::new(),
-            objects: HashMap::new(),
             controller: Controller::new(ctx, game.clone())?,
+            entities: HashMap::new(),
             game
         };
         
         let local_player = world_scene.build_player_ship(ctx,
-            ID::new("Niklas".to_owned(), 0))?;
+            ID::new("Niklas".to_owned(), 0), V2::zero())?;
         world_scene.controller.set_local_player(local_player);
+        let test_ship = world_scene.build_caravel(ctx, "Antonia".to_owned(),
+            V2::new(0.0, 300.0), false)?;
+        
         world_scene.build_island_object(ctx, V2::new(1000.0, 800.0), 0.12)?;
 
         Ok(world_scene)
     }
 
-    pub fn build_caravel(&mut self, ctx: &mut Context, name: String, pos: V2, rot: f32)
-        -> tetra::Result<Rcc<Ship>> {
-        let mut ship = Ship::caravel(ctx, self.game.clone(), name)?;
-        let ship_rb_index = ship.get_index();
-        ship.transform.set_pos(pos, rot);
-
-        let ship_ref = wrap_rcc(ship);
-        self.ships.insert(ship_rb_index, ship_ref.clone());
+    pub fn build_caravel(&mut self, ctx: &mut Context, name: String, spawn: V2,
+        respawn: bool) -> tetra::Result<Rcc<Ship>> {
+        let ship_ref = self.add_new_entity(Ship::caravel(
+            ctx, self.game.clone(), name, spawn, respawn)?);
         Ok(ship_ref)
     }
 
-    pub fn build_player_ship(&mut self, ctx: &mut Context, player_id: ID)
-        -> tetra::Result<Rcc<Player>> {
-        let ship = self.build_caravel(ctx, player_id.name.clone(), V2::zero(), 0.0)?;
+    pub fn build_player_ship(&mut self, ctx: &mut Context, player_id: ID,
+        spawn: V2) -> tetra::Result<Rcc<Player>> {
+        let ship = self.build_caravel(ctx, player_id.name.clone(), spawn, true)?;
         Ok(self.controller.add_player(Player::new(player_id, ship)))
     }
 
     pub fn build_island_object(&mut self, ctx: &mut Context, pos: V2, rot: f32)
         -> tetra::Result<Rcc<Object>> {
-        Ok(self.add_object(Object::build_island(ctx, self.game.clone(), pos, rot)?))
+        Ok(self.add_new_entity(Object::build_island(ctx, self.game.clone(), pos, rot)?))
     }
 
-    pub fn build_ship_wreck_object(&mut self, ctx: &mut Context, pos: V2, rot: f32)
-        -> tetra::Result<Rcc<Object>> {
-        Ok(self.add_object(Object::build_ship_wreck(ctx, self.game.clone(), pos, rot)?))
-    }
-
-    pub fn get_ship(&self, index: Index) -> Rcc<Ship> {
-        self.ships.get(&index).unwrap().clone()
-    }
-
-    fn add_object(&mut self, obj: Object) -> Rcc<Object> {
+    pub fn build_ship_wreck_object(ctx: &mut Context, pos: V2, rot: f32, game: GC,
+        entities: &mut HashMap<Index, Rcc<dyn Entity>>) -> tetra::Result<Rcc<Object>> {
+        let obj = Object::build_ship_wreck(ctx, game, pos, rot)?;
         let index = obj.get_index();
         let obj_ref = wrap_rcc(obj);
-        self.objects.insert(index, obj_ref.clone());
-        obj_ref
+        entities.insert(index, obj_ref.clone());
+        Ok(obj_ref)
     }
 
-    fn remove_object(&mut self, obj_index: Index) {
-        self.objects.remove(&obj_index);
+    pub fn build_cannon_ball(cannon_ball: CannonBall,
+        entities: &mut HashMap<Index, Rcc<dyn Entity>>) -> tetra::Result<Rcc<CannonBall>> {
+        let index = cannon_ball.get_index();
+        let cannon_ball_ref = wrap_rcc(cannon_ball);
+        entities.insert(index, cannon_ball_ref.clone());
+        Ok(cannon_ball_ref)
+    }
+
+    pub fn remove_entity(ctx: &mut Context, index: Index, entities: &mut Entities)
+        -> tetra::Result<Option<Rcc<dyn Entity>>> {
+        let entity_ref = entities.remove(&index);
+        if let Some(entity) = entity_ref {
+            entity.borrow_mut().on_destroy(ctx, entities)?;
+            return Ok(Some(entity))
+        }
+        Ok(None)
+    }
+
+    fn add_new_entity<T: Entity + 'static>(&mut self, entity: T) -> Rcc<T> {
+        let index = entity.get_index();
+        let entity_ref = wrap_rcc(entity);
+        self.entities.insert(index, entity_ref.clone());
+        entity_ref
+    }
+
+    fn get_entity(&self, index: Index) -> Option<Rcc<dyn Entity>> {
+        self.entities.get(&index).and_then(|rcc| Some(rcc.clone()))
     }
 
     fn handle_intersections(&self) {
@@ -81,69 +98,41 @@ impl WorldScene {
         }
     }
 
-    fn handle_contacts(&self, ctx: &mut Context) -> tetra::Result {
-        let game_ref = self.game.borrow();
-        let contacts = game_ref.physics.get_contacts();
-        if contacts.len() == 0 {
-            return Ok(())
-        }
-        
-        let mut ship_collisions = Vec::new();
-        let mut object_collisions = Vec::new();
+    fn handle_contacts(&mut self, ctx: &mut Context) -> tetra::Result {
+        let contacts = self.game.borrow().physics.get_contacts();
         for contact in contacts.iter() {
             match contact {
                 ContactEvent::Started(coll1_handle, coll2_handle) => {
-                    let coll1_type = game_ref.physics.get_coll_type(coll1_handle.clone());
-                    let coll2_type = game_ref.physics.get_coll_type(coll2_handle.clone());
-                    
-                    match coll1_type {
-                        EntityType::Ship => {
-                            let ship1 = self.get_ship(coll1_handle.0);
-                            match coll2_type {
-                                EntityType::Ship => { // Both colliders are ships
-                                    let ship2 = self.get_ship(coll2_handle.0);
-                                    ship_collisions.push((ship1, ship2));
-                                },
-                                EntityType::Object => { // Only the first collider is a ship
-                                    object_collisions.push(ship1);
-                                },
-                            }
-                        },
-                        EntityType::Object => {
-                            match coll2_type {
-                                EntityType::Ship => { // Only the second colliders is a ship
-                                    let ship2 = self.get_ship(coll2_handle.0);
-                                    object_collisions.push(ship2);
-                                },
-                                _ => () // Both colliders are objects
-                            }
+                    let entity1 = self.get_entity(coll1_handle.0);
+                    let entity2 = self.get_entity(coll2_handle.0);
+                    if let Some(entity1) = entity1 {
+                        if let Some(entity2) = entity2 {
+                            entity1.borrow_mut().collide_with_entity(ctx,
+                                entity2.clone(), &mut self.entities)?;
+                            entity2.borrow_mut().collide_with_entity(ctx,
+                                entity1, &mut self.entities)?;
+                        }
+                        else {
+                            entity1.borrow_mut().collide_with_neutral(ctx,
+                                &mut self.entities)?;
+                        }
+                    }
+                    else {
+                        if let Some(entity2) = entity2 {
+                            entity2.borrow_mut().collide_with_neutral(ctx,
+                                &mut self.entities)?;
                         }
                     }
                 },
                 _ => ()
             }
         }
-        std::mem::drop(game_ref);
-
-        for ship_coll in ship_collisions.iter() {
-            ship_coll.0.borrow_mut().collision_with_ship(ctx, ship_coll.1.clone());
-            ship_coll.1.borrow_mut().collision_with_ship(ctx, ship_coll.0.clone());
-        }
-        for obj_coll in object_collisions.iter() {
-            obj_coll.borrow_mut().collision_with_object(ctx);
-        }
-
         Ok(())
     }
 
-    fn on_ship_destroyed(&mut self, ctx: &mut Context, ship: Rcc<Ship>)
-        -> tetra::Result<Rcc<Object>> {
-        let mut ship_ref = ship.borrow_mut();
-        let (pos, rot) = ship_ref.transform.get_translation();
-        ship_ref.reset();
-        std::mem::drop(ship_ref);
-
-        self.build_ship_wreck_object(ctx, pos, rot)
+    fn get_entities(&self) -> Vec<Rcc<dyn Entity>> {
+        self.entities.values()
+            .map(|e| e.clone()).collect()
     }
 }
 
@@ -162,38 +151,25 @@ impl State for WorldScene {
         self.handle_intersections();
         self.handle_contacts(ctx)?;
         
-        let mut destroyed_ships = Vec::new();
-        for ship in self.ships.values() {
-            let mut ship_ref = ship.borrow_mut();
-            ship_ref.update(ctx, &self.ships, &self.objects)?;
-
-            if ship_ref.is_destroyed() {
-                std::mem::drop(ship_ref);
-                destroyed_ships.push(ship.clone());
-            }
+        for entity in self.get_entities() {
+            entity.borrow_mut().update(ctx, &mut self.entities)?;
         }
-        for destroyed_ship in destroyed_ships.iter() {
-            self.on_ship_destroyed(ctx, destroyed_ship.clone())?;
-        }
-
         Ok(())
     }
 
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
         self.controller.draw(ctx)?;
-        for obj in self.objects.values() {
-            obj.borrow_mut().draw(ctx)?;
-        }
-        for ship in self.ships.values() {
-            ship.borrow_mut().draw(ctx)?;
+        for entity in self.entities.values() {
+            entity.borrow_mut().draw(ctx)?;
         }
         Ok(())
     }
 
-    fn event(&mut self, ctx: &mut Context, event: Event) -> tetra::Result {
+    fn event(&mut self, ctx: &mut Context, event: Event)
+        -> tetra::Result {
         self.controller.event(ctx, event.clone())?;
-        for ship in self.ships.values() {
-            ship.borrow_mut().event(ctx, event.clone(), &self.ships, &self.objects)?;
+        for entity in self.get_entities() {
+            entity.borrow_mut().event(ctx, event.clone(), &mut self.entities)?;
         }
         Ok(())
     }

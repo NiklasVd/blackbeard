@@ -41,4 +41,8 @@ impl Sprite {
     pub fn draw2(&self, ctx: &mut Context, translation: (V2, f32)) {
         self.draw(ctx, translation.0, translation.1);
     }
+
+    pub fn draw3(&self, ctx: &mut Context) {
+        self.draw2(ctx, self.translation.unwrap())
+    }
 }
