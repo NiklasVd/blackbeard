@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap, f32::consts::PI};
+use std::{any::Any, f32::consts::PI};
 use rapier2d::{data::Index};
 use tetra::{Context, State, graphics::{text::Text}, math::Clamp};
 use crate::{Cannon, CannonSide, Entity, EntityType, GC, GameState, MASS_FORCE_SCALE, Object, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, cast_entity, conv_vec, disassemble_iso, get_angle, pi_to_pi2_range, polar_to_cartesian, world_scene::{Entities, WorldScene}};
@@ -46,7 +46,6 @@ pub struct Ship {
     pub cannons: Vec<Cannon>,
     pub transform: Transform,
     sprite: Sprite,
-    cannon_sprite: Sprite,
     label: Text,
     spawn: Option<V2>,
     game: GC
@@ -58,8 +57,6 @@ impl Ship {
         let mut game_ref = game.borrow_mut();
         let sprite = Sprite::new(game_ref.assets.load_texture(
             ctx, "Caravel.png".to_owned(), true)?, SpriteOrigin::Centre, None);
-        let cannon_sprite = Sprite::new(game_ref.assets.load_texture(
-            ctx, "Cannon.png".to_owned(), true)?, SpriteOrigin::Centre, None);
         let handle = game_ref.physics.build_ship_collider(
             sprite.texture.width() as f32 * 0.5, sprite.texture.height() as f32 * 0.5);
         let label = Text::new("", game_ref.assets.font.clone());
@@ -74,19 +71,20 @@ impl Ship {
             false => None
         };
 
+        let index = transform.get_index();
         let mut cannons = Vec::new();
         let mut bow_pos = V2::new(48.0, -50.0);
         let bow_rot = PI * 1.5;
         for _ in 0..3 {
-            cannons.push(Cannon::new(bow_pos, bow_rot, 200.0, 20,
-                CannonSide::Bowside, attr.cannon_reload_time));
+            cannons.push(Cannon::new(ctx, bow_pos, bow_rot, 20,
+                CannonSide::Bowside, attr.cannon_reload_time, index, game.clone())?);
             bow_pos -= V2::new(45.0, 0.0);
         }
         let mut port_pos = V2::new(48.0, 50.0);
         let port_rot = PI / 2.0;
         for _ in 0..3 {
-            cannons.push(Cannon::new(port_pos, port_rot, 200.0, 20,
-                CannonSide::Portside, attr.cannon_reload_time));
+            cannons.push(Cannon::new(ctx, port_pos, port_rot, 20,
+                CannonSide::Portside, attr.cannon_reload_time, index, game.clone())?);
             port_pos -= V2::new(45.0, 0.0);
         }
 
@@ -94,7 +92,7 @@ impl Ship {
             curr_health: attr.health, name,
             target_pos: None, attr, cannons,
             transform, stun: Timer::new(stun_length),
-            sprite, cannon_sprite, label, spawn, game
+            sprite, label, spawn, game
         })
     }
 
@@ -122,13 +120,13 @@ impl Ship {
 
         self.curr_health = self.curr_health.clamped(0, self.attr.health);
         if self.curr_health == 0 {
-            self.destroy(ctx, entities)?;
+            self.sink(ctx, entities)?;
         }
         Ok(())
     }
 
-    pub fn destroy(&mut self, ctx: &mut Context, entities: &mut Entities) -> tetra::Result {
-        println!("{} has been destroyed!", self.get_name());
+    pub fn sink(&mut self, ctx: &mut Context, entities: &mut Entities) -> tetra::Result {
+        println!("{} has been sunk!", self.get_name());
         let (pos, rot) = self.transform.get_translation();
         WorldScene::build_ship_wreck_object(ctx, pos, rot, self.game.clone(), entities)?;
 
@@ -138,13 +136,14 @@ impl Ship {
         }
         else {
             self.curr_health = 0;
-            entities.remove(&self.get_index());
+            WorldScene::remove_entity(ctx, self.get_index(), self.transform.handle,
+                entities, self.game.clone())?;
         }
         
         Ok(())
     }
 
-    pub fn is_destroyed(&self) -> bool {
+    pub fn is_sunk(&self) -> bool {
         self.curr_health == 0
     }
 
@@ -183,14 +182,35 @@ impl Ship {
     }
 
     pub fn take_cannon_ball_hit(&mut self, ctx: &mut Context, dmg: u16,
-        ship: Rcc<Ship>, entities: &mut Entities) -> tetra::Result {
-        println!("{} was hit by one of {}ses cannons and took {} damage!",
-            self.get_name(), ship.borrow().name, dmg);
+        shooter_index: Index, entities: &mut Entities) -> tetra::Result {
+        let shooter_name = match entities.get(&shooter_index) {
+            Some(shooter) => {
+                shooter.borrow().get_name()
+            },
+            _ => "unknown ship".to_owned()
+        };
+
+        println!("{} was hit by {} cannon and took {} damage!",
+        self.get_name(), shooter_name, dmg);
         self.take_damage(ctx, dmg, entities)
     }
 
-    pub fn shoot_cannons(&mut self, side: CannonSide, entities: &mut Entities) {
-        
+    pub fn shoot_cannons_on_side(&mut self, ctx: &mut Context,
+        side: CannonSide, entities: &mut Entities) -> tetra::Result {
+        for cannon in self.cannons.iter_mut() {
+            if cannon.side == side {
+                cannon.shoot(ctx, entities)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn shoot_cannons(&mut self, ctx: &mut Context, entities: &mut Entities)
+        -> tetra::Result { // Add option to choose cannon side
+        for cannon in self.cannons.iter_mut() {
+            cannon.shoot(ctx, entities)?;
+        }
+        Ok(())
     }
 
     pub fn set_target_pos(&mut self, pos: V2) {
@@ -242,12 +262,6 @@ impl Ship {
         self.label.set_content(format!("Cpt. {} [{}/{} HP] {}", self.name,
             self.curr_health, self.attr.health, stunned));
     }
-
-    fn shoot_cannon(&self, ctx: &mut Context, cannon: &mut Cannon, ships: &HashMap<Index, Rcc<Ship>>)
-        -> tetra::Result {
-        
-        Ok(())
-    }
 }
 
 impl Entity for Ship {
@@ -293,10 +307,6 @@ impl Entity for Ship {
         -> tetra::Result {
         Ok(())
     }
-
-    fn on_destroy(&mut self, ctx: &mut Context, entities: &mut Entities) -> tetra::Result {
-        Ok(())
-    }
 }
 
 impl GameState for Ship {
@@ -314,9 +324,8 @@ impl GameState for Ship {
         let translation = self.transform.get_translation();
         self.sprite.draw2(ctx, translation);
         for cannon in self.cannons.iter_mut() {
+            cannon.set_ship_translation(translation);
             cannon.draw(ctx)?;
-            self.cannon_sprite.draw2(ctx, cannon.get_translation(
-                self.transform.get_translation()));
         }
         self.label.draw(ctx, translation.0 - V2::new(90.0, 15.0));
         Ok(())

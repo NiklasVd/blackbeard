@@ -7,6 +7,7 @@ pub const MASS_FORCE_SCALE: f32 = 1000.0;
 
 pub type V2 = Vec2<f32>;
 
+#[derive(Clone, Copy)]
 pub struct PhysicsHandle(pub RigidBodyHandle, pub ColliderHandle);
 
 pub struct Physics {
@@ -57,6 +58,8 @@ impl Physics {
         let coll = ColliderBuilder::cuboid(half_x * 0.9, half_y * 0.835)
             .density(1.0).friction(2.0).restitution(0.8)
             .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
+            .collision_groups(InteractionGroups::new(
+                get_any_coll_group(), get_any_coll_group()))
             .user_data(EntityType::Ship.to_num()).build();
         let coll_handle = self.coll_set.insert_with_parent(coll, rb_handle,
             &mut self.rb_set);
@@ -68,9 +71,24 @@ impl Physics {
         let rb_handle = self.rb_set.insert(rb);
         let coll = ColliderBuilder::cuboid(half_x, half_y).density(4.0)
             .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
+            .collision_groups(InteractionGroups::new(
+                get_any_coll_group(), get_any_coll_group()))
             .user_data(EntityType::Object.to_num()).build();
         let coll_handle = self.coll_set.insert_with_parent(coll, rb_handle,
             &mut self.rb_set);
+        PhysicsHandle(rb_handle, coll_handle)
+    }
+
+    pub fn build_cannon_ball(&mut self) -> PhysicsHandle {
+        let rb = RigidBodyBuilder::new_dynamic().ccd_enabled(true)
+            .linear_damping(5.0).angular_damping(5.0).build();
+        let rb_handle = self.rb_set.insert(rb);
+        let coll = ColliderBuilder::ball(5.0).active_events(ActiveEvents::CONTACT_EVENTS)
+            .user_data(EntityType::CannonBall.to_num())
+            .collision_groups(InteractionGroups::new(
+                get_any_coll_group(), get_any_coll_group()))
+            .density(0.1).build();
+        let coll_handle = self.coll_set.insert_with_parent(coll, rb_handle, &mut self.rb_set);
         PhysicsHandle(rb_handle, coll_handle)
     }
 
@@ -83,8 +101,17 @@ impl Physics {
         self.coll_set.get(coll_handle).unwrap()
     }
 
+    pub fn get_coll_mut(&mut self, coll_handle: ColliderHandle) -> &mut Collider {
+        self.coll_set.get_mut(coll_handle).unwrap()
+    }
+
     pub fn get_coll_type(&self, coll_handle: ColliderHandle) -> EntityType {
         EntityType::to_entity_type(self.get_coll(coll_handle).user_data)
+    }
+
+    pub fn set_coll_group(&mut self, handle: ColliderHandle, member: u32, filter: u32) {
+        self.get_coll_mut(handle).set_collision_groups(InteractionGroups::new(
+            member, filter))
     }
 
     pub fn get_rb(&self, rb_handle: RigidBodyHandle) -> &RigidBody {
@@ -150,4 +177,16 @@ impl State for Physics {
         self.query_pipeline.update(&mut self.island_manager, &self.rb_set, &self.coll_set);
         Ok(())
     }
+}
+
+pub fn get_any_coll_group() -> u32 {
+    1 | 2 | 4
+}
+
+pub fn get_decal_coll_group() -> u32 {
+    6
+}
+
+pub fn get_empty_coll_group() -> u32 {
+    0
 }

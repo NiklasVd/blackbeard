@@ -60,18 +60,16 @@ pub trait Entity : GameState {
         -> tetra::Result {
         Ok(())
     }
-    fn on_destroy(&mut self, ctx: &mut Context, entities: &mut Entities) -> tetra::Result {
-        Ok(())
-    }
 
     fn get_index(&self) -> Index {
-        self.get_transform().handle.1.0
+        self.get_transform().get_index()
     }
 }
 
-pub fn cast_entity<'a, T: Entity + 'static>(entity_any: &'a mut dyn Any) -> &'a mut T {
+pub fn cast_entity<'a, T: Entity + 'static>(entity_any: &'a mut dyn Any)
+    -> &'a mut T {
     match entity_any.downcast_mut::<T>() {
         Some(e) => e,
-        None => panic!("Unable to cast any to entity type.")
+        None => panic!("Downcast failed: T does not fit to entity type.")
     }
 }

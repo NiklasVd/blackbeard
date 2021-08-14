@@ -78,7 +78,11 @@ impl Timer {
 
     pub fn is_over(&self) -> bool {
         self.curr_time >= self.max
-    } 
+    }
+
+    pub fn time_until_over(&self) -> f32 {
+        self.max - self.curr_time
+    }
 
     pub fn run(&mut self, ctx: &mut Context) -> bool {
         self.update(ctx);

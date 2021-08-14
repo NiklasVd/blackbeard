@@ -1,6 +1,6 @@
 use std::{collections::HashMap};
-use tetra::{Context, Event, State, input::{MouseButton}};
-use crate::{GC, Player, Rcc, Sprite, SpriteOrigin, wrap_rcc};
+use tetra::{Context, Event, input::{Key, MouseButton}};
+use crate::{GC, GameState, Player, Rcc, Sprite, SpriteOrigin, world_scene::Entities, wrap_rcc};
 
 pub struct Controller {
     pub players: HashMap<u16, Rcc<Player>>,
@@ -31,7 +31,7 @@ impl Controller {
     }
 }
 
-impl State for Controller {
+impl GameState for Controller {
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
         if let Some(target_pos) = self.local_player.as_ref().unwrap().borrow()
             .possessed_ship.borrow().target_pos {
@@ -40,15 +40,30 @@ impl State for Controller {
         Ok(())
     }
 
-    fn event(&mut self, ctx: &mut Context, event: Event) -> tetra::Result {
-        match event {
-            Event::MouseButtonPressed { button } if button == MouseButton::Right => {
-                let mouse_pos = self.game.borrow().cam.get_mouse_pos(ctx);
-                self.local_player.as_ref().unwrap().borrow().possessed_ship.borrow_mut()
-                    .set_target_pos(mouse_pos);
+    fn event(&mut self, ctx: &mut Context, event: Event, entities: &mut Entities)
+        -> tetra::Result {
+        if let Some(local_player) = self.local_player.as_ref() {
+            match event {
+                Event::MouseButtonPressed { button } if button == MouseButton::Right => {
+                    let mouse_pos = self.game.borrow().cam.get_mouse_pos(ctx);
+                    local_player.borrow().possessed_ship.borrow_mut()
+                        .set_target_pos(mouse_pos);
+                },
+                Event::KeyPressed { key } => {
+                    match key {
+                        Key::Space => local_player.borrow().possessed_ship.borrow_mut()
+                            .shoot_cannons(ctx, entities)?,
+                        Key::Q => local_player.borrow().possessed_ship.borrow_mut()
+                            .shoot_cannons_on_side(ctx, crate::CannonSide::Bowside, entities)?,
+                        Key::E => local_player.borrow().possessed_ship.borrow_mut()
+                            .shoot_cannons_on_side(ctx, crate::CannonSide::Portside, entities)?,
+                        _ => ()
+                    }
+                },
+                _ => ()
             }
-            _ => ()
         }
+
         Ok(())
     }
 }

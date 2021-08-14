@@ -1,7 +1,7 @@
 use std::{collections::{HashMap}};
 use rapier2d::{data::Index, prelude::ContactEvent};
 use tetra::{Context, Event, State};
-use crate::{CannonBall, Controller, Entity, GC, ID, Object, Player, Rcc, Ship, V2, wrap_rcc};
+use crate::{GameState, CannonBall, Controller, Entity, GC, ID, Object, PhysicsHandle, Player, Rcc, Ship, V2, wrap_rcc};
 use super::scenes::{Scene, SceneType};
 
 pub type Entities = HashMap<Index, Rcc<dyn Entity>>;
@@ -66,14 +66,18 @@ impl WorldScene {
         Ok(cannon_ball_ref)
     }
 
-    pub fn remove_entity(ctx: &mut Context, index: Index, entities: &mut Entities)
-        -> tetra::Result<Option<Rcc<dyn Entity>>> {
-        let entity_ref = entities.remove(&index);
-        if let Some(entity) = entity_ref {
-            entity.borrow_mut().on_destroy(ctx, entities)?;
-            return Ok(Some(entity))
+    pub fn remove_entity(ctx: &mut Context, index: Index, handle: PhysicsHandle,
+        entities: &mut Entities, game: GC) -> tetra::Result {
+        /* Unsafe to return Rcc<dyn Entity>,
+        as the RefCell is already borrowed during this call (in world_scene::update()).
+        Hence, accessing entity using borrow(_mut) is impossible.
+        This renders an Entity::on:destroy() unfeasible too. */
+        let entity = entities.remove(&index);
+        if let Some(entity) = entity {
+            game.borrow_mut().physics.remove_collider(handle);
+            return Ok(())
         }
-        Ok(None)
+        Ok(())
     }
 
     fn add_new_entity<T: Entity + 'static>(&mut self, entity: T) -> Rcc<T> {
@@ -167,7 +171,7 @@ impl State for WorldScene {
 
     fn event(&mut self, ctx: &mut Context, event: Event)
         -> tetra::Result {
-        self.controller.event(ctx, event.clone())?;
+        self.controller.event(ctx, event.clone(), &mut self.entities)?;
         for entity in self.get_entities() {
             entity.borrow_mut().event(ctx, event.clone(), &mut self.entities)?;
         }

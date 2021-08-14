@@ -9,7 +9,8 @@ use crate::{Entity, EntityType, GC, GameState, Sprite, SpriteOrigin, Transform, 
 #[derive(Debug)]
 pub enum ObjectType {
     Island,
-    Reef
+    Reef,
+    Shipwreck
 }
 
 pub struct Object {
@@ -28,7 +29,7 @@ impl Object {
 
     pub fn build_ship_wreck(ctx: &mut Context, game: GC, pos: V2, rot: f32)
         -> tetra::Result<Object> {
-        Self::build_object(ctx, ObjectType::Reef, game, "Destroyed Caravel.png".to_owned(),
+        Self::build_object(ctx, ObjectType::Shipwreck, game, "Destroyed Caravel.png".to_owned(),
             pos, rot)
     }
 

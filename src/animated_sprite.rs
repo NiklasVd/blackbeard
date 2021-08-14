@@ -1,5 +1,4 @@
 use std::time::Duration;
-
 use tetra::{Context, graphics::{Color, DrawParams, Rectangle, Texture, animation::Animation}};
 use crate::{GC, V2};
 
@@ -45,8 +44,9 @@ impl AnimatedSprite {
 
 pub fn build_water_splash_sprite(ctx: &mut Context, game: GC, pos: V2)
     -> tetra::Result<AnimatedSprite> {
+    let tex = game.borrow_mut().assets.load_texture(
+            ctx, "Water Splash.png".to_owned(), true)?;
     Ok(AnimatedSprite::new(
-            game.borrow_mut().assets.load_texture(
-            ctx, "Water Splash.png".to_owned(), true)?, 5, 15.0, 15.0, 0.2, false,
+            tex, 5, 15.0, 15.0, 0.125, false,
         Some((pos, 0.0))))
 }
