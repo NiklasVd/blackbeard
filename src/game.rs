@@ -43,11 +43,11 @@ impl Game {
 
 impl State for Game {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
-        let mut game_ref = self.container.borrow_mut();
-        game_ref.cam.update(ctx)?;
-        game_ref.physics.update(ctx)?;
-        std::mem::drop(game_ref);
-
+        {
+            let mut game_ref = self.container.borrow_mut();
+            game_ref.cam.update(ctx)?;
+            game_ref.physics.update(ctx)?;
+        }
         self.scenes.update(ctx)
     }
 
@@ -55,7 +55,10 @@ impl State for Game {
         graphics::clear(ctx, Color::rgb8(0, 102, 255));
         graphics::set_transform_matrix(ctx,
             self.container.borrow().cam.instance.as_matrix());
-        self.scenes.draw(ctx)
+        self.scenes.draw(ctx)?;
+        
+        graphics::reset_transform_matrix(ctx);
+        self.scenes.draw_ui(ctx)
     }
 
     fn event(&mut self, ctx: &mut Context, event: tetra::Event) -> tetra::Result {

@@ -1,7 +1,7 @@
 use std::{collections::{HashMap}};
 use rapier2d::{data::Index, prelude::ContactEvent};
 use tetra::{Context, Event, State};
-use crate::{GameState, CannonBall, Controller, Entity, GC, ID, Object, PhysicsHandle, Player, Rcc, Ship, V2, wrap_rcc};
+use crate::{CannonBall, Controller, Entity, GC, GameState, ID, Object, PhysicsHandle, Player, Rcc, Ship, V2, grid::{Grid, UIAlignment}, wrap_rcc};
 use super::scenes::{Scene, SceneType};
 
 pub type Entities = HashMap<Index, Rcc<dyn Entity>>;
@@ -9,15 +9,18 @@ pub type Entities = HashMap<Index, Rcc<dyn Entity>>;
 pub struct WorldScene {
     pub controller: Controller,
     entities: Entities,
+    grid: Grid,
     game: GC
 }
 
 impl WorldScene {
     pub fn new(ctx: &mut Context, game: GC) -> tetra::Result<WorldScene> {
+        let grid = Grid::new(ctx, UIAlignment::Vertical,
+            V2::zero(), V2::one(), 0.0)?;
         let mut world_scene = WorldScene {
             controller: Controller::new(ctx, game.clone())?,
             entities: HashMap::new(),
-            game
+            grid, game
         };
         
         let local_player = world_scene.build_player_ship(ctx,
@@ -141,6 +144,14 @@ impl WorldScene {
 }
 
 impl Scene for WorldScene {
+    fn get_grid(&self) -> &Grid {
+        &self.grid
+    }
+
+    fn get_grid_mut(&mut self) -> &mut Grid {
+        &mut self.grid
+    }
+
     fn poll(&self, ctx: &mut Context) -> tetra::Result<Option<Box<dyn Scene>>> {
         Ok(None)
     }

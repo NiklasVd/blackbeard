@@ -9,7 +9,7 @@ const MAX_SHIP_DEFENSE: u16 = 100;
 const BASE_MOVEMENT_FORCE: f32 = 10.0 * MASS_FORCE_SCALE;
 const BASE_TORQUE_FORCE: f32 = 1000.0 * MASS_FORCE_SCALE;
 const TARGET_POS_DIST_MARGIN: f32 = 75.0;
-const TARGET_ROT_MARGIN: f32 = PI / 30.0;
+const TARGET_ROT_MARGIN: f32 = PI / 45.0;
 
 pub struct ShipAttributes {
     pub health: u16,

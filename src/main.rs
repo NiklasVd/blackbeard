@@ -8,8 +8,10 @@ mod controller;
 mod entity;
 mod scenes {
     pub mod scenes;
+    pub mod startup_scene;
     pub mod menu_scene;
     pub mod world_scene;
+    pub mod loading_scene;
 }
 mod player;
 mod util;
@@ -22,6 +24,14 @@ mod id;
 mod sprite;
 mod animated_sprite;
 mod cannon;
+mod ui {
+    pub mod grid;
+    pub mod ui_element;
+    pub mod label;
+    pub mod button;
+    pub mod spritesheet;
+    pub mod image;
+}
 
 pub use game::*;
 pub use ship::*;
@@ -41,6 +51,7 @@ pub use id::*;
 pub use sprite::*;
 pub use animated_sprite::*;
 pub use cannon::*;
+pub use ui::*;
 
 use tetra::ContextBuilder;
 use std::io::{Read, stdin};

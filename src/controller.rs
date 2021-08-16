@@ -12,7 +12,7 @@ pub struct Controller {
 impl Controller {
     pub fn new(ctx: &mut Context, game: GC) -> tetra::Result<Controller> {
         let target_x = game.borrow_mut().assets.load_texture(
-            ctx, "X.png".to_owned(), false)?;
+            ctx, "UI/X.png".to_owned(), false)?;
         Ok(Controller {
             players: HashMap::new(), local_player: None,
             target_x: Sprite::new(target_x, SpriteOrigin::Centre, None), game

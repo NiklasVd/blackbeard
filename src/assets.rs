@@ -6,13 +6,16 @@ pub const TEXTURES_PATH: &str = "textures";
 
 pub struct Assets {
     pub font: Font,
+    pub title_font: Font,
     cached_textures: HashMap<String, Texture>
 }
 
 impl Assets {
     pub fn load(ctx: &mut Context) -> tetra::Result<Assets> {
+        let font_path = Self::get_full_path("Calisto.ttf".to_owned());
         Ok(Assets {
-            font: Font::vector(ctx, Self::get_full_path("Calisto.ttf".to_owned()), 20.0)?,
+            font: Font::vector(ctx, font_path.clone(), 20.0)?,
+            title_font: Font::vector(ctx, font_path, 35.0)?,
             cached_textures: HashMap::new()
         })
     }
