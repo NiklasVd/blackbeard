@@ -1,4 +1,5 @@
 use std::f32::consts::PI;
+use rand::Rng;
 use rapier2d::{math::{Isometry, Real, Vector}, na::Point2};
 use tetra::{Context, time::get_delta_time};
 use crate::V2;
@@ -48,6 +49,10 @@ pub fn cartesian_to_polar(cartesian_coord: V2) -> (f32, f32) {
 
 pub fn polar_to_cartesian(dist: f32, angle: f32) -> V2 {
     V2::new(dist * angle.cos(), dist * angle.sin())
+}
+
+pub fn rand_u32(min: u32, max: u32) -> u32 {
+    rand::thread_rng().gen_range(min..=max)
 }
 
 pub struct Timer {
