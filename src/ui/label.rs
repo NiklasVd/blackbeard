@@ -1,5 +1,5 @@
 use tetra::{Context, State, graphics::text::Text};
-use crate::{GC, Rcc, V2, ui_element::{UIElement, UIReactor, UITransform}};
+use crate::{GC, V2, ui_element::{UIElement}, ui_transform::UITransform};
 
 pub struct Label {
     pub transform: UITransform,
@@ -32,10 +32,6 @@ impl UIElement for Label {
         "Label"
     }
 
-    fn get_reactor(&self) -> Option<Rcc<dyn UIReactor>> {
-        None
-    }
-
     fn get_transform(&self) -> &UITransform {
         &self.transform
     }
@@ -43,11 +39,9 @@ impl UIElement for Label {
     fn get_transform_mut(&mut self) -> &mut UITransform {
         &mut self.transform
     }
-}
 
-impl State for Label {
-    fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
-        self.text.draw(ctx, self.transform.get_padded_pos());
+    fn draw_element(&mut self, ctx: &mut Context, parent_pos: V2) -> tetra::Result {
+        self.text.draw(ctx, parent_pos + self.get_transform().get_padded_pos());
         Ok(())
     }
 }

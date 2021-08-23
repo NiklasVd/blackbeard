@@ -1,11 +1,12 @@
 use tetra::{Context, State, window::quit};
-use crate::{GC, Rcc, V2, button::Button, grid::{Grid, UIAlignment}, label::Label, loading_scene::LoadingScene, ui_element::{UIReactor, UIState}, wrap_rcc};
+use crate::{GC, Rcc, V2, button::Button, grid::{Grid, UIAlignment}, label::Label, loading_scene::LoadingScene, lobby_scene::LobbyScene, ui_element::{UIReactor, UIState}};
 use super::scenes::{Scene, SceneType};
 
 pub struct MenuScene {
     pub grid: Grid,
-    new_game_reactor: Rcc<NewGameReactor>,
-    exit_reactor: Rcc<ExitReactor>,
+    private_game_button: Rcc<Button<PrivateGameReactor>>,
+    online_game_button: Rcc<Button<OnlineGameReactor>>,
+    exit_button: Rcc<Button<ExitReactor>>,
     game: GC
 }
 
@@ -13,21 +14,19 @@ impl MenuScene {
     pub fn new(ctx: &mut Context, game: GC) -> tetra::Result<MenuScene> {
         let mut grid = Grid::new(ctx, UIAlignment::Horizontal,
             V2::zero(), V2::one() * 250.0, 10.0)?;
-        let title_label = Label::new(ctx, "Blackbeard", true, 5.0, game.clone())?;
-        grid.add_element(title_label, 0);
-
-        let new_game_reactor = wrap_rcc(NewGameReactor::new());
-        let new_game_button = Button::new(ctx, "New Game", V2::new(125.0, 35.0), 5.0,
-            new_game_reactor.clone(), game.clone())?;
-        grid.add_element(new_game_button, 1);
+        let label = grid.add_element(Label::new(ctx, "Blackbeard", true,
+            5.0, game.clone())?);
+                
+        let private_game_button = grid.add_element(Button::new(ctx, "Private Game",
+            V2::new(125.0, 35.0), 0.0, PrivateGameReactor::new(), game.clone())?);
+        let online_game_button = grid.add_element(Button::new(ctx, "Online Game",
+            V2::new(125.0, 35.0), 5.0, OnlineGameReactor::new(), game.clone())?);
+        let exit_button = grid.add_element(Button::new(ctx, "Exit",
+            V2::new(75.0, 35.0), 15.0, ExitReactor::new(), game.clone())?);
         
-        let exit_reactor = wrap_rcc(ExitReactor::new());
-        let exit_button = Button::new(ctx, "Exit", V2::new(75.0, 35.0), 5.0,
-            exit_reactor.clone(), game.clone())?;
-        grid.add_element(exit_button, 2);
-
         Ok(MenuScene {
-            grid, new_game_reactor, exit_reactor, game: game.clone()
+            grid, private_game_button, online_game_button, exit_button,
+            game: game.clone()
         })
     }
 }
@@ -42,11 +41,15 @@ impl Scene for MenuScene {
     }
 
     fn poll(&self, ctx: &mut Context) -> tetra::Result<Option<Box<dyn Scene>>> {
-        if self.new_game_reactor.borrow().new_game {
+        if self.private_game_button.borrow().reactor.state == UIState::Focus {
             return Ok(Some(Box::new(
                 LoadingScene::new(ctx, SceneType::World, 5.0, self.game.clone())?)))
         }
-        else if self.exit_reactor.borrow().exit {
+        else if self.online_game_button.borrow().reactor.state == UIState::Focus {
+            return Ok(Some(Box::new(
+                LobbyScene::new(ctx, self.game.clone())?)))
+        }
+        else if self.exit_button.borrow().reactor.state == UIState::Focus {
             quit(ctx);
             return Ok(None)
         }
@@ -64,20 +67,19 @@ impl State for MenuScene {
     }
 }
 
-struct NewGameReactor {
-    state: UIState,
-    new_game: bool
+struct PrivateGameReactor {
+    state: UIState
 }
 
-impl NewGameReactor {
-    fn new() -> NewGameReactor {
-        NewGameReactor {
-            state: UIState::Idle, new_game: false
+impl PrivateGameReactor {
+    fn new() -> PrivateGameReactor {
+        PrivateGameReactor {
+            state: UIState::Idle
         }
     }
 }
 
-impl UIReactor for NewGameReactor {
+impl UIReactor for PrivateGameReactor {
     fn get_state(&self) -> UIState {
         self.state
     }
@@ -85,22 +87,38 @@ impl UIReactor for NewGameReactor {
     fn set_state(&mut self, state: UIState) {
         self.state = state;
     }
+}
 
-    fn on_click(&mut self, ctx: &mut Context) -> tetra::Result {
-        self.new_game = true;
-        Ok(())
+struct OnlineGameReactor {
+    state: UIState
+}
+
+impl OnlineGameReactor {
+    pub fn new() -> OnlineGameReactor {
+        OnlineGameReactor {
+            state: UIState::Idle
+        }
+    }
+}
+
+impl UIReactor for OnlineGameReactor {
+    fn get_state(&self) -> UIState {
+        self.state.clone()
+    }
+
+    fn set_state(&mut self, state: UIState) {
+        self.state = state;
     }
 }
 
 struct ExitReactor {
-    state: UIState,
-    exit: bool
+    state: UIState
 }
 
 impl ExitReactor {
     pub fn new() -> ExitReactor {
         ExitReactor {
-            state: UIState::Idle, exit: false
+            state: UIState::Idle
         }
     }
 }
@@ -112,10 +130,5 @@ impl UIReactor for ExitReactor {
 
     fn set_state(&mut self, state: UIState) {
         self.state = state;
-    }
-
-    fn on_click(&mut self, ctx: &mut Context) -> tetra::Result {
-        self.exit = true;
-        Ok(())
     }
 }

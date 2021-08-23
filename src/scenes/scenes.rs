@@ -1,10 +1,11 @@
 use tetra::{Context, Event, State};
-use crate::{GC, grid::Grid, startup_scene::StartupScene};
+use crate::{GC, V2, grid::Grid, startup_scene::StartupScene, ui_element::UIElement};
 
 pub enum SceneType {
     Startup,
     Menu,
     Loading,
+    Lobby,
     World
 }
 
@@ -37,14 +38,14 @@ impl Scenes {
     }
 
     pub fn draw_ui(&mut self, ctx: &mut Context) -> tetra::Result {
-        self.curr_scene.get_grid_mut().draw(ctx)
+        self.curr_scene.get_grid_mut().draw_element(ctx, V2::zero())
     }
 }
 
 impl State for Scenes {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
         self.curr_scene.update(ctx)?;
-        self.curr_scene.get_grid_mut().update(ctx)?;
+        self.curr_scene.get_grid_mut().update_element(ctx, V2::zero())?;
         if let Some(next_scene) = self.curr_scene.poll(ctx)? {
             self.load_scene(ctx, next_scene)?;
         }
@@ -58,7 +59,7 @@ impl State for Scenes {
 
     fn event(&mut self, ctx: &mut Context, event: Event) -> tetra::Result {
         self.curr_scene.event(ctx, event.clone())?;
-        self.curr_scene.get_grid_mut().event(ctx, event)
+        self.curr_scene.get_grid_mut().event_element(ctx, event, V2::zero())
     }
 }
 

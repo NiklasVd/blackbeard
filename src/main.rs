@@ -12,6 +12,7 @@ mod scenes {
     pub mod menu_scene;
     pub mod world_scene;
     pub mod loading_scene;
+    pub mod lobby_scene;
 }
 mod player;
 mod util;
@@ -27,10 +28,12 @@ mod cannon;
 mod ui {
     pub mod grid;
     pub mod ui_element;
+    pub mod ui_transform;
     pub mod label;
     pub mod button;
     pub mod spritesheet;
     pub mod image;
+    pub mod textbox;
 }
 
 pub use game::*;

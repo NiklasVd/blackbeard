@@ -1,5 +1,5 @@
 use tetra::{Context, State, graphics::Texture};
-use crate::{GC, Rcc, V2, ui_element::{UIElement, UIReactor, UITransform}};
+use crate::{GC, V2, ui_element::{UIElement}, ui_transform::UITransform};
 
 pub struct Image {
     pub transform: UITransform,
@@ -23,10 +23,6 @@ impl UIElement for Image {
         "Image"
     }
 
-    fn get_reactor(&self) -> Option<Rcc<dyn UIReactor>> {
-        None
-    }
-
     fn get_transform(&self) -> &UITransform {
         &self.transform
     }
@@ -34,11 +30,9 @@ impl UIElement for Image {
     fn get_transform_mut(&mut self) -> &mut UITransform {
         &mut self.transform
     }
-}
 
-impl State for Image {
-    fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
-        self.image.draw(ctx, self.transform.get_draw_params());
+    fn draw_element(&mut self, ctx: &mut Context, parent_pos: V2) -> tetra::Result {
+        self.image.draw(ctx, self.get_draw_params(parent_pos));
         Ok(())
     }
 }
