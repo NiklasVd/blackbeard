@@ -1,4 +1,4 @@
-use tetra::{Context, State, graphics::Texture};
+use tetra::{Context, graphics::Texture};
 use crate::{GC, V2, ui_element::{UIElement}, ui_transform::UITransform};
 
 pub struct Image {

@@ -115,3 +115,25 @@ pub trait UIReactor {
         Ok(())
     }
 }
+
+pub struct DefaultUIReactor {
+    pub state: UIState
+}
+
+impl DefaultUIReactor {
+    pub fn new() -> DefaultUIReactor {
+        DefaultUIReactor {
+            state: UIState::Idle
+        }
+    }
+}
+
+impl UIReactor for DefaultUIReactor {
+    fn get_state(&self) -> UIState {
+        self.state.clone()
+    }
+
+    fn set_state(&mut self, state: UIState) {
+        self.state = state;
+    }
+}

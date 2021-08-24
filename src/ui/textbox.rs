@@ -1,4 +1,4 @@
-use tetra::{Context, State, graphics::{Color, DrawParams, Texture, text::Text}, input::{self, Key, is_key_down}};
+use tetra::{Context, graphics::{Color, DrawParams, Texture, text::Text}, input::{self, Key, is_key_down}};
 use crate::{GC, V2, ui_element::{UIElement, UIReactor, UIState}, ui_transform::UITransform};
 
 pub struct Textbox {

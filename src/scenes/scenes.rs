@@ -5,6 +5,7 @@ pub enum SceneType {
     Startup,
     Menu,
     Loading,
+    Connection,
     Lobby,
     World
 }

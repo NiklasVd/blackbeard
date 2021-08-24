@@ -1,5 +1,7 @@
-use tetra::{Context, State, graphics::{text::Text}};
-use crate::{GC, V2, spritesheet::Spritesheet, ui_element::{UIElement, UIReactor, UIState}, ui_transform::UITransform};
+use tetra::{Context, graphics::{text::Text}};
+use crate::{GC, V2, spritesheet::Spritesheet, ui_element::{DefaultUIReactor, UIElement, UIReactor, UIState}, ui_transform::UITransform};
+
+pub type DefaultButton = Button<DefaultUIReactor>;
 
 pub struct Button<T: UIReactor + 'static> {
     pub transform: UITransform,
@@ -23,6 +25,10 @@ impl<T: UIReactor + 'static> Button<T> {
             transform: UITransform::default(ctx, size, uniform_size, padding)?,
             text: Text::new(text, font), spritesheet, reactor
         })
+    }
+
+    pub fn is_pressed(&self) -> bool {
+        self.reactor.state == UIState::Focus
     }
 
     fn update_spritesheet(&mut self) {

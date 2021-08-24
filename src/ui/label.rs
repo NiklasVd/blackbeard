@@ -1,4 +1,4 @@
-use tetra::{Context, State, graphics::text::Text};
+use tetra::{Context, graphics::text::Text};
 use crate::{GC, V2, ui_element::{UIElement}, ui_transform::UITransform};
 
 pub struct Label {

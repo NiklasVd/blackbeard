@@ -1,12 +1,12 @@
 use tetra::{Context, State, window::quit};
-use crate::{GC, Rcc, V2, button::Button, grid::{Grid, UIAlignment}, label::Label, loading_scene::LoadingScene, lobby_scene::LobbyScene, ui_element::{UIReactor, UIState}};
+use crate::{GC, Rcc, V2, button::{Button, DefaultButton}, connection_scene::ConnectionScene, grid::{Grid, UIAlignment}, label::Label, loading_scene::LoadingScene, ui_element::{DefaultUIReactor, UIReactor, UIState}};
 use super::scenes::{Scene, SceneType};
 
 pub struct MenuScene {
     pub grid: Grid,
-    private_game_button: Rcc<Button<PrivateGameReactor>>,
-    online_game_button: Rcc<Button<OnlineGameReactor>>,
-    exit_button: Rcc<Button<ExitReactor>>,
+    private_game_button: Rcc<DefaultButton>,
+    online_game_button: Rcc<DefaultButton>,
+    exit_button: Rcc<DefaultButton>,
     game: GC
 }
 
@@ -18,11 +18,11 @@ impl MenuScene {
             5.0, game.clone())?);
                 
         let private_game_button = grid.add_element(Button::new(ctx, "Private Game",
-            V2::new(125.0, 35.0), 0.0, PrivateGameReactor::new(), game.clone())?);
+            V2::new(125.0, 35.0), 5.0, DefaultUIReactor::new(), game.clone())?);
         let online_game_button = grid.add_element(Button::new(ctx, "Online Game",
-            V2::new(125.0, 35.0), 5.0, OnlineGameReactor::new(), game.clone())?);
+            V2::new(125.0, 35.0), 5.0, DefaultUIReactor::new(), game.clone())?);
         let exit_button = grid.add_element(Button::new(ctx, "Exit",
-            V2::new(75.0, 35.0), 15.0, ExitReactor::new(), game.clone())?);
+            V2::new(75.0, 35.0), 5.0, DefaultUIReactor::new(), game.clone())?);
         
         Ok(MenuScene {
             grid, private_game_button, online_game_button, exit_button,
@@ -41,15 +41,15 @@ impl Scene for MenuScene {
     }
 
     fn poll(&self, ctx: &mut Context) -> tetra::Result<Option<Box<dyn Scene>>> {
-        if self.private_game_button.borrow().reactor.state == UIState::Focus {
+        if self.private_game_button.borrow().is_pressed() {
             return Ok(Some(Box::new(
                 LoadingScene::new(ctx, SceneType::World, 5.0, self.game.clone())?)))
         }
-        else if self.online_game_button.borrow().reactor.state == UIState::Focus {
+        else if self.online_game_button.borrow().is_pressed() {
             return Ok(Some(Box::new(
-                LobbyScene::new(ctx, self.game.clone())?)))
+                ConnectionScene::new(ctx, self.game.clone())?)))
         }
-        else if self.exit_button.borrow().reactor.state == UIState::Focus {
+        else if self.exit_button.borrow().is_pressed() {
             quit(ctx);
             return Ok(None)
         }
@@ -64,71 +64,5 @@ impl Scene for MenuScene {
 impl State for MenuScene {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
         Ok(())
-    }
-}
-
-struct PrivateGameReactor {
-    state: UIState
-}
-
-impl PrivateGameReactor {
-    fn new() -> PrivateGameReactor {
-        PrivateGameReactor {
-            state: UIState::Idle
-        }
-    }
-}
-
-impl UIReactor for PrivateGameReactor {
-    fn get_state(&self) -> UIState {
-        self.state
-    }
-
-    fn set_state(&mut self, state: UIState) {
-        self.state = state;
-    }
-}
-
-struct OnlineGameReactor {
-    state: UIState
-}
-
-impl OnlineGameReactor {
-    pub fn new() -> OnlineGameReactor {
-        OnlineGameReactor {
-            state: UIState::Idle
-        }
-    }
-}
-
-impl UIReactor for OnlineGameReactor {
-    fn get_state(&self) -> UIState {
-        self.state.clone()
-    }
-
-    fn set_state(&mut self, state: UIState) {
-        self.state = state;
-    }
-}
-
-struct ExitReactor {
-    state: UIState
-}
-
-impl ExitReactor {
-    pub fn new() -> ExitReactor {
-        ExitReactor {
-            state: UIState::Idle
-        }
-    }
-}
-
-impl UIReactor for ExitReactor {
-    fn get_state(&self) -> UIState {
-        self.state
-    }
-
-    fn set_state(&mut self, state: UIState) {
-        self.state = state;
     }
 }

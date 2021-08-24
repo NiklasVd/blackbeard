@@ -13,6 +13,7 @@ mod scenes {
     pub mod world_scene;
     pub mod loading_scene;
     pub mod lobby_scene;
+    pub mod connection_scene;
 }
 mod player;
 mod util;
@@ -34,6 +35,9 @@ mod ui {
     pub mod spritesheet;
     pub mod image;
     pub mod textbox;
+}
+mod net {
+    pub mod network;
 }
 
 pub use game::*;

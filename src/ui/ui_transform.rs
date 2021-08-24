@@ -53,7 +53,7 @@ impl UITransform {
     }
 
     pub fn get_padded_size(&self) -> V2 {
-        self.size - self.padding
+        self.size - self.padding * 2.0
     }
 
     pub fn get_padded_rect(&self, parent_pos: V2) -> Rectangle {
