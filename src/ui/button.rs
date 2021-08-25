@@ -28,7 +28,7 @@ impl<T: UIReactor + 'static> Button<T> {
     }
 
     pub fn is_pressed(&self) -> bool {
-        self.reactor.state == UIState::Focus
+        self.reactor.get_state() == UIState::Focus
     }
 
     fn update_spritesheet(&mut self) {

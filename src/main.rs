@@ -35,10 +35,17 @@ mod ui {
     pub mod spritesheet;
     pub mod image;
     pub mod textbox;
+    pub mod chat;
 }
 mod net {
     pub mod network;
+    pub mod packet;
+    pub mod peer;
+    pub mod client;
+    pub mod server;
 }
+mod err;
+mod diagnostics;
 
 pub use game::*;
 pub use ship::*;
@@ -59,6 +66,9 @@ pub use sprite::*;
 pub use animated_sprite::*;
 pub use cannon::*;
 pub use ui::*;
+pub use net::*;
+pub use err::*;
+pub use diagnostics::*;
 
 use tetra::ContextBuilder;
 use std::io::{Read, stdin};

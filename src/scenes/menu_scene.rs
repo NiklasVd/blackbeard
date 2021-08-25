@@ -1,5 +1,5 @@
 use tetra::{Context, State, window::quit};
-use crate::{GC, Rcc, V2, button::{Button, DefaultButton}, connection_scene::ConnectionScene, grid::{Grid, UIAlignment}, label::Label, loading_scene::LoadingScene, ui_element::{DefaultUIReactor, UIReactor, UIState}};
+use crate::{GC, Rcc, V2, button::{Button, DefaultButton}, connection_scene::ConnectionScene, grid::{Grid, UIAlignment}, label::Label, loading_scene::LoadingScene, ui_element::{DefaultUIReactor}};
 use super::scenes::{Scene, SceneType};
 
 pub struct MenuScene {
@@ -18,11 +18,11 @@ impl MenuScene {
             5.0, game.clone())?);
                 
         let private_game_button = grid.add_element(Button::new(ctx, "Private Game",
-            V2::new(125.0, 35.0), 5.0, DefaultUIReactor::new(), game.clone())?);
+            V2::new(125.0, 30.0), 5.0, DefaultUIReactor::new(), game.clone())?);
         let online_game_button = grid.add_element(Button::new(ctx, "Online Game",
-            V2::new(125.0, 35.0), 5.0, DefaultUIReactor::new(), game.clone())?);
+            V2::new(125.0, 30.0), 5.0, DefaultUIReactor::new(), game.clone())?);
         let exit_button = grid.add_element(Button::new(ctx, "Exit",
-            V2::new(75.0, 35.0), 5.0, DefaultUIReactor::new(), game.clone())?);
+            V2::new(75.0, 30.0), 7.0, DefaultUIReactor::new(), game.clone())?);
         
         Ok(MenuScene {
             grid, private_game_button, online_game_button, exit_button,

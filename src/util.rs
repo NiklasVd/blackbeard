@@ -1,4 +1,5 @@
 use std::f32::consts::PI;
+use binary_stream::BinaryStream;
 use rand::Rng;
 use rapier2d::{math::{Isometry, Real, Vector}, na::Point2};
 use tetra::{Context, time::get_delta_time};
@@ -53,6 +54,17 @@ pub fn polar_to_cartesian(dist: f32, angle: f32) -> V2 {
 
 pub fn rand_u32(min: u32, max: u32) -> u32 {
     rand::thread_rng().gen_range(min..=max)
+}
+
+pub fn serialize_v2(stream: &mut BinaryStream, vec: V2) -> std::io::Result<()> {
+    stream.write_f32(vec.x)?;
+    stream.write_f32(vec.y)
+}
+
+pub fn deserialize_v2(stream: &mut BinaryStream) -> V2 {
+    let x = stream.read_f32().unwrap();
+    let y = stream.read_f32().unwrap();
+    V2::new(x, y)
 }
 
 pub struct Timer {

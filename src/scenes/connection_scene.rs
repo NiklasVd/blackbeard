@@ -9,6 +9,7 @@ pub struct ConnectionScene {
     back_button: Rcc<DefaultButton>,
     create_button: Rcc<DefaultButton>,
     join_button: Rcc<DefaultButton>,
+    join_endpoint_txt: Rcc<Textbox>,
     disconnected: bool,
     game: GC
 }
@@ -17,13 +18,12 @@ impl ConnectionScene {
     pub fn new(ctx: &mut Context, game: GC) -> tetra::Result<ConnectionScene> {
         let mut grid = Grid::new(ctx, UIAlignment::Vertical, V2::zero(),
             V2::new(200.0, 100.0), 0.0)?;
-
         let back_button = grid.add_element(Button::new(ctx, "Back to Menu",
-            V2::new(120.0, 35.0), 5.0, DefaultUIReactor::new(), game.clone())?);
+            V2::new(120.0, 30.0), 5.0, DefaultUIReactor::new(), game.clone())?);
         
         let create_label = grid.add_element(Label::new(ctx, "Create Match", false,
             5.0, game.clone())?);
-        let create_button = grid.add_element(Button::new(ctx, "Create", V2::new(75.0, 35.0),
+        let create_button = grid.add_element(Button::new(ctx, "Create", V2::new(75.0, 30.0),
             5.0, DefaultUIReactor::new(), game.clone())?);
         
         let join_label = grid.add_element(Label::new(ctx, "Join Match", false,
@@ -34,11 +34,12 @@ impl ConnectionScene {
             format!("127.0.0.1:{}", DEFAULT_HOST_PORT).as_str(), V2::new(200.0, 30.0),
             5.0, game.clone())?);
         let join_button = join_grid.add_element(Button::new(ctx, "Join",
-            V2::new(65.0, 35.0), 5.0, DefaultUIReactor::new(), game.clone())?);
+            V2::new(65.0, 30.0), 5.0, DefaultUIReactor::new(), game.clone())?);
         let join_grid = grid.add_element(join_grid);
         
         Ok(ConnectionScene {
-            grid, back_button, create_button, join_button, disconnected: true, game
+            grid, back_button, create_button, join_button, join_endpoint_txt,
+            disconnected: true, game
         })
     }
 
@@ -76,8 +77,14 @@ impl Scene for ConnectionScene {
             return Ok(Some(Box::new(MenuScene::new(ctx, self.game.clone())?)))
         }
         if self.create_button.borrow().is_pressed() {
-            return Ok(Some(Box::new(LobbyScene::new(ctx, self.game.clone())?)))
+            return Ok(Some(Box::new(LobbyScene::create(ctx, DEFAULT_HOST_PORT,
+                self.game.clone())?)))
         }
+        if self.join_button.borrow().is_pressed() {
+            return Ok(Some(Box::new(LobbyScene::join(ctx,
+                self.join_endpoint_txt.borrow().get_text().to_owned(), self.game.clone())?)))
+        }
+
         Ok(None)
     }
 }

@@ -37,7 +37,7 @@ impl Grid {
         self.add_element_at(element, self.elements.len())
     }
 
-    pub fn remove_element(&mut self, index: usize) -> UIRcc {
+    pub fn remove_element_at(&mut self, index: usize) -> UIRcc {
         assert!(index <= self.elements.len() - 1);
         self.elements.swap_remove(index)
     }
