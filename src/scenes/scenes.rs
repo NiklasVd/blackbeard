@@ -1,8 +1,9 @@
 use tetra::{Context, Event, State};
-use crate::{GC, V2, grid::Grid, startup_scene::StartupScene, ui_element::UIElement};
+use crate::{BbResult, GC, TransformResult, V2, grid::Grid, startup_scene::StartupScene, ui_element::UIElement};
 
 pub enum SceneType {
     Startup,
+    Login,
     Menu,
     Loading,
     Connection,
@@ -14,7 +15,7 @@ pub trait Scene : State {
     fn get_grid(&self) -> &Grid;
     fn get_grid_mut(&mut self) -> &mut Grid;
 
-    fn poll(&self, ctx: &mut Context) -> tetra::Result<Option<Box<dyn Scene + 'static>>>;
+    fn poll(&self, ctx: &mut Context) -> BbResult<Option<Box<dyn Scene + 'static>>>;
     fn get_type(&self) -> SceneType;
 }
 
@@ -47,7 +48,7 @@ impl State for Scenes {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
         self.curr_scene.update(ctx)?;
         self.curr_scene.get_grid_mut().update_element(ctx, V2::zero())?;
-        if let Some(next_scene) = self.curr_scene.poll(ctx)? {
+        if let Some(next_scene) = self.curr_scene.poll(ctx).convert()? {
             self.load_scene(ctx, next_scene)?;
         }
         Ok(())

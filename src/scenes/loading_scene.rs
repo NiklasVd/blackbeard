@@ -1,5 +1,5 @@
 use tetra::{Context, State};
-use crate::{GC, Timer, V2, grid::{Grid, UIAlignment}, image::Image, label::Label, rand_u32, world_scene::WorldScene};
+use crate::{BbResult, GC, Timer, V2, grid::{Grid, UIAlignment}, image::Image, label::Label, rand_u32, world_scene::WorldScene};
 use super::scenes::{Scene, SceneType};
 
 const LOADING_HINTS: [&str; 5] = [
@@ -64,7 +64,7 @@ impl Scene for LoadingScene {
         &mut self.grid
     }
 
-    fn poll(&self, ctx: &mut Context) -> tetra::Result<Option<Box<dyn Scene + 'static>>> {
+    fn poll(&self, ctx: &mut Context) -> BbResult<Option<Box<dyn Scene + 'static>>> {
         if self.min_load_timer.is_over() {
             return Ok(match self.next_scene {
                 SceneType::World => Some(Box::new(

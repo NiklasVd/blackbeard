@@ -67,4 +67,11 @@ impl<T: UIReactor + 'static> UIElement for Button<T> {
         self.text.draw(ctx, parent_pos + self.transform.get_padded_pos());
         Ok(())
     }
+
+    fn update_element(&mut self, ctx: &mut Context, parent_pos: V2) -> tetra::Result {
+        if self.reactor.get_state() == UIState::Focus {
+            self.reactor.set_state(UIState::Idle);
+        }
+        Ok(())
+    }
 }

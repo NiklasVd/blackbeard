@@ -1,11 +1,25 @@
 pub struct Settings {
-    pub show_watermark: bool
+    pub show_watermark: bool,
+    pub name: String
 }
 
 impl Settings {
-    pub fn load() -> Settings {
+    pub fn new() -> Settings {
         Settings {
-            show_watermark: true
+            show_watermark: true, name: String::new()
+        }
+    }
+
+    pub fn load() -> Settings {
+        todo!()
+    }
+
+    pub fn set_name(&mut self, name: String) -> bool {
+        if name.len() > 4 || name.len() < 21 {
+            self.name = name;
+            true
+        } else {
+            false
         }
     }
 }

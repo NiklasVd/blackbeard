@@ -24,7 +24,7 @@ impl EntityType {
             0 => EntityType::Ship,
             1 => EntityType::Object,
             2 => EntityType::CannonBall,
-            _ => panic!("Number does not correspond with any entity type")
+            n @ _ => panic!("Index {} does not correspond with any entity type", n)
         }
     }
 }

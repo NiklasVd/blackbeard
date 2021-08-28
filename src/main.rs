@@ -14,6 +14,7 @@ mod scenes {
     pub mod loading_scene;
     pub mod lobby_scene;
     pub mod connection_scene;
+    pub mod login_scene;
 }
 mod player;
 mod util;
@@ -43,6 +44,8 @@ mod net {
     pub mod peer;
     pub mod client;
     pub mod server;
+    pub mod playback_buffer;
+    pub mod net_controller;
 }
 mod err;
 mod diagnostics;
@@ -73,8 +76,8 @@ pub use diagnostics::*;
 use tetra::ContextBuilder;
 use std::io::{Read, stdin};
 
-pub const WINDOW_WIDTH: f32 = 900.0;
-pub const WINDOW_HEIGHT: f32 = 600.0;
+pub const WINDOW_WIDTH: f32 = 1200.0;
+pub const WINDOW_HEIGHT: f32 = 720.0;
 
 pub const PRIMARY_VERSION: u32 = 0;
 pub const SECONDARY_VERSION: u32 = 1;

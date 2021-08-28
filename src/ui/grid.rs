@@ -1,4 +1,4 @@
-use tetra::{Context, Event};
+use tetra::{Context, Event, window::{get_height, get_width}};
 use crate::{Rcc, V2, ui_element::{UIElement}, ui_transform::UITransform, wrap_rcc};
 
 pub type UIRcc = Rcc<dyn UIElement>;
@@ -22,6 +22,13 @@ impl Grid {
             alignment, transform: UITransform::new(ctx, pos, size, V2::one(), padding)?,
             elements: Vec::new()
         })
+    }
+
+    pub fn centered(ctx: &mut Context, alignment: UIAlignment, size: V2, padding: f32)
+        -> tetra::Result<Grid> {
+        let window_centre = V2::new(get_width(ctx) as f32, get_height(ctx) as f32) * 0.5;
+        let adjusted_topleft_pos = window_centre - size * 0.5;
+        Self::new(ctx, alignment, adjusted_topleft_pos, size, padding)
     }
 
     pub fn add_element_at<T: UIElement + 'static>(&mut self, element: T,

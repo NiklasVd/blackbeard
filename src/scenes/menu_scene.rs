@@ -1,5 +1,5 @@
 use tetra::{Context, State, window::quit};
-use crate::{GC, Rcc, V2, button::{Button, DefaultButton}, connection_scene::ConnectionScene, grid::{Grid, UIAlignment}, label::Label, loading_scene::LoadingScene, ui_element::{DefaultUIReactor}};
+use crate::{BbResult, TransformResult, GC, Rcc, V2, button::{Button, DefaultButton}, connection_scene::ConnectionScene, grid::{Grid, UIAlignment}, label::Label, loading_scene::LoadingScene, ui_element::{DefaultUIReactor}};
 use super::scenes::{Scene, SceneType};
 
 pub struct MenuScene {
@@ -40,14 +40,14 @@ impl Scene for MenuScene {
         &mut self.grid
     }
 
-    fn poll(&self, ctx: &mut Context) -> tetra::Result<Option<Box<dyn Scene>>> {
+    fn poll(&self, ctx: &mut Context) -> BbResult<Option<Box<dyn Scene>>> {
         if self.private_game_button.borrow().is_pressed() {
             return Ok(Some(Box::new(
-                LoadingScene::new(ctx, SceneType::World, 5.0, self.game.clone())?)))
+                LoadingScene::new(ctx, SceneType::World, 5.0, self.game.clone()).convert()?)))
         }
         else if self.online_game_button.borrow().is_pressed() {
             return Ok(Some(Box::new(
-                ConnectionScene::new(ctx, self.game.clone())?)))
+                ConnectionScene::new(ctx, self.game.clone()).convert()?)))
         }
         else if self.exit_button.borrow().is_pressed() {
             quit(ctx);

@@ -1,7 +1,7 @@
 use std::{collections::{HashMap}};
 use rapier2d::{data::Index, prelude::ContactEvent};
 use tetra::{Context, Event, State};
-use crate::{CannonBall, Controller, Entity, GC, GameState, ID, Object, PhysicsHandle, Player, Rcc, Ship, V2, grid::{Grid, UIAlignment}, wrap_rcc};
+use crate::{BbResult, CannonBall, Controller, TransformResult, Entity, GC, GameState, ID, Object, PhysicsHandle, Player, Rcc, Ship, V2, grid::{Grid, UIAlignment}, wrap_rcc};
 use super::scenes::{Scene, SceneType};
 
 pub type Entities = HashMap<Index, Rcc<dyn Entity>>;
@@ -14,22 +14,21 @@ pub struct WorldScene {
 }
 
 impl WorldScene {
-    pub fn new(ctx: &mut Context, game: GC) -> tetra::Result<WorldScene> {
+    pub fn new(ctx: &mut Context, game: GC) -> BbResult<WorldScene> {
         let grid = Grid::new(ctx, UIAlignment::Vertical,
-            V2::zero(), V2::one(), 0.0)?;
+            V2::zero(), V2::one(), 0.0).convert()?;
         let mut world_scene = WorldScene {
-            controller: Controller::new(ctx, game.clone())?,
+            controller: Controller::new(ctx, game.clone()).convert()?,
             entities: HashMap::new(),
             grid, game
         };
         
         let local_player = world_scene.build_player_ship(ctx,
-            ID::new("Niklas".to_owned(), 0), V2::zero())?;
+            ID::new("Niklas".to_owned(), 0), V2::zero()).convert()?;
         world_scene.controller.set_local_player(local_player);
         let test_ship = world_scene.build_caravel(ctx, "Antonia".to_owned(),
-            V2::new(0.0, 300.0), false)?;
-        
-        world_scene.build_island_object(ctx, V2::new(1000.0, 800.0), 0.12)?;
+            V2::new(100.0, 300.0), false).convert()?;
+        world_scene.build_island_object(ctx, V2::new(1000.0, 800.0), 0.12).convert()?;
 
         Ok(world_scene)
     }
@@ -152,7 +151,7 @@ impl Scene for WorldScene {
         &mut self.grid
     }
 
-    fn poll(&self, ctx: &mut Context) -> tetra::Result<Option<Box<dyn Scene>>> {
+    fn poll(&self, ctx: &mut Context) -> BbResult<Option<Box<dyn Scene>>> {
         Ok(None)
     }
 

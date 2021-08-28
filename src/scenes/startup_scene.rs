@@ -1,5 +1,5 @@
 use tetra::{Context, State, graphics::{Color, DrawParams, Texture}};
-use crate::{GC, Timer, V2, grid::{Grid, UIAlignment}, menu_scene::MenuScene};
+use crate::{BbError, BbResult, GC, Timer, V2, grid::{Grid, UIAlignment}, login_scene::LoginScene};
 use super::scenes::{Scene, SceneType};
 
 const STARTUP_TIME: f32 = 3.0;
@@ -43,9 +43,10 @@ impl Scene for StartupScene {
         &mut self.grid
     }
 
-    fn poll(&self, ctx: &mut Context) -> tetra::Result<Option<Box<dyn Scene + 'static>>> {
+    fn poll(&self, ctx: &mut Context) -> BbResult<Option<Box<dyn Scene + 'static>>> {
         if self.timer.is_over() {
-            return Ok(Some(Box::new(MenuScene::new(ctx, self.game.clone())?)))
+            return Ok(Some(Box::new(LoginScene::new(ctx, self.game.clone())
+                .or_else(|e| Err(BbError::Tetra(e)))?)))
         }
 
         Ok(None)

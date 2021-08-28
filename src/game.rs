@@ -1,6 +1,6 @@
 use std::{cell::RefCell , rc::Rc};
-use tetra::{Context, State, graphics::{self, Color}};
-use crate::{Assets, Cam, Physics, Settings, World, scenes::scenes::{Scenes}};
+use tetra::{Context, Event, State, graphics::{self, Color}};
+use crate::{Assets, BbResult, Cam, TransformResult, Physics, Settings, World, network::Network, scenes::scenes::{Scenes}};
 
 pub type Rcc<T> = Rc<RefCell<T>>;
 pub type GC = Rcc<GameContainer>;
@@ -9,12 +9,39 @@ pub fn wrap_rcc<T>(obj: T) -> Rcc<T> {
     Rc::new(RefCell::new(obj))
 }
 
+pub trait AppState {
+    fn update_bb(&mut self, ctx: &mut Context) -> BbResult {
+        self.update(ctx).convert()
+    }
+
+    fn draw_bb(&mut self, ctx: &mut Context) -> BbResult {
+        self.draw(ctx).convert()
+    }
+
+    fn event_bb(&mut self, ctx: &mut Context, event: Event) -> BbResult {
+        self.event(ctx, event).convert()
+    }
+
+    fn update(&mut self, ctx: &mut Context) -> tetra::Result {
+        Ok(())
+    }
+
+    fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
+        Ok(())
+    }
+
+    fn event(&mut self, ctx: &mut Context, event: Event) -> tetra::Result {
+        Ok(())
+    }
+}
+
 pub struct GameContainer {
     pub assets: Assets,
     pub physics: Physics,
     pub settings: Settings,
     pub world: World,
-    pub cam: Cam
+    pub cam: Cam,
+    pub network: Option<Network>
 }
 
 pub struct Game {
@@ -24,14 +51,13 @@ pub struct Game {
 
 impl Game {
     pub fn new(ctx: &mut Context) -> tetra::Result<Game> {
-        let settings = Settings::load();
-        let cam = Cam::setup(400.0);
         let gc = wrap_rcc(GameContainer {
             assets: Assets::load(ctx)?,
             physics: Physics::setup(),
-            settings,
+            settings: Settings::new(),
             world: World::new(),
-            cam
+            cam: Cam::setup(400.0),
+            network: None
         });
         
         Ok(Game {
