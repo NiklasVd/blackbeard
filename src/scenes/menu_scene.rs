@@ -43,7 +43,7 @@ impl Scene for MenuScene {
     fn poll(&self, ctx: &mut Context) -> BbResult<Option<Box<dyn Scene>>> {
         if self.private_game_button.borrow().is_pressed() {
             return Ok(Some(Box::new(
-                LoadingScene::new(ctx, SceneType::World, 5.0, self.game.clone()).convert()?)))
+                LoadingScene::new(ctx, SceneType::World, self.game.clone()).convert()?)))
         }
         else if self.online_game_button.borrow().is_pressed() {
             return Ok(Some(Box::new(

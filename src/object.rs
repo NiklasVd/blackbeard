@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use tetra::{Context};
 use crate::{Entity, EntityType, GC, GameState, Sprite, SpriteOrigin, Transform, V2};
 
@@ -66,14 +64,6 @@ impl Entity for Object {
 
     fn get_transform_mut(&mut self) -> &mut Transform {
         &mut self.transform
-    }
-    
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 }
 

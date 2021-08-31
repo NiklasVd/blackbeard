@@ -1,8 +1,6 @@
-use std::any::Any;
-
 use rapier2d::{data::Index, na::Vector2};
 use tetra::{Context, State, graphics::text::Text};
-use crate::{AnimatedSprite, Entity, EntityType, GC, GameState, MASS_FORCE_SCALE, Rcc, Ship, Sprite, SpriteOrigin, Timer, Transform, V2, build_water_splash_sprite, cast_entity, conv_vec, get_angle, get_decal_coll_group, get_empty_coll_group, polar_to_cartesian, world_scene::{Entities, WorldScene}};
+use crate::{AnimatedSprite, Entity, EntityType, GC, GameState, MASS_FORCE_SCALE, Rcc, Ship, Sprite, SpriteOrigin, Timer, Transform, V2, build_water_splash_sprite, conv_vec, get_angle, get_decal_coll_group, get_empty_coll_group, polar_to_cartesian, world::World};
 
 pub const POWER_FORCE_FACTOR: f32 = 25.0 * MASS_FORCE_SCALE;
 pub const POWER_DROP_THRESHOLD: f32 = 5.0 * POWER_FORCE_FACTOR / MASS_FORCE_SCALE;
@@ -50,7 +48,7 @@ impl Cannon {
         })
     }
 
-    pub fn shoot(&mut self, ctx: &mut Context, entities: &mut Entities)
+    pub fn shoot(&mut self, ctx: &mut Context, world: &mut World)
         -> tetra::Result<Option<Rcc<CannonBall>>> {
         if !self.can_shoot() {
             println!("Cannon isn't ready yet. Time to reload: {:.1}",
@@ -60,9 +58,10 @@ impl Cannon {
 
         let curr_translation = self.get_world_translation();
         let facing_dir = polar_to_cartesian(1.0, curr_translation.1);
-        let cannon_ball = WorldScene::build_cannon_ball(CannonBall::new(ctx,
+        let cannon_ball = CannonBall::new(ctx,
             self.dmg, self.ship_index, curr_translation.0 + facing_dir, facing_dir,
-            self.game.clone())?, entities)?;
+            self.game.clone())?;
+        let cannon_ball = world.add_cannon_ball(ctx, cannon_ball);
         // Shoot effect
         self.reload.reset();
         Ok(Some(cannon_ball))
@@ -119,6 +118,7 @@ pub struct CannonBall {
     pub transform: Transform,
     sprite: Sprite,
     miss_effect: Option<AnimatedSprite>,
+    destroy: bool,
     game: GC
 }
 
@@ -139,7 +139,7 @@ impl CannonBall {
 
         Ok(CannonBall {
             dmg, shooter_index, transform, state: CannonBallState::Travelling,
-            sprite, miss_effect: None, game
+            sprite, miss_effect: None, destroy: false, game
         })
     }
 
@@ -154,12 +154,11 @@ impl CannonBall {
         Ok(())
     }
 
-    fn on_hit_ship(&mut self, ctx: &mut Context, ship: &mut Ship, entities: &mut Entities)
+    fn on_hit_ship(&mut self, ctx: &mut Context, ship: Rcc<Ship>, world: &mut World)
         -> tetra::Result {
         self.state = CannonBallState::Hit;
-        WorldScene::remove_entity(ctx, self.get_index(), self.transform.handle,
-            entities, self.game.clone())?;
-        ship.take_cannon_ball_hit(ctx, self.dmg, self.shooter_index, entities)       
+        self.destroy = true;
+        ship.borrow_mut().take_cannon_ball_hit(ctx, self.dmg, self.shooter_index, world)       
     }
 
     fn miss(&mut self, ctx: &mut Context, miss_effect: AnimatedSprite) -> tetra::Result {
@@ -187,11 +186,10 @@ impl CannonBall {
         self.miss(ctx, water_splash_effect)
     }
 
-    fn check_miss_lifetime(&mut self, ctx: &mut Context, entities: &mut Entities) -> tetra::Result {
+    fn check_miss_lifetime(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
         if let Some(miss_effect) = self.miss_effect.as_ref() {
             if miss_effect.is_finished() {
-                WorldScene::remove_entity(ctx, self.get_index(), self.transform.handle,
-                    entities, self.game.clone())?;
+                self.destroy = true;
             }
         }
         Ok(())
@@ -215,42 +213,31 @@ impl Entity for CannonBall {
         &mut self.transform
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
+    fn destroy(&self) -> bool {
+        self.destroy
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
+    fn collide_with_ship(&mut self, ctx: &mut Context, other: Rcc<Ship>,
+        world: &mut World) -> tetra::Result {
+        let entity_ref = other.borrow_mut();
+        if entity_ref.get_index() == self.shooter_index { // Ignore if hitting own ship
+            Ok(())
+        } else {
+            std::mem::drop(entity_ref);
+            self.on_hit_ship(ctx, other, world)
+        }
     }
 
     fn collide_with_entity(&mut self, ctx: &mut Context, other: Rcc<dyn Entity>,
-        entities: &mut Entities) -> tetra::Result {
-        let mut entity_ref = other.borrow_mut();
-        if entity_ref.get_index() == self.shooter_index { // Ignore if hitting own ship
-            return Ok(())
-        }
-
-        let entity_type = entity_ref.get_type();
-        println!("Cannon ball collided with {}.", entity_ref.get_name());
-        match entity_type {
-            EntityType::Ship => {
-                self.on_hit_ship(ctx,
-                    cast_entity(entity_ref.as_any_mut()), entities)
-            },
-            EntityType::Object => {
-                self.on_hit_object(ctx)
-            },
-            EntityType::CannonBall => { // Wtf
-                self.on_hit_object(ctx)
-            }
-        }
+        world: &mut World) -> tetra::Result {
+        self.on_hit_object(ctx)
     }
 }
 
 impl GameState for CannonBall {
-    fn update(&mut self, ctx: &mut Context, entities: &mut Entities) -> tetra::Result {
+    fn update(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
         self.check_trajectory(ctx)?;
-        self.check_miss_lifetime(ctx, entities)
+        self.check_miss_lifetime(ctx, world)
     }
 
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {

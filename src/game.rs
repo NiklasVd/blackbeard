@@ -1,6 +1,6 @@
 use std::{cell::RefCell , rc::Rc};
 use tetra::{Context, Event, State, graphics::{self, Color}};
-use crate::{Assets, BbResult, Cam, TransformResult, Physics, Settings, WorldSettings, network::Network, scenes::scenes::{Scenes}};
+use crate::{Assets, BbResult, Cam, Physics, Settings, TransformResult, WorldSettings, network::Network, scenes::scenes::{SceneType, Scenes}};
 
 pub type Rcc<T> = Rc<RefCell<T>>;
 pub type GC = Rcc<GameContainer>;
@@ -83,8 +83,11 @@ impl State for Game {
             self.container.borrow().cam.instance.as_matrix());
         self.scenes.draw(ctx)?;
         
-        graphics::reset_transform_matrix(ctx);
-        self.scenes.draw_ui(ctx)
+        if self.scenes.curr_scene.get_type() != SceneType::World {
+            graphics::reset_transform_matrix(ctx);
+            self.scenes.draw_ui(ctx)?;
+        }
+        Ok(())
     }
 
     fn event(&mut self, ctx: &mut Context, event: tetra::Event) -> tetra::Result {

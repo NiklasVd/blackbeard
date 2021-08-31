@@ -1,6 +1,7 @@
 use tetra::{Context, Event, State};
-use crate::{BbResult, GC, TransformResult, V2, grid::Grid, startup_scene::StartupScene, ui_element::UIElement};
+use crate::{BbResult, GC, TransformResult, V2, grid::Grid, startup_scene::StartupScene, ui_element::UIElement, world_scene::WorldScene};
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum SceneType {
     Startup,
     Login,
@@ -47,10 +48,10 @@ impl Scenes {
 impl State for Scenes {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
         self.curr_scene.update(ctx)?;
-        self.curr_scene.get_grid_mut().update_element(ctx, V2::zero())?;
         if let Some(next_scene) = self.curr_scene.poll(ctx).convert()? {
             self.load_scene(ctx, next_scene)?;
         }
+        self.curr_scene.get_grid_mut().update_element(ctx, V2::zero())?;
         Ok(())
     }
 

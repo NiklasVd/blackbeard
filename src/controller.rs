@@ -1,6 +1,6 @@
 use std::{collections::HashMap};
 use tetra::{Context, Event, input::{Key, MouseButton}};
-use crate::{GC, GameState, Player, Rcc, Sprite, SpriteOrigin, world_scene::Entities, wrap_rcc};
+use crate::{GC, GameState, Player, Rcc, Sprite, SpriteOrigin, world::World, wrap_rcc};
 
 pub struct Controller {
     pub players: HashMap<u16, Rcc<Player>>,
@@ -40,7 +40,7 @@ impl GameState for Controller {
         Ok(())
     }
 
-    fn event(&mut self, ctx: &mut Context, event: Event, entities: &mut Entities)
+    fn event(&mut self, ctx: &mut Context, event: Event, world: &mut World)
         -> tetra::Result {
         if let Some(local_player) = self.local_player.as_ref() {
             match event {
@@ -52,11 +52,11 @@ impl GameState for Controller {
                 Event::KeyPressed { key } => {
                     match key {
                         Key::Space => local_player.borrow().possessed_ship.borrow_mut()
-                            .shoot_cannons(ctx, entities)?,
+                            .shoot_cannons(ctx, world)?,
                         Key::Q => local_player.borrow().possessed_ship.borrow_mut()
-                            .shoot_cannons_on_side(ctx, crate::CannonSide::Bowside, entities)?,
+                            .shoot_cannons_on_side(ctx, crate::CannonSide::Bowside, world)?,
                         Key::E => local_player.borrow().possessed_ship.borrow_mut()
-                            .shoot_cannons_on_side(ctx, crate::CannonSide::Portside, entities)?,
+                            .shoot_cannons_on_side(ctx, crate::CannonSide::Portside, world)?,
                         _ => ()
                     }
                 },

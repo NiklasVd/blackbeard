@@ -1,9 +1,8 @@
-use std::any::Any;
-
 use rapier2d::data::Index;
 use tetra::{Context, Event};
-use crate::{Rcc, Transform, world_scene::Entities};
+use crate::{Rcc, Ship, Transform, world::World};
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum EntityType {
     Ship = 0,
     Object = 1,
@@ -30,7 +29,7 @@ impl EntityType {
 }
 
 pub trait GameState {
-    fn update(&mut self, ctx: &mut Context, entities: &mut Entities) -> tetra::Result {
+    fn update(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
         Ok(())
     }
 
@@ -38,7 +37,7 @@ pub trait GameState {
         Ok(())
     }
 
-    fn event(&mut self, ctx: &mut Context, event: Event, entities: &mut Entities)
+    fn event(&mut self, ctx: &mut Context, event: Event, world: &mut World)
         -> tetra::Result {
         Ok(())
     }
@@ -49,27 +48,24 @@ pub trait Entity : GameState {
     fn get_name(&self) -> String;
     fn get_transform(&self) -> &Transform;
     fn get_transform_mut(&mut self) -> &mut Transform;
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn as_any(&self) -> &dyn Any;
+    fn destroy(&self) -> bool {
+        false
+    }
 
-    fn collide_with_entity(&mut self, ctx: &mut Context, other: Rcc<dyn Entity>,
-        entities: &mut Entities) -> tetra::Result {
+    fn collide_with_ship(&mut self, ctx: &mut Context, other: Rcc<Ship>,
+        world: &mut World) -> tetra::Result {
         Ok(())
     }
-    fn collide_with_neutral(&mut self, ctx: &mut Context, entities: &mut Entities)
-        -> tetra::Result {
+
+    fn collide_with_entity(&mut self, ctx: &mut Context, other: Rcc<dyn Entity>,
+        world: &mut World) -> tetra::Result {
+        Ok(())
+    }
+    fn collide_with_neutral(&mut self, ctx: &mut Context) -> tetra::Result {
         Ok(())
     }
 
     fn get_index(&self) -> Index {
         self.get_transform().get_index()
-    }
-}
-
-pub fn cast_entity<'a, T: Entity + 'static>(entity_any: &'a mut dyn Any)
-    -> &'a mut T {
-    match entity_any.downcast_mut::<T>() {
-        Some(e) => e,
-        None => panic!("Downcast failed: T does not fit to entity type.")
     }
 }

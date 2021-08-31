@@ -2,6 +2,7 @@ use tetra::{Context, State};
 use crate::{BbResult, GC, Timer, V2, grid::{Grid, UIAlignment}, image::Image, label::Label, rand_u32, world_scene::WorldScene};
 use super::scenes::{Scene, SceneType};
 
+const MIN_LOADING_TIME: f32 = 1.0;
 const LOADING_HINTS: [&str; 5] = [
     "Caravels were developed by the Portugese in the 15th century.",
     "Though the game bears his name, Blackbeard wasn't such a rad dude overall.",
@@ -19,7 +20,7 @@ pub struct LoadingScene {
 }
 
 impl LoadingScene {
-    pub fn new(ctx: &mut Context, next_scene: SceneType, min_load_time: f32, game: GC)
+    pub fn new(ctx: &mut Context, next_scene: SceneType, game: GC)
         -> tetra::Result<LoadingScene> {
         let mut grid = Grid::new(ctx, UIAlignment::Vertical,
             V2::zero(), V2::one() * 200.0, 0.0)?;
@@ -35,7 +36,7 @@ impl LoadingScene {
         grid.add_element(title_grid);
         
         Ok(LoadingScene {
-            next_scene, min_load_timer: Timer::start(min_load_time),
+            next_scene, min_load_timer: Timer::start(MIN_LOADING_TIME),
             grid, image_loaded: false, game
         })
     }

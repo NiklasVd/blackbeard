@@ -1,7 +1,7 @@
-use std::{any::Any, f32::consts::PI};
+use std::{f32::consts::PI};
 use rapier2d::{data::Index};
 use tetra::{Context, State, graphics::{text::Text}, math::Clamp};
-use crate::{Cannon, CannonSide, Entity, EntityType, GC, GameState, MASS_FORCE_SCALE, Object, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, cast_entity, conv_vec, disassemble_iso, get_angle, pi_to_pi2_range, polar_to_cartesian, world_scene::{Entities, WorldScene}};
+use crate::{Cannon, CannonSide, Entity, EntityType, GC, GameState, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, conv_vec, disassemble_iso, get_angle, pi_to_pi2_range, polar_to_cartesian, world::World};
 
 const BASE_STUN_LENGTH: f32 = 2.0;
 const BASE_OBJECT_COLLISION_DAMAGE: u16 = 20;
@@ -10,6 +10,12 @@ const BASE_MOVEMENT_FORCE: f32 = 10.0 * MASS_FORCE_SCALE;
 const BASE_TORQUE_FORCE: f32 = 1000.0 * MASS_FORCE_SCALE;
 const TARGET_POS_DIST_MARGIN: f32 = 75.0;
 const TARGET_ROT_MARGIN: f32 = PI / 45.0;
+
+pub enum ShipType {
+    Caravel,
+    Schooner,
+    Galleon
+}
 
 pub struct ShipAttributes {
     pub health: u16,
@@ -38,6 +44,7 @@ impl ShipAttributes {
 }
 
 pub struct Ship {
+    pub stype: ShipType,
     pub curr_health: u16,
     pub stun: Timer,
     pub name: String,
@@ -48,6 +55,7 @@ pub struct Ship {
     sprite: Sprite,
     label: Text,
     spawn: Option<V2>,
+    destroy: bool,
     game: GC
 }
 
@@ -89,10 +97,10 @@ impl Ship {
         }
 
         Ok(Ship {
-            curr_health: attr.health, name,
+            stype: ShipType::Caravel, curr_health: attr.health, name,
             target_pos: None, attr, cannons,
             transform, stun: Timer::new(stun_length),
-            sprite, label, spawn, game
+            sprite, label, spawn, destroy: false, game
         })
     }
 
@@ -104,8 +112,7 @@ impl Ship {
         self.stun.is_running()
     }
 
-    pub fn take_damage(&mut self, ctx: &mut Context, damage: u16,
-        entities: &mut Entities) -> tetra::Result {
+    pub fn take_damage(&mut self, ctx: &mut Context, damage: u16, world: &mut World) -> tetra::Result {
         if damage <= 0 {
             return Ok(())
         }
@@ -120,15 +127,15 @@ impl Ship {
 
         self.curr_health = self.curr_health.clamped(0, self.attr.health);
         if self.curr_health == 0 {
-            self.sink(ctx, entities)?;
+            self.sink(ctx, world)?;
         }
         Ok(())
     }
 
-    pub fn sink(&mut self, ctx: &mut Context, entities: &mut Entities) -> tetra::Result {
+    pub fn sink(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
         println!("{} has been sunk!", self.get_name());
         let (pos, rot) = self.transform.get_translation();
-        WorldScene::build_ship_wreck_object(ctx, pos, rot, self.game.clone(), entities)?;
+        world.add_ship_wreck(ctx, pos, rot)?;
 
         if let Some(spawn) = self.spawn { // Respawn
             self.reset();
@@ -136,8 +143,7 @@ impl Ship {
         }
         else {
             self.curr_health = 0;
-            WorldScene::remove_entity(ctx, self.get_index(), self.transform.handle,
-                entities, self.game.clone())?;
+            self.destroy = true;
         }
         
         Ok(())
@@ -154,36 +160,9 @@ impl Ship {
         self.curr_health = self.attr.health;
     }
 
-    fn collision_with_ship(&mut self, ctx: &mut Context, other: &mut Ship, entities: &mut Entities)
-        -> tetra::Result {
-        println!("{} collided with {} and dealt {} ram damage!",
-            self.get_name(), other.get_name(), self.attr.ram_damage);
-
-        other.stun();
-        other.take_damage(ctx, self.attr.ram_damage, entities)
-    }
-
-    fn collision_with_object(&mut self, ctx: &mut Context, object: &mut Object,
-        entities: &mut Entities) -> tetra::Result {
-        if self.is_stunned() {
-            return Ok(())
-        }
-
-        let absorption = BASE_OBJECT_COLLISION_DAMAGE *
-            (self.attr.defense / MAX_SHIP_DEFENSE);
-        let damage = BASE_OBJECT_COLLISION_DAMAGE - absorption;
-        if damage == 0 {
-            return Ok(())
-        }
-        println!("{} collided with object {}!", self.get_name(), object.get_name());
-
-        self.stun();
-        self.take_damage(ctx, damage, entities)        
-    }
-
     pub fn take_cannon_ball_hit(&mut self, ctx: &mut Context, dmg: u16,
-        shooter_index: Index, entities: &mut Entities) -> tetra::Result {
-        let shooter_name = match entities.get(&shooter_index) {
+        shooter_index: Index, world: &mut World) -> tetra::Result {
+        let shooter_name = match world.get_ship(shooter_index) {
             Some(shooter) => {
                 shooter.borrow().get_name()
             },
@@ -192,23 +171,23 @@ impl Ship {
 
         println!("{} was hit by {} cannon and took {} damage!",
         self.get_name(), shooter_name, dmg);
-        self.take_damage(ctx, dmg, entities)
+        self.take_damage(ctx, dmg, world)
     }
 
     pub fn shoot_cannons_on_side(&mut self, ctx: &mut Context,
-        side: CannonSide, entities: &mut Entities) -> tetra::Result {
+        side: CannonSide, world: &mut World) -> tetra::Result {
         for cannon in self.cannons.iter_mut() {
             if cannon.side == side {
-                cannon.shoot(ctx, entities)?;
+                cannon.shoot(ctx, world)?;
             }
         }
         Ok(())
     }
 
-    pub fn shoot_cannons(&mut self, ctx: &mut Context, entities: &mut Entities)
+    pub fn shoot_cannons(&mut self, ctx: &mut Context, world: &mut World)
         -> tetra::Result { // Add option to choose cannon side
         for cannon in self.cannons.iter_mut() {
-            cannon.shoot(ctx, entities)?;
+            cannon.shoot(ctx, world)?;
         }
         Ok(())
     }
@@ -281,36 +260,47 @@ impl Entity for Ship {
         &mut self.transform
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
+    fn destroy(&self) -> bool {
+        self.destroy
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
+    fn collide_with_ship(&mut self, ctx: &mut Context, other: Rcc<Ship>, world: &mut World) -> tetra::Result {
+        let mut other_ref = other.borrow_mut();
+        println!("{} collided with {} and dealt {} ram damage!",
+        self.get_name(), other_ref.get_name(), self.attr.ram_damage);
+
+        other_ref.stun();
+        other_ref.take_damage(ctx, self.attr.ram_damage, world)
     }
 
-    fn collide_with_entity(&mut self, ctx: &mut Context, other: Rcc<dyn Entity>,
-        entities: &mut Entities) -> tetra::Result {
-        let mut entity_ref = other.borrow_mut();
-        match entity_ref.get_type() {
-            EntityType::Ship => {
-                self.collision_with_ship(ctx,
-                    cast_entity(entity_ref.as_any_mut()), entities)
-            },
-            EntityType::Object => self.collision_with_object(ctx,
-                cast_entity(entity_ref.as_any_mut()) , entities),
-            EntityType::CannonBall => Ok(()) // Cannon ball does the damage
+    fn collide_with_entity(&mut self, ctx: &mut Context, other: Rcc<dyn Entity>, world: &mut World)
+        -> tetra::Result {
+        let other_ref = other.borrow();
+        if self.is_stunned() ||
+            other_ref.get_type() == EntityType::CannonBall /* Cannon ball does the damage part */ {
+            return Ok(())
         }
+
+        let absorption = BASE_OBJECT_COLLISION_DAMAGE *
+            (self.attr.defense / MAX_SHIP_DEFENSE);
+        let damage = BASE_OBJECT_COLLISION_DAMAGE - absorption;
+        if damage == 0 {
+            return Ok(())
+        }
+        println!("{} collided with object {}!", self.get_name(), other_ref.get_name());
+
+        self.stun();
+        self.take_damage(ctx, damage, world)
     }
 
-    fn collide_with_neutral(&mut self, ctx: &mut Context, entities: &mut Entities)
+    fn collide_with_neutral(&mut self, ctx: &mut Context)
         -> tetra::Result {
         Ok(())
     }
 }
 
 impl GameState for Ship {
-    fn update(&mut self, ctx: &mut Context, entities: &mut Entities) -> tetra::Result {
+    fn update(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
         self.stun.update(ctx);
         for cannon in self.cannons.iter_mut() {
             cannon.update(ctx)?;
