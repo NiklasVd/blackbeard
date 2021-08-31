@@ -1,5 +1,5 @@
-use std::{collections::HashMap, net::SocketAddr};
-use crate::{BbError, BbErrorType, BbResult, packet::{Packet, deserialize_packet, serialize_packet_unsigned}, peer::{Peer, is_auth_client}};
+use std::{collections::HashMap, net::SocketAddr, thread, time::Duration};
+use crate::{BbError, BbErrorType, BbResult, packet::{Packet, deserialize_packet, serialize_packet_unsigned}, peer::{DisconnectReason, Peer, is_auth_client}};
 
 pub struct Client {
     peer: Peer,
@@ -10,9 +10,9 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn connect(port: u16, server_addr: &str, name: String) -> BbResult<Client> {
+    pub fn connect(server_addr: &str, name: String) -> BbResult<Client> {
         let mut client = Client {
-            peer: Peer::setup(port)?, server_addr: server_addr.parse().unwrap(),
+            peer: Peer::setup(None)?, server_addr: server_addr.parse().unwrap(),
             connections: HashMap::new(), connected: false, name: name.to_owned()
         };
         client.send_packet(Packet::Handshake {
@@ -38,6 +38,15 @@ impl Client {
         self.peer.send_raw_packet(serialize_packet_unsigned(packet), self.server_addr)
     }
 
+    pub fn disconnect(&mut self, reason: DisconnectReason) -> BbResult {
+        println!("Disconnecting connection to server. Reason: {:?}", reason);
+        self.send_packet(Packet::PlayerDisconnect {
+            reason
+        })?;
+        thread::sleep(Duration::from_secs_f32(2.0));
+        self.peer.shutdown()
+    }
+
     pub fn poll_received_packets(&mut self) -> BbResult<Option<(Packet, u16)>> {
         match self.peer.poll_received_packets() {
             Ok(Some((packet, sender))) => {
@@ -45,7 +54,7 @@ impl Client {
                     Err(BbError::Bb(BbErrorType::NetInvalidSender(sender)))
                 } else {
                     let (packet, sender) = deserialize_packet(packet.payload().to_vec());
-                    self.process_server_packet(&packet, sender);
+                    self.handle_server_packet(&packet, sender);
                     Ok(Some((packet, sender)))
                 }
             },
@@ -54,7 +63,7 @@ impl Client {
         }
     }
 
-    fn process_server_packet(&mut self, packet: &Packet, sender: u16) {
+    fn handle_server_packet(&mut self, packet: &Packet, sender: u16) {
         match packet {
             Packet::HandshakeReply { players } => {
                 println!("Server accepted connection attempt!");

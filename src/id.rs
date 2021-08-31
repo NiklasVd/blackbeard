@@ -35,6 +35,6 @@ impl Serializable for ID {
 
 impl fmt::Debug for ID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{}^{}", self.name, self.n)
+        write!(f, "{}^{}", self.name, self.n)
     }
 }

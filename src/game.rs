@@ -1,6 +1,6 @@
 use std::{cell::RefCell , rc::Rc};
 use tetra::{Context, Event, State, graphics::{self, Color}};
-use crate::{Assets, BbResult, Cam, TransformResult, Physics, Settings, World, network::Network, scenes::scenes::{Scenes}};
+use crate::{Assets, BbResult, Cam, TransformResult, Physics, Settings, WorldSettings, network::Network, scenes::scenes::{Scenes}};
 
 pub type Rcc<T> = Rc<RefCell<T>>;
 pub type GC = Rcc<GameContainer>;
@@ -39,7 +39,7 @@ pub struct GameContainer {
     pub assets: Assets,
     pub physics: Physics,
     pub settings: Settings,
-    pub world: World,
+    pub world: WorldSettings,
     pub cam: Cam,
     pub network: Option<Network>
 }
@@ -55,7 +55,7 @@ impl Game {
             assets: Assets::load(ctx)?,
             physics: Physics::setup(),
             settings: Settings::new(),
-            world: World::new(),
+            world: WorldSettings::new(),
             cam: Cam::setup(400.0),
             network: None
         });

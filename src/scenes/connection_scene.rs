@@ -1,5 +1,5 @@
 use tetra::{Context, State};
-use crate::{BbResult, TransformResult, GC, Rcc, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment}, label::Label, lobby_scene::LobbyScene, menu_scene::MenuScene, textbox::Textbox, ui_element::{DefaultUIReactor, UIElement, UIState}};
+use crate::{BbResult, GC, Rcc, TransformResult, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment}, label::Label, lobby_scene::LobbyScene, menu_scene::MenuScene, net_settings::NetSettings, textbox::Textbox, ui_element::{DefaultUIReactor, UIElement, UIState}};
 use super::scenes::{Scene, SceneType};
 
 const DEFAULT_HOST_PORT: u16 = 8080;
@@ -77,7 +77,8 @@ impl Scene for ConnectionScene {
             return Ok(Some(Box::new(MenuScene::new(ctx, self.game.clone()).convert()?)))
         }
         if self.create_button.borrow().is_pressed() {
-            return Ok(Some(Box::new(LobbyScene::create(ctx, DEFAULT_HOST_PORT, self.game.clone())?)))
+            return Ok(Some(Box::new(LobbyScene::create(ctx, DEFAULT_HOST_PORT,
+                NetSettings::default(), self.game.clone())?))) // TODO: Add settings customisation UI
         }
         if self.join_button.borrow().is_pressed() {
             return Ok(Some(Box::new(LobbyScene::join(ctx,

@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::{Display, Formatter}, net::SocketAddr};
+use std::{any::Any, error::Error, fmt::{Display, Formatter}, net::SocketAddr};
 use crossbeam_channel::{SendError};
 use laminar::{ErrorKind, Packet};
 use tetra::TetraError;
@@ -51,6 +51,8 @@ impl<T> TransformResult<T, tetra::TetraError> for BbResult<T> {
 pub enum BbErrorType {
     NetTimeout(SocketAddr),
     NetDisconnect(SocketAddr),
+    NetShutdownFailure(Box<dyn Any + Send + 'static>),
+    NetNotConnected,
     NetInvalidSender(SocketAddr),
     InvalidPlayerID(u16)
 }

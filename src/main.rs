@@ -19,7 +19,7 @@ mod scenes {
 mod player;
 mod util;
 mod settings;
-mod world;
+mod world_settings;
 mod cam;
 mod object;
 mod transform;
@@ -46,9 +46,11 @@ mod net {
     pub mod server;
     pub mod playback_buffer;
     pub mod net_controller;
+    pub mod net_settings;
 }
 mod err;
 mod diagnostics;
+mod world;
 
 pub use game::*;
 pub use ship::*;
@@ -60,7 +62,7 @@ pub use scenes::*;
 pub use player::*;
 pub use util::*;
 pub use settings::*;
-pub use world::*;
+pub use world_settings::*;
 pub use cam::*;
 pub use object::*;
 pub use transform::*;
@@ -76,8 +78,8 @@ pub use diagnostics::*;
 use tetra::ContextBuilder;
 use std::io::{Read, stdin};
 
-pub const WINDOW_WIDTH: f32 = 1200.0;
-pub const WINDOW_HEIGHT: f32 = 720.0;
+pub const WINDOW_WIDTH: f32 = 1050.0;
+pub const WINDOW_HEIGHT: f32 = 700.0;
 
 pub const PRIMARY_VERSION: u32 = 0;
 pub const SECONDARY_VERSION: u32 = 1;

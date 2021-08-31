@@ -1,8 +1,9 @@
-use std::{collections::HashMap, net::SocketAddr};
-use crate::{BbError, BbErrorType, BbResult, ID, packet::{Packet, deserialize_packet_unsigned, serialize_packet}, peer::{DisconnectReason, Peer}};
+use std::{collections::HashMap, net::SocketAddr, thread, time::Duration};
+use crate::{BbError, BbErrorType, BbResult, ID, net_settings::NetSettings, packet::{Packet, deserialize_packet_unsigned, serialize_packet}, peer::{DisconnectReason, Peer}};
 
 // Auth Client: First player to connect to the server
 pub struct Server {
+    settings: NetSettings,
     peer: Peer,
     connections: HashMap<u16, (ID, SocketAddr)>,
     curr_id: u16,
@@ -10,10 +11,11 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn host(port: u16) -> BbResult<Server> {
+    pub fn host(port: u16, settings: NetSettings) -> BbResult<Server> {
         println!("Hosting server at {}.", port);
         Ok(Server {
-            peer: Peer::setup(port)?, connections: HashMap::new(), curr_id: 0, accept_connections: true
+            settings, peer: Peer::setup(Some(port))?, connections: HashMap::new(),
+            curr_id: 0, accept_connections: true
         })
     }
 
@@ -53,32 +55,24 @@ impl Server {
         })
     }
 
+    pub fn shutdown(&mut self) -> BbResult {
+        self.send_multicast(Packet::PlayerDisconnect {
+            reason: DisconnectReason::HostShutdown
+        }, 0)?;
+        thread::sleep(Duration::from_secs_f32(2.0));
+        self.peer.shutdown()
+    }
+
     pub fn poll_received_packets(&mut self) -> BbResult {
         match self.peer.poll_received_packets() {
             Ok(Some((packet, sender_addr))) => {
                 let packet = deserialize_packet_unsigned(packet.payload().to_vec());
-                if let Some((id, ..)) = self.connections.values().find(|conn| conn.1 == sender_addr) {
-                    println!("Server: {:?} sent {:?}", id, &packet);
-                    let id = id.n;
-                    match &packet {
-                        Packet::PlayerDisconnect { reason } => self.on_receive_disconnect(id, *reason)?,
-                        _ => ()
-                    }
-                    self.send_multicast(packet, id)?; // Echo packet back to all players
-                    Ok(())
+                if let Some(id) = self.get_connection_by_addr(sender_addr) {
+                    let id = id.clone();
+                    self.handle_internal_packet(packet, id)
                 }
                 else {
-                    match &packet {
-                        Packet::Handshake { name } => {
-                            if !self.accept_connections {
-                                println!("Blocked connection attempt by '{}'. Reason: New connections disallowed.", name)
-                            } else {
-                                self.on_receive_handshake(name.clone(), sender_addr)?;
-                            }
-                            Ok(())
-                        },
-                        _ => Err(BbError::Bb(BbErrorType::NetInvalidSender(sender_addr)))
-                    }
+                    self.handle_external_packet(packet, sender_addr)
                 }
             },
             Ok(None) => Ok(()),
@@ -92,6 +86,34 @@ impl Server {
                 }
             },
             Err(e) => Err(e)
+        }
+    }
+
+    fn handle_internal_packet(&mut self, packet: Packet, sender: ID) -> BbResult {
+        println!("Received packet {:?} from {:?}", &packet, sender);
+        match &packet {
+            Packet::PlayerDisconnect { reason } => self.on_receive_disconnect(sender.n, *reason)?,
+            Packet::Input { .. } => return Ok(()), // Handled by higher-level netcode,
+            _ => ()
+        }
+        self.send_multicast(packet, sender.n)
+    }
+
+    fn handle_external_packet(&mut self, packet: Packet, sender_addr: SocketAddr) -> BbResult {
+        match &packet {
+            Packet::Handshake { name } => {
+                if !self.accept_connections {
+                    println!("Blocked connection attempt by {} ({}). Reason: New connections disallowed.",
+                        name, sender_addr)
+                } else if self.connections.len() >= self.settings.max_players {
+                    println!("Blocked connection attempt by {} ({}). Reason: Server is full.",
+                        name, sender_addr)
+                } else {
+                    self.on_receive_handshake(name.clone(), sender_addr)?;
+                }
+                Ok(())
+            },
+            _ => Err(BbError::Bb(BbErrorType::NetInvalidSender(sender_addr)))
         }
     }
 
@@ -121,7 +143,7 @@ impl Server {
     fn on_receive_disconnect(&mut self, sender: u16, reason: DisconnectReason) -> BbResult {
         if let Some(conn) = self.connections.remove(&sender) {
             println!("{:?} disconnected. Reason: {:?}", conn.0, reason);
-            self.send_multicast(Packet::PlayerDisconnect { reason }, sender)
+            Ok(())
         } else {
             Err(BbError::Bb(BbErrorType::InvalidPlayerID(sender)))
         }

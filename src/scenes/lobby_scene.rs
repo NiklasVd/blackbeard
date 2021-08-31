@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use tetra::{Context, State};
-use crate::{BbError, BbErrorType, BbResult, GC, Rcc, TransformResult, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment}, label::Label, net_controller::NetController, network::Network, packet::Packet, peer::DisconnectReason, ui_element::DefaultUIReactor};
+use crate::{BbError, BbErrorType, BbResult, GC, Rcc, TransformResult, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment}, label::Label, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::Packet, peer::DisconnectReason, ui_element::DefaultUIReactor};
 use super::scenes::{Scene, SceneType};
 
 pub struct LobbyScene {
@@ -10,15 +10,16 @@ pub struct LobbyScene {
     disconnect_button: Rcc<DefaultButton>,
     player_list_grid: Rcc<Grid>,
     player_index: HashMap<u16, usize>,
+    disconnected: bool,
     game: GC
 }
 
 impl LobbyScene {
-    pub fn create(ctx: &mut Context, port: u16, game: GC) -> BbResult<LobbyScene> {
+    pub fn create(ctx: &mut Context, port: u16, settings: NetSettings, game: GC) -> BbResult<LobbyScene> {
         {
             let mut game_ref = game.borrow_mut();
             let name = game_ref.settings.name.to_owned();
-            game_ref.network = Some(Network::create(port, name)?);
+            game_ref.network = Some(Network::create(port, name, settings)?);
         }
         Self::new(ctx, game)
     }
@@ -28,7 +29,7 @@ impl LobbyScene {
         {
             let mut game_ref = game.borrow_mut();
             let name = game_ref.settings.name.to_owned();
-            game_ref.network = Some(Network::join(8082, endpoint, name)?);
+            game_ref.network = Some(Network::join(endpoint, name)?);
         }
         Self::new(ctx, game)
     }
@@ -48,7 +49,8 @@ impl LobbyScene {
             V2::zero(), V2::one() * 300.0, 5.0).convert()?);
         
         Ok(LobbyScene {
-            grid, start_game_button, disconnect_button, player_list_grid, player_index: HashMap::new(), game
+            grid, start_game_button, disconnect_button, player_list_grid, player_index: HashMap::new(),
+            disconnected: false, game
         })
     }
 }
@@ -67,7 +69,15 @@ impl Scene for LobbyScene {
     }
 
     fn poll(&self, ctx: &mut Context) -> BbResult<Option<Box<dyn Scene + 'static>>> {
-        Ok(None)
+        if self.disconnect_button.borrow().is_pressed() {
+            self.game.borrow_mut().network.as_mut().unwrap().disconnect(DisconnectReason::Manual)?;
+            Ok(Some(Box::new(MenuScene::new(ctx, self.game.clone()).convert()?)))
+        } else if self.disconnected {
+            Ok(Some(Box::new(MenuScene::new(ctx, self.game.clone()).convert()?)))
+        } else {
+            Ok(None)
+        }
+        
     }
 }
 
@@ -91,12 +101,23 @@ impl NetController for LobbyScene {
         for (id, name) in players.into_iter() {
             self.on_player_connect(ctx, name, id)?;
         }
+        self.grid.remove_element_at(0);
+        Ok(())
+    }
+
+    fn on_connection_lost(&mut self, ctx: &mut Context, reason: DisconnectReason) -> BbResult {
+        self.disconnected = true;
+        println!("Host shut down server. Returning to menu...");
         Ok(())
     }
 
     fn on_player_connect(&mut self, ctx: &mut Context, name: String, id: u16) -> BbResult {
         let mut player_list_grid_ref = self.player_list_grid.borrow_mut();
         self.player_index.insert(id, player_list_grid_ref.elements.len());
+        let name = match id {
+            0 => format!("{}^0 (Host)", name),
+            _ => format!("{}^{}", name, id)
+        };
         player_list_grid_ref.add_element(
             Label::new(ctx, name.as_str(), false, 2.0, self.game.clone()).convert()?);
         Ok(())
