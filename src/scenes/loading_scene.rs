@@ -1,5 +1,5 @@
 use tetra::{Context, State};
-use crate::{BbResult, GC, Timer, V2, grid::{Grid, UIAlignment}, image::Image, label::Label, rand_u32, world_scene::WorldScene};
+use crate::{BbResult, GC, ID, ShipType, Timer, V2, grid::{Grid, UIAlignment}, image::Image, label::Label, rand_u32, world_scene::WorldScene};
 use super::scenes::{Scene, SceneType};
 
 const MIN_LOADING_TIME: f32 = 1.0;
@@ -12,7 +12,7 @@ const LOADING_HINTS: [&str; 5] = [
 ];
 
 pub struct LoadingScene {
-    pub next_scene: SceneType,
+    players: Vec<(ID, ShipType)>,
     min_load_timer: Timer,
     grid: Grid,
     image_loaded: bool,
@@ -20,7 +20,7 @@ pub struct LoadingScene {
 }
 
 impl LoadingScene {
-    pub fn new(ctx: &mut Context, next_scene: SceneType, game: GC)
+    pub fn new(ctx: &mut Context, players: Vec<(ID, ShipType)>, game: GC)
         -> tetra::Result<LoadingScene> {
         let mut grid = Grid::new(ctx, UIAlignment::Vertical,
             V2::zero(), V2::one() * 200.0, 0.0)?;
@@ -36,7 +36,7 @@ impl LoadingScene {
         grid.add_element(title_grid);
         
         Ok(LoadingScene {
-            next_scene, min_load_timer: Timer::start(MIN_LOADING_TIME),
+            players, min_load_timer: Timer::start(MIN_LOADING_TIME),
             grid, image_loaded: false, game
         })
     }
@@ -66,14 +66,11 @@ impl Scene for LoadingScene {
     }
 
     fn poll(&self, ctx: &mut Context) -> BbResult<Option<Box<dyn Scene + 'static>>> {
-        if self.min_load_timer.is_over() {
-            return Ok(match self.next_scene {
-                SceneType::World => Some(Box::new(
-                    WorldScene::new(ctx, self.game.clone())?)),
-                _ => None
-            })
-        }
-        Ok(None)
+        Ok(if self.min_load_timer.is_over() {
+            Some(Box::new(WorldScene::new(ctx, self.players.clone(), self.game.clone())?))
+        } else {
+            None
+        })
     }
 }
 

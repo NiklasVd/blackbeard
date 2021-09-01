@@ -1,6 +1,6 @@
 use std::{net::SocketAddr, sync::{Arc, atomic::{AtomicBool, Ordering}}, thread::{self, JoinHandle}, time::{Duration, Instant}};
 use binary_stream::{BinaryStream, Serializable};
-use crossbeam_channel::{Receiver, Sender, TryRecvError};
+use crossbeam_channel::{Receiver, Sender};
 use laminar::{Config, Packet as LaminarPacket, Socket, SocketEvent};
 use crate::{BbError, BbErrorType, BbResult};
 

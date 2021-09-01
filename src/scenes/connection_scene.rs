@@ -43,20 +43,20 @@ impl ConnectionScene {
         })
     }
 
-    fn check_buttons(&mut self) {
-        if !self.disconnected {
-            return
-        }
+    // fn check_buttons(&mut self) {
+    //     if !self.disconnected {
+    //         return
+    //     }
 
-        let mut create_button_ref = self.create_button.borrow_mut();
-        let mut join_button_ref = self.join_button.borrow_mut();
-        if create_button_ref.reactor.state == UIState::Focus
-            || join_button_ref.reactor.state == UIState::Focus {
-            create_button_ref.set_disabled(true);
-            join_button_ref.set_disabled(true);
-            self.disconnected = false;
-        }
-    }
+    //     let mut create_button_ref = self.create_button.borrow_mut();
+    //     let mut join_button_ref = self.join_button.borrow_mut();
+    //     if create_button_ref.reactor.state == UIState::Focus
+    //         || join_button_ref.reactor.state == UIState::Focus {
+    //         create_button_ref.set_disabled(true);
+    //         join_button_ref.set_disabled(true);
+    //         self.disconnected = false;
+    //     }
+    // }
 }
 
 impl Scene for ConnectionScene {
@@ -91,7 +91,7 @@ impl Scene for ConnectionScene {
 
 impl State for ConnectionScene {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
-        self.check_buttons();
+        // self.check_buttons();
         Ok(())
     }
 }

@@ -11,6 +11,7 @@ const BASE_TORQUE_FORCE: f32 = 1000.0 * MASS_FORCE_SCALE;
 const TARGET_POS_DIST_MARGIN: f32 = 75.0;
 const TARGET_ROT_MARGIN: f32 = PI / 45.0;
 
+#[derive(Debug, Clone, Copy)]
 pub enum ShipType {
     Caravel,
     Schooner,

@@ -1,5 +1,5 @@
 use tetra::{Context, Event, State};
-use crate::{BbResult, Controller, GC, GameState, ID, Player, Rcc, ShipType, TransformResult, V2, grid::{Grid, UIAlignment}, label::Label, world::World};
+use crate::{BbResult, Controller, GC, GameState, ID, Player, Rcc, ShipType, TransformResult, V2, grid::{Grid, UIAlignment}, label::Label, net_controller::NetController, packet::{InputState, Packet}, world::World};
 use super::scenes::{Scene, SceneType};
 
 pub struct WorldScene {
@@ -10,20 +10,35 @@ pub struct WorldScene {
 }
 
 impl WorldScene {
-    pub fn new(ctx: &mut Context, game: GC) -> BbResult<WorldScene> {
+    pub fn new(ctx: &mut Context, players: Vec<(ID, ShipType)>, game: GC) -> BbResult<WorldScene> {
         let mut grid = Grid::new(ctx, UIAlignment::Vertical,
             V2::zero(), V2::one() * 200.0, 0.0).convert()?;
         grid.add_element(Label::new(ctx, "Pre-Alpha WIP", false, 2.0, game.clone()).convert()?);
         let mut world_scene = WorldScene {
             controller: Controller::new(ctx, game.clone()).convert()?,
             world: World::new(ctx, game.clone()),
-            grid, game
+            grid, game: game.clone()
         };
         
-        let player = world_scene.add_player(ctx, ID::new("Francis Drake".to_owned(), 0), ShipType::Caravel)?;
-        world_scene.controller.set_local_player(player);
-        world_scene.add_player(ctx, ID::new("Jack Sparrow".to_owned(), 1), ShipType::Caravel)?;
+        let local_id = {
+            if let Some(network) = game.borrow().network.as_ref() {
+                network.client.get_local_id()
+            } else {
+                None
+            }
+        };
+        for (id, ship_type) in players.into_iter() {
+            let player = world_scene.add_player(ctx, id.clone(), ship_type)?;
+            if let Some(local_id) = local_id.as_ref() {
+                if &id != local_id {
+                    continue
+                }
+            }
+            world_scene.controller.set_local_player(player);
+        }
         world_scene.world.add_island(ctx, V2::new(800.0, 500.0), 0.1).convert()?;
+        world_scene.world.add_island(ctx, V2::new(150.0, 1000.0), 4.0).convert()?;
+
         Ok(world_scene)
     }
 
@@ -65,5 +80,15 @@ impl State for WorldScene {
         -> tetra::Result {
         self.controller.event(ctx, event.clone(), &mut self.world)?;
         self.world.draw(ctx)
+    }
+}
+
+impl NetController for WorldScene {
+    fn poll_received_packets(&mut self) -> BbResult<Option<(Packet, u16)>> {
+        self.game.borrow_mut().network.as_mut().unwrap().poll_received_packets()
+    }
+
+    fn on_input_state(&mut self, ctx: &mut Context, state: InputState, sender: u16) -> BbResult {
+        Ok(())
     }
 }

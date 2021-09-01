@@ -1,5 +1,5 @@
 use tetra::Context;
-use crate::{BbResult, packet::{InputState, Packet}, peer::{DisconnectReason, is_auth_client}};
+use crate::{BbResult, ID, packet::{InputState, Packet}, peer::{DisconnectReason, is_auth_client}};
 
 pub trait NetController {
     fn poll_received_packets(&mut self) -> BbResult<Option<(Packet, u16)>>;
@@ -8,7 +8,7 @@ pub trait NetController {
             Ok(Some((packet, sender))) => {
                 match packet {
                     Packet::HandshakeReply { .. } => self.on_establish_connection(ctx),
-                    Packet::PlayerConnect { name } => self.on_player_connect(ctx, name, sender),
+                    Packet::PlayerConnect { name } => self.on_player_connect(ctx, ID::new(name, sender)),
                     Packet::PlayerDisconnect { reason } => {
                         if is_auth_client(sender) {
                             self.on_connection_lost(ctx, DisconnectReason::HostShutdown)
@@ -17,7 +17,7 @@ pub trait NetController {
                         }
                     },
                     Packet::ChatMessage { message } => self.on_chat_message(ctx, message, sender),
-                    Packet::Input { state } => self.on_input_state(ctx, state),
+                    Packet::Input { state } => self.on_input_state(ctx, state, sender),
                     _ => Ok(())
                 }
             },
@@ -33,7 +33,7 @@ pub trait NetController {
         Ok(())
     }
 
-    fn on_player_connect(&mut self, ctx: &mut Context, name: String, id: u16) -> BbResult {
+    fn on_player_connect(&mut self, ctx: &mut Context, id: ID) -> BbResult {
         Ok(())
     }
     fn on_player_disconnect(&mut self, ctx: &mut Context, id: u16, reason: DisconnectReason) -> BbResult {
@@ -42,7 +42,7 @@ pub trait NetController {
     fn on_chat_message(&mut self, ctx: &mut Context, text: String, sender: u16) -> BbResult {
         Ok(())
     }
-    fn on_input_state(&mut self, ctx: &mut Context, state: InputState) -> BbResult {
+    fn on_input_state(&mut self, ctx: &mut Context, state: InputState, sender: u16) -> BbResult {
         Ok(())
     }
 }

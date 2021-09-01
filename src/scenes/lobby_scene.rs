@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use tetra::{Context, State};
-use crate::{BbError, BbErrorType, BbResult, GC, Rcc, TransformResult, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment}, label::Label, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::Packet, peer::DisconnectReason, ui_element::DefaultUIReactor};
+use crate::{BbError, BbErrorType, BbResult, GC, ID, Rcc, ShipType, TransformResult, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment}, label::Label, loading_scene::LoadingScene, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::Packet, peer::DisconnectReason, ui_element::DefaultUIReactor};
 use super::scenes::{Scene, SceneType};
 
 pub struct LobbyScene {
@@ -69,15 +69,18 @@ impl Scene for LobbyScene {
     }
 
     fn poll(&self, ctx: &mut Context) -> BbResult<Option<Box<dyn Scene + 'static>>> {
-        if self.disconnect_button.borrow().is_pressed() {
+        Ok(if self.start_game_button.borrow().is_pressed() {
+            let players = self.game.borrow_mut().network.as_ref().unwrap().client.get_connections()
+                        .into_iter().map(|id| (id.clone(), ShipType::Caravel)).collect::<Vec<_>>();
+            Some(Box::new(LoadingScene::new(ctx, players, self.game.clone()).convert()?))
+        } else if self.disconnect_button.borrow().is_pressed() {
             self.game.borrow_mut().network.as_mut().unwrap().disconnect(DisconnectReason::Manual)?;
-            Ok(Some(Box::new(MenuScene::new(ctx, self.game.clone()).convert()?)))
+            Some(Box::new(MenuScene::new(ctx, self.game.clone()).convert()?))
         } else if self.disconnected {
-            Ok(Some(Box::new(MenuScene::new(ctx, self.game.clone()).convert()?)))
+            Some(Box::new(MenuScene::new(ctx, self.game.clone()).convert()?))
         } else {
-            Ok(None)
-        }
-        
+            None
+        })
     }
 }
 
@@ -96,10 +99,9 @@ impl NetController for LobbyScene {
         let players = {
             let game_ref = self.game.borrow();
             game_ref.network.as_ref().unwrap().client.get_connections()
-                .map(|(id, name)| (*id, name.to_owned())).collect::<Vec<(u16, String)>>()
         };
-        for (id, name) in players.into_iter() {
-            self.on_player_connect(ctx, name, id)?;
+        for id in players.into_iter() {
+            self.on_player_connect(ctx, id)?;
         }
         self.grid.remove_element_at(0);
         Ok(())
@@ -111,13 +113,16 @@ impl NetController for LobbyScene {
         Ok(())
     }
 
-    fn on_player_connect(&mut self, ctx: &mut Context, name: String, id: u16) -> BbResult {
+    fn on_player_connect(&mut self, ctx: &mut Context, id: ID) -> BbResult {
         let mut player_list_grid_ref = self.player_list_grid.borrow_mut();
-        self.player_index.insert(id, player_list_grid_ref.elements.len());
-        let name = match id {
-            0 => format!("{}^0 (Host)", name),
-            _ => format!("{}^{}", name, id)
-        };
+        self.player_index.insert(id.n, player_list_grid_ref.elements.len());
+        let name = format!("{:?} {}", &id, {
+            if id.n == 0 {
+                "(Host)"
+            } else {
+                ""
+            }
+        });
         player_list_grid_ref.add_element(
             Label::new(ctx, name.as_str(), false, 2.0, self.game.clone()).convert()?);
         Ok(())
@@ -136,7 +141,8 @@ impl NetController for LobbyScene {
         let sender_name = {
             let game_ref = self.game.as_ref().borrow();
             game_ref.network.as_ref().unwrap().client.get_connection(sender)
-                .unwrap_or(&format!("Unknown player (ID: {})", sender)).to_owned()
+                .map(|id| id.name.clone())
+                .unwrap_or(format!("Unknown player (ID: {})", sender))
         };
         println!("{} in chat: {}", sender_name, text);
         Ok(())

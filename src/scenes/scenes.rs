@@ -57,7 +57,7 @@ impl State for Scenes {
 
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
         self.curr_scene.draw(ctx)
-        // UI is a special case, due to exclusion from camera matrix
+        // UI is a special case, due to exclusion from camera matrix manipulation
     }
 
     fn event(&mut self, ctx: &mut Context, event: Event) -> tetra::Result {
