@@ -1,7 +1,8 @@
 use std::f32::consts::PI;
 use binary_stream::BinaryStream;
+use nalgebra::{ComplexField, RealField};
 use rand::Rng;
-use rapier2d::{math::{Isometry, Real, Vector}, na::Point2};
+use rapier2d::{math::{Isometry, Real, Vector}, na::{Point2}};
 use tetra::{Context, time::get_delta_time};
 use crate::V2;
 
@@ -39,17 +40,18 @@ pub fn pi_to_pi2_range(rads: f32) -> f32 {
 }
 
 pub fn get_angle(dir: V2) -> f32 {
-    (dir.y).atan2(dir.x)
+    // Non-deterministic version: (dir.y).atan2(dir.x)
+    RealField::atan2(dir.y, dir.x)
 }
 
 pub fn cartesian_to_polar(cartesian_coord: V2) -> (f32, f32) {
     let angle = get_angle(cartesian_coord);
-    let dist = (cartesian_coord.x.powi(2) + cartesian_coord.y.powi(2)).sqrt();
+    let dist = ComplexField::sqrt(cartesian_coord.x.powi(2) + cartesian_coord.y.powi(2));
     (dist, angle)
 }
 
 pub fn polar_to_cartesian(dist: f32, angle: f32) -> V2 {
-    V2::new(dist * angle.cos(), dist * angle.sin())
+    V2::new(dist * ComplexField::cos(angle), dist * ComplexField::sin(angle))
 }
 
 pub fn rand_u32(min: u32, max: u32) -> u32 {

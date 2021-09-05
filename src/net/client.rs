@@ -1,5 +1,5 @@
 use std::{collections::HashMap, net::SocketAddr, thread, time::Duration};
-use crate::{BbError, BbErrorType, BbResult, ID, packet::{Packet, deserialize_packet, serialize_packet_unsigned}, peer::{DisconnectReason, Peer, is_auth_client}};
+use crate::{BbResult, ID, packet::{Packet, deserialize_packet, serialize_packet_unsigned}, peer::{DisconnectReason, Peer, is_auth_client}};
 
 pub struct Client {
     peer: Peer,
@@ -56,7 +56,8 @@ impl Client {
         match self.peer.poll_received_packets() {
             Ok(Some((packet, sender))) => {
                 if sender != self.server_addr {
-                    Err(BbError::Bb(BbErrorType::NetInvalidSender(sender)))
+                    println!("Received packet {:?} from unknown endpoint: {}. Dropping...", packet, sender);
+                    Ok(None)
                 } else {
                     let (packet, sender) = deserialize_packet(packet.payload().to_vec());
                     self.handle_server_packet(&packet, sender);

@@ -1,5 +1,5 @@
 use tetra::{Context, Event, State};
-use crate::{BbResult, GC, TransformResult, V2, grid::Grid, startup_scene::StartupScene, ui_element::UIElement, world_scene::WorldScene};
+use crate::{BbResult, GC, TransformResult, V2, grid::Grid, startup_scene::StartupScene, ui_element::UIElement};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum SceneType {

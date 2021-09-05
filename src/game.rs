@@ -73,6 +73,9 @@ impl State for Game {
             let mut game_ref = self.container.borrow_mut();
             game_ref.cam.update(ctx)?;
             game_ref.physics.update(ctx)?;
+            if let Some(network) = game_ref.network.as_mut() {
+                network.update(ctx)?;
+            }
         }
         self.scenes.update(ctx)
     }

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use tetra::{Context, State};
-use crate::{BbError, BbErrorType, BbResult, GC, ID, Rcc, ShipType, TransformResult, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment}, label::Label, loading_scene::LoadingScene, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::Packet, peer::DisconnectReason, ui_element::DefaultUIReactor};
+use crate::{BbError, BbErrorType, BbResult, GC, ID, Rcc, ShipType, TransformResult, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment}, label::Label, loading_scene::LoadingScene, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::{GamePhase, Packet}, peer::DisconnectReason, ui_element::{DefaultUIReactor, UIElement}};
 use super::scenes::{Scene, SceneType};
 
 pub struct LobbyScene {
@@ -10,6 +10,7 @@ pub struct LobbyScene {
     disconnect_button: Rcc<DefaultButton>,
     player_list_grid: Rcc<Grid>,
     player_index: HashMap<u16, usize>,
+    player_world_params: Vec<(ID, ShipType)>,
     disconnected: bool,
     game: GC
 }
@@ -39,19 +40,27 @@ impl LobbyScene {
             V2::one() * 500.0, 5.0).convert()?;
         grid.add_element(Label::new(ctx, "Setting up network...", false,
             5.0, game.clone()).convert()?);
-        let start_game_button = grid.add_element(Button::new(ctx, "Start Game",
-            V2::new(90.0, 30.0), 5.0, DefaultUIReactor::new(), game.clone()).convert()?);
+
+        let mut start_game_button = Button::new(ctx, "Start Game",
+            V2::new(90.0, 30.0), 5.0, DefaultUIReactor::new(), game.clone()).convert()?;
+        if !game.borrow().network.as_ref().unwrap().has_authority() {
+            start_game_button.set_disabled(true);
+        }
+        let start_game_button = grid.add_element(start_game_button);
+
         let disconnect_button = grid.add_element(Button::new(ctx, "Disconnect", 
             V2::new(85.0, 30.0), 5.0, DefaultUIReactor::new(), game.clone()).convert()?);
-        
         grid.add_element(Label::new(ctx, "Connected Players", true, 5.0, game.clone()).convert()?);
         let player_list_grid = grid.add_element(Grid::new(ctx, UIAlignment::Vertical,
             V2::zero(), V2::one() * 300.0, 5.0).convert()?);
         
         Ok(LobbyScene {
             grid, start_game_button, disconnect_button, player_list_grid, player_index: HashMap::new(),
-            disconnected: false, game
+            player_world_params: Vec::new(), disconnected: false, game
         })
+    }
+
+    fn start_game(&mut self) {
     }
 }
 
@@ -69,10 +78,9 @@ impl Scene for LobbyScene {
     }
 
     fn poll(&self, ctx: &mut Context) -> BbResult<Option<Box<dyn Scene + 'static>>> {
-        Ok(if self.start_game_button.borrow().is_pressed() {
-            let players = self.game.borrow_mut().network.as_ref().unwrap().client.get_connections()
-                        .into_iter().map(|id| (id.clone(), ShipType::Caravel)).collect::<Vec<_>>();
-            Some(Box::new(LoadingScene::new(ctx, players, self.game.clone()).convert()?))
+        Ok(if self.player_world_params.len() > 0 {
+            Some(Box::new(LoadingScene::new(ctx, self.player_world_params.clone(),
+                self.game.clone()).convert()?))
         } else if self.disconnect_button.borrow().is_pressed() {
             self.game.borrow_mut().network.as_mut().unwrap().disconnect(DisconnectReason::Manual)?;
             Some(Box::new(MenuScene::new(ctx, self.game.clone()).convert()?))
@@ -86,12 +94,20 @@ impl Scene for LobbyScene {
 
 impl State for LobbyScene {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
+        {
+            let mut start_game_button_ref = self.start_game_button.borrow_mut();
+            if start_game_button_ref.is_pressed() && self.game.borrow().network.as_ref().unwrap()
+                .has_authority() && self.player_world_params.len() == 0 {
+                self.game.borrow_mut().network.as_mut().unwrap().set_game_phase(GamePhase::World).convert()?;
+                start_game_button_ref.set_disabled(true);
+            }
+        }
         self.handle_received_packets(ctx).convert()
     }
 }
 
 impl NetController for LobbyScene {
-    fn poll_received_packets(&mut self) -> BbResult<Option<(Packet, u16)>> {
+    fn poll_received_packets(&mut self, ctx: &mut Context) -> BbResult<Option<(Packet, u16)>> {
         self.game.borrow_mut().network.as_mut().unwrap().poll_received_packets()
     }
 
@@ -145,6 +161,15 @@ impl NetController for LobbyScene {
                 .unwrap_or(format!("Unknown player (ID: {})", sender))
         };
         println!("{} in chat: {}", sender_name, text);
+        Ok(())
+    }
+
+    fn on_game_phase_changed(&mut self, ctx: &mut Context, phase: GamePhase) -> BbResult {
+        self.player_world_params = self.game.borrow_mut().network.as_ref().unwrap()
+            .client.get_connections()
+            .into_iter()
+            .map(|id| (id.clone(), ShipType::Caravel))
+            .collect::<Vec<_>>();
         Ok(())
     }
 }

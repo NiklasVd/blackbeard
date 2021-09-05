@@ -15,13 +15,20 @@ pub struct Object {
     pub transform: Transform,
     pub obj_type: ObjectType,
     sprite: Sprite,
+    destroy: bool,
     game: GC
 }
 
 impl Object {
-    pub fn build_island(ctx: &mut Context, game: GC, pos: V2, rot: f32)
+    pub fn build_island(ctx: &mut Context, game: GC, pos: V2, rot: f32, island_type: u32)
         -> tetra::Result<Object> {
-        Self::build_object(ctx, ObjectType::Island, game, "Island 1.png".to_owned(),
+        let island_tex = match island_type {
+            1 => "Island 1.png",
+            2 => "Island 2.png",
+            3 => "Island 3.png",
+            n @ _ => panic!("Island type {} doesn't exist", n)
+        };
+        Self::build_object(ctx, ObjectType::Island, game, island_tex.to_owned(),
             pos, rot)
     }
 
@@ -44,7 +51,7 @@ impl Object {
         let mut transform = Transform::new(handle, game.clone());
         transform.set_pos(pos, rot);
         Ok(Object {
-            transform, obj_type, sprite, game
+            transform, obj_type, sprite, destroy: false, game
         })
     }
 }
@@ -64,6 +71,14 @@ impl Entity for Object {
 
     fn get_transform_mut(&mut self) -> &mut Transform {
         &mut self.transform
+    }
+
+    fn marked_destroy(&self) -> bool {
+        self.destroy
+    }
+
+    fn destroy(&mut self) {
+        self.destroy = true;
     }
 }
 

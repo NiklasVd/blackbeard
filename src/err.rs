@@ -54,5 +54,6 @@ pub enum BbErrorType {
     NetShutdownFailure(Box<dyn Any + Send + 'static>),
     NetNotConnected,
     NetInvalidSender(SocketAddr),
+    NetInsufficientAuthority,
     InvalidPlayerID(u16)
 }

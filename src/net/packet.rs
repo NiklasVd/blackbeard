@@ -1,5 +1,5 @@
 use binary_stream::{BinaryStream, Serializable};
-use tetra::{Context, input::{Key, MouseButton, is_key_down, is_mouse_button_down}};
+use tetra::{Context, input::{Key, MouseButton, get_mouse_position, is_key_down, is_mouse_button_down}};
 use crate::{GC, ID, V2, deserialize_v2, peer::DisconnectReason, serialize_v2};
 use std::fmt;
 
@@ -21,6 +21,12 @@ pub enum Packet {
     },
     Input {
         state: InputState
+    },
+    InputStep {
+        step: InputStep
+    },
+    Game {
+        phase: GamePhase
     }
 }
 
@@ -32,7 +38,9 @@ impl Packet {
             Packet::PlayerConnect { .. } => 2,
             Packet::PlayerDisconnect { .. } => 3,
             Packet::ChatMessage { .. } => 4,
-            Packet::Input { ..} => 5,
+            Packet::Input { .. } => 5,
+            Packet::InputStep { .. } => 6,
+            Packet::Game { .. } => 7
         }
     }
 }
@@ -40,15 +48,17 @@ impl Packet {
 impl fmt::Debug for Packet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Packet::Handshake { name } => writeln!(f, "Handshake Packet (name: {})", name),
-            Packet::HandshakeReply { players } => writeln!(f, "Handshake Reply Packet (players: {:?})",
+            Packet::Handshake { name } => write!(f, "Handshake Packet (name: {})", name),
+            Packet::HandshakeReply { players } => write!(f, "Handshake Reply Packet (players: {:?})",
                 players),
-            Packet::PlayerConnect { name } => writeln!(f, "Player Connect Packet (name: {})", name),
-            Packet::PlayerDisconnect { reason } => writeln!(f, "Player Disconnect Packet (reason: {:?})",
+            Packet::PlayerConnect { name } => write!(f, "Player Connect Packet (name: {})", name),
+            Packet::PlayerDisconnect { reason } => write!(f, "Player Disconnect Packet (reason: {:?})",
                 reason),
-            Packet::ChatMessage { message } => writeln!(f, "Chat Message Packet (message: {})",
+            Packet::ChatMessage { message } => write!(f, "Chat Message Packet (message: {})",
                 message),
-            Packet::Input { state } => writeln!(f, "{:?}", state),
+            Packet::Input { state } => write!(f, "Input State Packet ({:?})", state),
+            Packet::InputStep { step } => write!(f, "Input Step Packet (states: {:?}, gen: {})", step.states, step.gen),
+            Packet::Game { phase } => write!(f, "Game Packet (phase: {:?})", phase)
         }
     }
 }
@@ -74,7 +84,13 @@ impl Serializable for Packet {
             },
             Packet::Input { state } => {
                 state.to_stream(stream);
+            }
+            Packet::InputStep { step } => {
+                step.to_stream(stream);
             },
+            Packet::Game { phase } => {
+                phase.to_stream(stream);
+            }
         };
     }
     
@@ -100,16 +116,25 @@ impl Serializable for Packet {
                 Packet::PlayerDisconnect { reason }
             },
             4 => {
-                let message = stream.read_string().unwrap();
                 Packet::ChatMessage {
-                    message
+                    message: stream.read_string().unwrap()
                 }
             },
             5 => {
                 Packet::Input {
                     state: InputState::from_stream(stream)
                 }
+            }
+            6 => {
+                Packet::InputStep {
+                    step: InputStep::from_stream(stream)
+                }
             },
+            7 => {
+                Packet::Game {
+                    phase: GamePhase::from_stream(stream)
+                }
+            }
             n @ _ => panic!("Index {} not assigned to any packet type", n)
         }
     }
@@ -141,6 +166,7 @@ pub fn deserialize_packet_unsigned(packet_bytes: Vec<u8>) -> Packet {
     Packet::from_stream(&mut stream)
 }
 
+#[derive(Clone)]
 pub struct InputState {
     pub rmb: bool,
     pub q: bool,
@@ -160,10 +186,14 @@ impl InputState {
         let q = is_key_down(ctx, Key::Q); // is_key_down: Returns true if the specified key is currently down. is_key_pressed: Returns true if the specified key was pressed since the last update.
         let e = is_key_down(ctx, Key::E);
         let mouse_pos = match rmb {
-            true => Some(game.borrow().cam.get_mouse_pos(ctx)),
+            true => Some(get_mouse_position(ctx)),
             false => None
         };
-        InputState::new(q, e, rmb, mouse_pos)
+        InputState::new(rmb, q, e, mouse_pos)
+    }
+
+    pub fn default() -> InputState {
+        InputState::new(false, false, false, None)
     }
 }
 
@@ -173,8 +203,11 @@ impl Serializable for InputState {
         input_bits |= (self.q as u8) << 1;
         input_bits |= (self.e as u8) << 2;
         stream.write_buffer_single(input_bits).unwrap();
-        if let Some(mouse_pos) = self.mouse_pos {
-            serialize_v2(stream, mouse_pos).unwrap();
+
+        if self.rmb {
+            if let Some(mouse_pos) = self.mouse_pos.as_ref() {
+                serialize_v2(stream, mouse_pos.clone()).unwrap();
+            }
         }
     }
 
@@ -183,18 +216,81 @@ impl Serializable for InputState {
         // 0b00000_0_0_0
         //         e q Rmb
         let rmb = (input_bits & 0b1) != 0;
-        let q = ((input_bits & 0b1) << 1) != 0;
-        let e = ((input_bits & 0b1) << 2) != 0;
+        let q = (input_bits & (0b1 << 1u8)) != 0;
+        let e = (input_bits & (0b1 << 2u8)) != 0;
         let mouse_pos = match rmb {
             true => Some(deserialize_v2(stream)),
             false => None
         };
-        InputState::new(q, e, rmb, mouse_pos)
+        InputState::new(rmb, q, e, mouse_pos)
     }
 }
 
 impl fmt::Debug for InputState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Rmb: {}, Q: {}, E: {}, Mouse-pos: {:?}", self.rmb, self.q, self.e, self.mouse_pos)
+        writeln!(f, "Rmb: {}, Q: {}, E: {}, Mouse Pos.: {:?}", self.rmb, self.q, self.e, self.mouse_pos)
+    }
+}
+
+pub struct InputStep {
+    pub states: Vec<(u16, InputState)>,
+    pub gen: u64
+}
+
+impl InputStep {
+    pub fn new(states: Vec<(u16, InputState)>, gen: u64) -> InputStep {
+        InputStep {
+            states, gen
+        }
+    }
+
+    pub fn add_state(&mut self, sender: u16, state: InputState) {
+        self.states.push((sender, state));
+    }
+}
+
+impl Serializable for InputStep {
+    fn to_stream(&self, stream: &mut BinaryStream) {
+        stream.write_buffer_single(self.states.len() as u8).unwrap();
+        for (sender, state) in self.states.iter() {
+            stream.write_u16(*sender).unwrap();
+            state.to_stream(stream);
+        }
+        stream.write_u64(self.gen).unwrap();
+    }
+
+    fn from_stream(stream: &mut BinaryStream) -> Self {
+        let len = stream.read_buffer_single().unwrap() as usize;
+        let mut states = Vec::with_capacity(len);
+        for _ in 0..len {
+            let sender = stream.read_u16().unwrap();
+            let state = InputState::from_stream(stream);
+            states.push((sender, state));
+        }
+        let gen = stream.read_u64().unwrap();
+        InputStep::new(states, gen)
+    }
+}
+
+#[derive(Debug)]
+pub enum GamePhase {
+    World,
+    Score
+}
+
+impl Serializable for GamePhase {
+    fn to_stream(&self, stream: &mut BinaryStream) {
+        stream.write_buffer_single(match self {
+            GamePhase::World => 0,
+            GamePhase::Score => 1,
+        }).unwrap();
+    }
+
+    fn from_stream(stream: &mut BinaryStream) -> Self {
+        match stream.read_buffer_single().unwrap() {
+            0 => GamePhase::World,
+            1 => GamePhase::Score,
+            n @ _ => panic!("Index {} not assigned to any game phase", n)
+        }
     }
 }

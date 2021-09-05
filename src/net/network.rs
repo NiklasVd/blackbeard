@@ -1,12 +1,9 @@
 use tetra::State;
-use crate::{BbResult, client::Client, net_settings::NetSettings, packet::{InputState, Packet}, peer::{DisconnectReason, is_auth_client}, server::Server};
-
-const POLL_FRAME_INTERVAL: u32 = 15;
+use crate::{BbError, BbErrorType, BbResult, client::Client, net_settings::NetSettings, packet::{GamePhase, InputState, Packet}, peer::{DisconnectReason, is_auth_client}, server::Server};
 
 pub struct Network {
     pub client: Client,
-    pub server: Option<Server>,
-    curr_poll_frame: u32
+    pub server: Option<Server>
 }
 
 impl Network {
@@ -14,15 +11,19 @@ impl Network {
         let server = Server::host(port, settings)?;
         let client = Client::connect(format!("127.0.0.1:{}", port).as_str(), name)?;
         Ok(Network {
-            client, server: Some(server), curr_poll_frame: 0
+            client, server: Some(server)
         })
     }
 
     pub fn join(server_addr: &str, name: String) -> BbResult<Network> {
         let client = Client::connect(server_addr, name)?;
         Ok(Network {
-            client, server: None, curr_poll_frame: 0
+            client, server: None
         })
+    }
+
+    pub fn has_authority(&self) -> bool {
+        self.server.is_some()
     }
 
     pub fn poll_received_packets(&mut self) -> BbResult<Option<(Packet, u16)>> {
@@ -40,6 +41,16 @@ impl Network {
         self.send_packet(Packet::Input {
             state
         })
+    }
+
+    pub fn set_game_phase(&mut self, phase: GamePhase) -> BbResult {
+        if !self.has_authority() {
+            return Err(BbError::Bb(BbErrorType::NetInsufficientAuthority))
+        } else {
+            self.send_packet(Packet::Game {
+                phase
+            })
+        }
     }
 
     pub fn disconnect(&mut self, reason: DisconnectReason) -> BbResult {
@@ -65,5 +76,10 @@ impl Network {
 }
 
 impl State for Network {
-    
+    fn update(&mut self, ctx: &mut tetra::Context) -> tetra::Result {
+        if let Some(server) = self.server.as_mut() {
+            server.update(ctx)?;
+        }
+        Ok(())
+    }
 }

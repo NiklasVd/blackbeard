@@ -22,8 +22,9 @@ impl World {
         self.add_ship(ctx, ship_type, id.name, V2::right() * id.n as f32 * 400.0, true)
     }
 
-    pub fn add_island(&mut self, ctx: &mut Context, pos: V2, rot: f32) -> tetra::Result<Rcc<Object>> {
-        let island = Object::build_island(ctx, self.game.clone(), pos, rot)?;
+    pub fn add_island(&mut self, ctx: &mut Context, pos: V2, rot: f32, island_type: u32)
+        -> tetra::Result<Rcc<Object>> {
+        let island = Object::build_island(ctx, self.game.clone(), pos, rot, island_type)?;
         Ok(self.add_entity(island).unwrap())
     }
 
@@ -166,7 +167,7 @@ impl State for World {
         for entity in entities.values() {
             let mut entity_ref = entity.borrow_mut();
             entity_ref.update(ctx, self)?;
-            if entity_ref.destroy() {
+            if entity_ref.marked_destroy() {
                 let index = entity_ref.get_index();
                 std::mem::drop(entity_ref);
                 self.remove_entity(index);

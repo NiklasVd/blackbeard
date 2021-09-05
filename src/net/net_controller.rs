@@ -1,28 +1,34 @@
 use tetra::Context;
-use crate::{BbResult, ID, packet::{InputState, Packet}, peer::{DisconnectReason, is_auth_client}};
+use crate::{BbResult, ID, packet::{GamePhase, InputStep, Packet}, peer::{DisconnectReason, is_auth_client}};
 
 pub trait NetController {
-    fn poll_received_packets(&mut self) -> BbResult<Option<(Packet, u16)>>;
+    fn poll_received_packets(&mut self, ctx: &mut Context) -> BbResult<Option<(Packet, u16)>>;
     fn handle_received_packets(&mut self, ctx: &mut Context) -> BbResult {
-        match self.poll_received_packets() {
+        match self.poll_received_packets(ctx) {
             Ok(Some((packet, sender))) => {
-                match packet {
-                    Packet::HandshakeReply { .. } => self.on_establish_connection(ctx),
-                    Packet::PlayerConnect { name } => self.on_player_connect(ctx, ID::new(name, sender)),
-                    Packet::PlayerDisconnect { reason } => {
-                        if is_auth_client(sender) {
-                            self.on_connection_lost(ctx, DisconnectReason::HostShutdown)
-                        } else {
-                            self.on_player_disconnect(ctx, sender, reason)
-                        }
-                    },
-                    Packet::ChatMessage { message } => self.on_chat_message(ctx, message, sender),
-                    Packet::Input { state } => self.on_input_state(ctx, state, sender),
-                    _ => Ok(())
-                }
+                self.handle_packets(ctx, (packet, sender))
             },
             Ok(None) => Ok(()),
             Err(e) => Err(e)
+        }
+    }
+
+    fn handle_packets(&mut self, ctx: &mut Context, packet: (Packet, u16)) -> BbResult {
+        let (packet, sender) = packet;
+        match packet {
+            Packet::HandshakeReply { .. } => self.on_establish_connection(ctx),
+            Packet::PlayerConnect { name } => self.on_player_connect(ctx, ID::new(name, sender)),
+            Packet::PlayerDisconnect { reason } => {
+                if is_auth_client(sender) {
+                    self.on_connection_lost(ctx, DisconnectReason::HostShutdown)
+                } else {
+                    self.on_player_disconnect(ctx, sender, reason)
+                }
+            },
+            Packet::ChatMessage { message } => self.on_chat_message(ctx, message, sender),
+            Packet::InputStep { step } => self.on_input_step(ctx, step),
+            Packet::Game { phase } => self.on_game_phase_changed(ctx, phase),
+            _ => Ok(())
         }
     }
 
@@ -42,7 +48,10 @@ pub trait NetController {
     fn on_chat_message(&mut self, ctx: &mut Context, text: String, sender: u16) -> BbResult {
         Ok(())
     }
-    fn on_input_state(&mut self, ctx: &mut Context, state: InputState, sender: u16) -> BbResult {
+    fn on_input_step(&mut self, ctx: &mut Context, step: InputStep) -> BbResult {
+        Ok(())
+    }
+    fn on_game_phase_changed(&mut self, ctx: &mut Context, phase: GamePhase) -> BbResult {
         Ok(())
     }
 }

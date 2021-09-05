@@ -1,5 +1,5 @@
 use tetra::{Context, State};
-use crate::{BbResult, GC, Rcc, TransformResult, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment}, label::Label, lobby_scene::LobbyScene, menu_scene::MenuScene, net_settings::NetSettings, textbox::Textbox, ui_element::{DefaultUIReactor, UIElement, UIState}};
+use crate::{BbResult, GC, Rcc, TransformResult, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment}, label::Label, lobby_scene::LobbyScene, menu_scene::MenuScene, net_settings::NetSettings, textbox::Textbox, ui_element::{DefaultUIReactor}};
 use super::scenes::{Scene, SceneType};
 
 const DEFAULT_HOST_PORT: u16 = 8080;
@@ -10,7 +10,6 @@ pub struct ConnectionScene {
     create_button: Rcc<DefaultButton>,
     join_button: Rcc<DefaultButton>,
     join_endpoint_txt: Rcc<Textbox>,
-    disconnected: bool,
     game: GC
 }
 
@@ -19,27 +18,26 @@ impl ConnectionScene {
         let mut grid = Grid::new(ctx, UIAlignment::Vertical, V2::zero(),
             V2::new(200.0, 100.0), 0.0)?;
         let back_button = grid.add_element(Button::new(ctx, "Back to Menu",
-            V2::new(120.0, 30.0), 5.0, DefaultUIReactor::new(), game.clone())?);
+            V2::new(120.0, 35.0), 5.0, DefaultUIReactor::new(), game.clone())?);
         
         let create_label = grid.add_element(Label::new(ctx, "Create Match", false,
             5.0, game.clone())?);
-        let create_button = grid.add_element(Button::new(ctx, "Create", V2::new(75.0, 30.0),
+        let create_button = grid.add_element(Button::new(ctx, "Create", V2::new(80.0, 35.0),
             5.0, DefaultUIReactor::new(), game.clone())?);
         
         let join_label = grid.add_element(Label::new(ctx, "Join Match", false,
             5.0, game.clone())?);
         let mut join_grid = Grid::new(ctx, UIAlignment::Horizontal,
-            V2::zero(), V2::new(150.0, 30.0), 5.0)?;
+            V2::zero(), V2::new(150.0, 35.0), 5.0)?;
         let join_endpoint_txt = join_grid.add_element(Textbox::new(ctx,
-            format!("127.0.0.1:{}", DEFAULT_HOST_PORT).as_str(), V2::new(200.0, 30.0),
+            format!("127.0.0.1:{}", DEFAULT_HOST_PORT).as_str(), V2::new(200.0, 35.0),
             5.0, game.clone())?);
         let join_button = join_grid.add_element(Button::new(ctx, "Join",
-            V2::new(65.0, 30.0), 5.0, DefaultUIReactor::new(), game.clone())?);
+            V2::new(70.0, 35.0), 5.0, DefaultUIReactor::new(), game.clone())?);
         let join_grid = grid.add_element(join_grid);
         
         Ok(ConnectionScene {
-            grid, back_button, create_button, join_button, join_endpoint_txt,
-            disconnected: true, game
+            grid, back_button, create_button, join_button, join_endpoint_txt, game
         })
     }
 

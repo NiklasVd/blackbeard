@@ -1,6 +1,6 @@
 use tetra::{Context, State};
 
-use crate::{BbResult, TransformResult, GC, Rcc, V2, button::DefaultButton, grid::{Grid, UIAlignment}, label::Label, menu_scene::MenuScene, textbox::Textbox, ui_element::DefaultUIReactor};
+use crate::{BbResult, GC, Rcc, TransformResult, V2, button::DefaultButton, grid::{Grid, UIAlignment}, image::Image, label::Label, menu_scene::MenuScene, textbox::Textbox, ui_element::DefaultUIReactor};
 
 use super::scenes::{Scene, SceneType};
 
@@ -14,10 +14,13 @@ pub struct LoginScene {
 impl LoginScene {
     pub fn new(ctx: &mut Context, game: GC) -> tetra::Result<LoginScene> {
         let mut grid = Grid::centered(ctx, UIAlignment::Vertical, V2::new(100.0, 250.0), 0.0)?;
+        let header = grid.add_element(Image::new(ctx, V2::new(673.0, 117.0), 5.0,
+            "UI/Header-Text.png".to_owned(), true, game.clone())?);
+            header.borrow_mut().transform.position -= V2::new(200.0, 50.0);
         grid.add_element(Label::new(ctx, "Choose a name", false, 0.0, game.clone())?);
-        let name_txt = grid.add_element(Textbox::new(ctx, "", V2::new(100.0, 30.0), 2.0, game.clone())?);
+        let name_txt = grid.add_element(Textbox::new(ctx, "", V2::new(200.0, 30.0), 2.0, game.clone())?);
         let login_button = grid.add_element(DefaultButton::new(ctx, "Login",
-            V2::new(65.0, 30.0), 5.0, DefaultUIReactor::new(), game.clone())?);
+            V2::new(70.0, 35.0), 5.0, DefaultUIReactor::new(), game.clone())?);
         Ok(LoginScene {
             grid, name_txt, login_button, game
         })

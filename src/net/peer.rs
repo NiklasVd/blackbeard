@@ -4,6 +4,7 @@ use crossbeam_channel::{Receiver, Sender};
 use laminar::{Config, Packet as LaminarPacket, Socket, SocketEvent};
 use crate::{BbError, BbErrorType, BbResult};
 
+const IDLE_TIMEOUT_DURATION: f32 = 60.0;
 const HEARTBEAT_INTERVAL: f32 = 5.0;
 
 pub trait NetPeer {
@@ -20,7 +21,7 @@ pub struct Peer {
 impl Peer {
     pub fn setup(port: Option<u16>) -> BbResult<Self> {
         let config = Config {
-            idle_connection_timeout: Duration::from_secs_f32(150.0),
+            idle_connection_timeout: Duration::from_secs_f32(IDLE_TIMEOUT_DURATION),
             heartbeat_interval: Some(Duration::from_secs_f32(HEARTBEAT_INTERVAL)),
             ..Default::default()
         };

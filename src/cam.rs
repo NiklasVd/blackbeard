@@ -19,6 +19,14 @@ impl Cam {
     pub fn get_mouse_pos(&self, ctx: &mut Context) -> V2 {
         self.instance.mouse_position(ctx)
     }
+
+    pub fn project_pos(&self, ctx: &mut Context, pos: V2) -> V2 {
+        self.instance.project(pos)
+    }
+
+    pub fn unproject_pos(&self, ctx: &mut Context, pos: V2) -> V2 {
+        self.instance.unproject(pos)
+    }
 }
 
 impl State for Cam {

@@ -48,9 +48,10 @@ pub trait Entity : GameState {
     fn get_name(&self) -> String;
     fn get_transform(&self) -> &Transform;
     fn get_transform_mut(&mut self) -> &mut Transform;
-    fn destroy(&self) -> bool {
+    fn marked_destroy(&self) -> bool {
         false
     }
+    fn destroy(&mut self);
 
     fn collide_with_ship(&mut self, ctx: &mut Context, other: Rcc<Ship>,
         world: &mut World) -> tetra::Result {

@@ -189,7 +189,7 @@ impl CannonBall {
     fn check_miss_lifetime(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
         if let Some(miss_effect) = self.miss_effect.as_ref() {
             if miss_effect.is_finished() {
-                self.destroy = true;
+                self.destroy();
             }
         }
         Ok(())
@@ -213,8 +213,12 @@ impl Entity for CannonBall {
         &mut self.transform
     }
 
-    fn destroy(&self) -> bool {
+    fn marked_destroy(&self) -> bool {
         self.destroy
+    }
+
+    fn destroy(&mut self) {
+        self.destroy = true;
     }
 
     fn collide_with_ship(&mut self, ctx: &mut Context, other: Rcc<Ship>,
