@@ -3,7 +3,7 @@ use tetra::State;
 
 use crate::{BbError, BbErrorType, BbResult, ID, TransformResult, net_settings::NetSettings, packet::{InputState, InputStep, Packet, deserialize_packet_unsigned, serialize_packet}, peer::{DisconnectReason, Peer, is_auth_client}};
 
-pub const STEP_PHASE_FRAME_LENGTH: u32 = 15;
+pub const STEP_PHASE_FRAME_LENGTH: u32 = 10;
 pub const MAX_CLIENT_STATE_SEND_DELAY: u32 = STEP_PHASE_FRAME_LENGTH * 10;
 
 // Auth Client: First player to connect to the server
@@ -187,12 +187,11 @@ impl Server {
                 let delayed_players = pool.check_delayed_players();
                 // In the first generation every player has to send their state, to signal they're ready
                 if pool.curr_gen > 0 || delayed_players.len() == 0 {
-                    for delayed_player in delayed_players.into_iter() {
-                        println!("Server: Player {} failed to send input packet in time. Ignoring...", delayed_player);
-                    }
+                    // for delayed_player in delayed_players.into_iter() {
+                    //     println!("Server: Player {} failed to send input packet in time. Ignoring...", delayed_player);
+                    // }
 
                     let step = pool.flush_states();
-                    println!("Server: Advancing step to gen {}.", pool.curr_gen);
                     std::mem::drop(pool);
                     self.send_multicast(Packet::InputStep {
                             step

@@ -1,28 +1,30 @@
-use std::time::Duration;
-
-use tetra::{Context, Event, State};
-use crate::{BbError, BbErrorType, BbResult, Controller, Entity, GC, GameState, ID, Player, Rcc, ShipType, TransformResult, V2, grid::{Grid, UIAlignment}, label::Label, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, world::World};
+use std::time::{Duration, Instant};
+use tetra::{Context, Event, State, input::Key};
+use crate::{BbError, BbErrorType, BbResult, Controller, Entity, GC, GameState, ID, Player, Rcc, ShipType, TransformResult, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment}, label::Label, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ui_element::{DefaultUIReactor, UIElement}, world::World};
 use super::scenes::{Scene, SceneType};
 
-pub const MAX_INPUT_STEP_BLOCK_FRAMES: u32 = 60 * 15;
+pub const MAX_INPUT_STEP_BLOCK_DURATION: u64 = 60 * 10;
 
 pub struct WorldScene {
     pub controller: Controller,
     pub world: World,
     grid: Grid,
+    ui: WorldSceneUI,
     back_to_menu: bool,
     game: GC
 }
 
 impl WorldScene {
     pub fn new(ctx: &mut Context, players: Vec<(ID, ShipType)>, game: GC) -> BbResult<WorldScene> {
-        let mut grid = Grid::new(ctx, UIAlignment::Vertical,
+        let mut grid = Grid::new(ctx, UIAlignment::Horizontal,
             V2::zero(), V2::one() * 200.0, 0.0).convert()?;
-        grid.add_element(Label::new(ctx, "Pre-Alpha WIP", false, 2.0, game.clone()).convert()?);
+        let mut ui = WorldSceneUI::new(ctx, game.clone(), &mut grid).convert()?;
+        ui.update_players(ctx, players.iter().map(|(id, ..)| id.clone()).collect()).convert()?;
+
         let mut world_scene = WorldScene {
             controller: Controller::new(ctx, game.clone()).convert()?,
             world: World::new(ctx, game.clone()),
-            grid, back_to_menu: false, game: game.clone()
+            grid, ui, back_to_menu: false, game: game.clone()
         };
         
         let local_id = {
@@ -55,6 +57,29 @@ impl WorldScene {
         let ship = self.world.add_player_ship(ctx, id.clone(), ship_type).convert()?;
         Ok(self.controller.add_player(Player::new(id, ship)))
     }
+
+    pub fn leave_match(&mut self) -> BbResult {
+        self.game.borrow_mut().network.as_mut().unwrap().disconnect(
+            DisconnectReason::Timeout)?;
+        self.back_to_menu = true;
+        Ok(())
+    }
+
+    fn update_menu_ui(&mut self) -> BbResult {
+        if self.ui.leave_button.borrow().is_pressed() {
+            self.leave_match()
+        } else {
+            Ok(())
+        }
+    }
+
+    fn event_menu_ui(&mut self, event: Event) {
+        match event {
+            Event::KeyPressed { key } if key == Key::Escape =>
+                self.ui.toggle_menu_visibility(),
+            _ => ()
+        }
+    }
 }
 
 impl Scene for WorldScene {
@@ -69,7 +94,8 @@ impl Scene for WorldScene {
     fn poll(&self, ctx: &mut Context) -> BbResult<Option<Box<dyn Scene>>> {
         Ok(if self.back_to_menu {
             Some(Box::new(MenuScene::new(ctx, self.game.clone()).convert()?))
-        } else {
+        }
+        else {
             None
         })
     }
@@ -83,7 +109,9 @@ impl State for WorldScene {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
         self.handle_received_packets(ctx).convert()?;
         self.controller.update(ctx, &mut self.world)?;
-        self.world.update(ctx)
+        self.world.update(ctx)?;
+        self.ui.update(ctx)?;
+        self.update_menu_ui().convert()
     }
 
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
@@ -94,13 +122,15 @@ impl State for WorldScene {
     fn event(&mut self, ctx: &mut Context, event: Event)
         -> tetra::Result {
         self.controller.event(ctx, event.clone(), &mut self.world)?;
-        self.world.draw(ctx)
+        self.world.event(ctx, event.clone())?;
+        self.event_menu_ui(event.clone());
+        Ok(())
     }
 }
 
 impl NetController for WorldScene {
     fn poll_received_packets(&mut self, ctx: &mut Context) -> BbResult<Option<(Packet, u16)>> {
-        let mut poll_iterations = 0;
+        let time = Instant::now();
         loop {
             let packet = {
                 self.game.borrow_mut().network.as_mut().unwrap().poll_received_packets()?
@@ -117,13 +147,13 @@ impl NetController for WorldScene {
                 }
 
                 std::thread::sleep(Duration::from_millis(1));
-                poll_iterations += 1;
-                if poll_iterations % 120 == 0 {
-                    println!("Blocking until next input step arrives...");
-                } else if poll_iterations % MAX_INPUT_STEP_BLOCK_FRAMES == 0 {
-                    println!("Failed to procure next input step from server. Terminating connection to server...");
-                    self.game.borrow_mut().network.as_mut().unwrap().disconnect(DisconnectReason::Timeout)?;
-                    self.back_to_menu = true;
+                let elapsed_secs = time.elapsed().as_secs();
+                if elapsed_secs % 2 == 0 {
+                    println!("Blocking until next input step arrives from server...");
+                }
+                if elapsed_secs >= MAX_INPUT_STEP_BLOCK_DURATION {
+                    println!("Failed to procure next input step in time. Terminating connection to server...");
+                    self.leave_match()?;
                     return Ok(None)
                 }
                 continue
@@ -133,15 +163,16 @@ impl NetController for WorldScene {
         }
     }
 
-    fn on_connection_lost(&mut self, ctx: &mut Context, reason: crate::peer::DisconnectReason) -> BbResult {
+    fn on_connection_lost(&mut self, ctx: &mut Context, reason: DisconnectReason) -> BbResult {
         println!("Lost connection to server! Aborting game...");
-        self.back_to_menu = true;
-        Ok(())
+        self.leave_match() // Previously only set self.back_to_menu to true. Problem if connection is already terminated when calling network.disconnect()? 
     }
     
     fn on_player_disconnect(&mut self, ctx: &mut Context, id: u16, reason: DisconnectReason) -> BbResult {
         if let Some(player) = self.controller.remove_player(id) {
             player.borrow_mut().possessed_ship.borrow_mut().destroy();
+            self.ui.update_players(ctx, self.game.borrow().network.as_ref().unwrap()
+                .client.get_connections()).convert()?;
             println!("Player with ID {} disconnected. Reason: {:?}", id, reason);
             Ok(())
         } else {
@@ -151,6 +182,63 @@ impl NetController for WorldScene {
 
     fn on_input_step(&mut self, ctx: &mut Context, step: InputStep) -> BbResult {
         self.controller.add_step(step);
+        Ok(())
+    }
+}
+
+struct WorldSceneUI {
+    menu_button: Rcc<DefaultButton>,
+    menu_grid: Rcc<Grid>,
+    leave_button: Rcc<DefaultButton>,
+    match_info_label: Rcc<Label>,
+    players_grid: Rcc<Grid>,
+    game: GC
+}
+
+impl WorldSceneUI {
+    fn new(ctx: &mut Context, game: GC, grid: &mut Grid) -> tetra::Result<WorldSceneUI> {
+        let menu_button = grid.add_element(Button::new(ctx, "#", V2::new(20.0, 20.0),
+            1.0, DefaultUIReactor::new(), game.clone())?);
+
+        let mut menu_grid = Grid::centered(ctx, UIAlignment::Vertical,
+            V2::new(100.0, 20.0), 0.0)?;
+        menu_grid.set_visibility(false);
+        let leave_button = menu_grid.add_element(Button::new(ctx, "Leave Match",
+            V2::new(120.0, 35.0), 1.0, DefaultUIReactor::new(), game.clone())?);
+        let match_info_label = menu_grid.add_element(Label::new(ctx, "Connected to Server",
+            false, 2.0, game.clone())?);
+        let players_grid = menu_grid.add_element(Grid::new(ctx, UIAlignment::Vertical,
+            V2::zero(), V2::new(120.0, 300.0), 2.0)?);
+        let menu_grid = grid.add_element(menu_grid);
+        Ok(WorldSceneUI {
+            menu_button, menu_grid, leave_button, match_info_label, players_grid, game
+        })
+    }
+
+    pub fn toggle_menu_visibility(&mut self) {
+        let mut menu_grid_ref = self.menu_grid.borrow_mut();
+        let state = menu_grid_ref.is_invisible();
+        menu_grid_ref.set_visibility(state);
+    }
+
+    pub fn update_match_info(&mut self, text: &str) {
+        self.match_info_label.borrow_mut().set_text(text);
+    }
+
+    pub fn update_players(&mut self, ctx: &mut Context, players: Vec<ID>) -> tetra::Result {
+        let mut players_grid_ref = self.players_grid.borrow_mut();
+        players_grid_ref.clear_elements();
+        for player in players.into_iter() {
+            players_grid_ref.add_element(Label::new(ctx, format!("{:?}", player).as_str(),
+                false, 2.0, self.game.clone())?);
+        }
+        Ok(())
+    }
+
+    pub fn update(&mut self, ctx: &mut Context) -> tetra::Result {
+        if self.menu_button.borrow().is_pressed() {
+            self.toggle_menu_visibility();
+        }
         Ok(())
     }
 }

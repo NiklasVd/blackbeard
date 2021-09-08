@@ -1,6 +1,6 @@
 use std::{f32::consts::PI};
 use rapier2d::{data::Index};
-use tetra::{Context, State, graphics::{DrawParams, text::Text}, math::Clamp};
+use tetra::{Context, State, graphics::{text::Text}, math::Clamp};
 use crate::{Cannon, CannonSide, Entity, EntityType, GC, GameState, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, conv_vec, disassemble_iso, get_angle, pi_to_pi2_range, polar_to_cartesian, world::World};
 
 const BASE_STUN_LENGTH: f32 = 2.0;
@@ -55,8 +55,6 @@ pub struct Ship {
     pub transform: Transform,
     sprite: Sprite,
     label: Text,
-    notify_label: Option<Text>,
-    notify_timer: Timer,
     spawn: Option<V2>,
     destroy: bool,
     game: GC
@@ -103,7 +101,7 @@ impl Ship {
             stype: ShipType::Caravel, curr_health: attr.health, name,
             target_pos: None, attr, cannons,
             transform, stun: Timer::new(stun_length),
-            sprite, label, notify_label: None, notify_timer: Timer::new(3.5), spawn,
+            sprite, label, spawn,
             destroy: false, game
         })
     }
@@ -175,11 +173,6 @@ impl Ship {
 
         println!("{} was hit by {} cannon and took {} damage!",
             self.get_name(), shooter_name, dmg);
-        if self.curr_health <= dmg {
-            let font = self.game.borrow().assets.font.clone();
-            self.set_notification(Text::new(format!("{} sunk your ship!", shooter_name),
-                font));
-        }
         self.take_damage(ctx, dmg, world)
     }
 
@@ -249,18 +242,6 @@ impl Ship {
         }
         self.label.set_content(format!("Cpt. {} [{}/{} HP] {}", self.name,
             self.curr_health, self.attr.health, stunned));
-    }
-
-    fn set_notification(&mut self, label: Text) {
-        self.notify_label = Some(label);
-        self.notify_timer.reset();
-    }
-
-    fn update_notification(&mut self, ctx: &mut Context) {
-        self.notify_timer.update(ctx);
-        if self.notify_timer.is_over() {
-            self.notify_label = None;
-        }
     }
 }
 
@@ -333,7 +314,6 @@ impl GameState for Ship {
         }
         self.move_to_target_pos();
         self.update_label();
-        self.update_notification(ctx);
         Ok(())
     }
 
@@ -345,12 +325,6 @@ impl GameState for Ship {
             cannon.draw(ctx)?;
         }
         self.label.draw(ctx, translation.0 - V2::new(90.0, 15.0));
-        if let Some(notify_label) = self.notify_label.as_mut() {
-            notify_label.draw(ctx, DrawParams {
-                position: translation.0 - V2::new(90.0, 40.0),
-                scale: V2::one() * 1.5, ..Default::default()
-            });
-        }
         Ok(())
     }
 }

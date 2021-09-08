@@ -1,5 +1,5 @@
 use tetra::{Context, Event, window::{get_height, get_width}};
-use crate::{Rcc, V2, ui_element::{UIElement}, ui_transform::UITransform, wrap_rcc};
+use crate::{Rcc, V2, ui_element::{DefaultUIReactor, UIElement, UIReactor}, ui_transform::UITransform, wrap_rcc};
 
 pub type UIRcc = Rcc<dyn UIElement>;
 
@@ -12,7 +12,8 @@ pub enum UIAlignment {
 pub struct Grid {
     pub alignment: UIAlignment,
     pub transform: UITransform,
-    pub elements: Vec<UIRcc>
+    pub elements: Vec<UIRcc>,
+    reactor: DefaultUIReactor
 }
 
 impl Grid {
@@ -20,7 +21,7 @@ impl Grid {
         -> tetra::Result<Grid> {
         Ok(Grid {
             alignment, transform: UITransform::new(ctx, pos, size, V2::one(), padding)?,
-            elements: Vec::new()
+            elements: Vec::new(), reactor: DefaultUIReactor::new()
         })
     }
 
@@ -49,6 +50,10 @@ impl Grid {
         self.elements.swap_remove(index)
     }
 
+    pub fn clear_elements(&mut self) {
+        self.elements.clear()
+    }
+
     fn update_element_alignments(&mut self, from_index: usize) {
         let next_aligned_pos = match from_index {
             0 => V2::zero(),
@@ -67,6 +72,14 @@ impl UIElement for Grid {
         "Grid"
     }
 
+    fn get_reactor(&self) -> Option<&dyn UIReactor> {
+        Some(&self.reactor)
+    }
+
+    fn get_reactor_mut(&mut self) -> Option<&mut dyn UIReactor> {
+        Some(&mut self.reactor)
+    }
+
     fn get_transform(&self) -> &UITransform {
         &self.transform
     }
@@ -79,6 +92,10 @@ impl UIElement for Grid {
         let abs_pos = self.transform.get_abs_pos(parent_pos);
         for element in self.elements.iter() {
             let mut element_ref = element.borrow_mut();
+            if !element_ref.is_active() {
+                continue
+            }
+
             element_ref.update_element(ctx, abs_pos)?;
             element_ref.update_reactor(ctx, abs_pos)?;
         }
@@ -89,7 +106,9 @@ impl UIElement for Grid {
         let abs_pos = self.transform.get_abs_pos(parent_pos);
         for element in self.elements.iter() {
             let mut element_ref = element.borrow_mut();
-            element_ref.draw_element(ctx, abs_pos)?;
+            if !element_ref.is_invisible() {
+                element_ref.draw_element(ctx, abs_pos)?;
+            }
             element_ref.draw_rect(ctx, abs_pos);
         }
         Ok(())
@@ -99,7 +118,12 @@ impl UIElement for Grid {
         -> tetra::Result {
         let abs_pos = self.transform.get_abs_pos(parent_pos);
         for element in self.elements.iter() {
-            element.borrow_mut().event_element(ctx, event.clone(), parent_pos)?;
+            let mut element_ref = element.borrow_mut();
+            if !element_ref.is_active() {
+                continue
+            }
+
+            element_ref.event_element(ctx, event.clone(), parent_pos)?;
         }
         Ok(())
     }

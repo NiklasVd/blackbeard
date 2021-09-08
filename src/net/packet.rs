@@ -166,6 +166,12 @@ pub fn deserialize_packet_unsigned(packet_bytes: Vec<u8>) -> Packet {
     Packet::from_stream(&mut stream)
 }
 
+// Send rate: every 15 frames at 60 fixed FPS = 1/4 = 0.25 secs
+// Packet size:
+//      3 booleans (bitpacked) = 1 byte
+//      Vec2 if rmb == true (2 f32) = 8 bytes
+// => 1-9 bytes (5 on avg.)
+// 5 * 4 = 20 bytes/sec
 #[derive(Clone)]
 pub struct InputState {
     pub rmb: bool,
@@ -214,7 +220,7 @@ impl Serializable for InputState {
     fn from_stream(stream: &mut BinaryStream) -> Self {
         let input_bits = stream.read_buffer_single().unwrap();
         // 0b00000_0_0_0
-        //         e q Rmb
+        //         e q rmb
         let rmb = (input_bits & 0b1) != 0;
         let q = (input_bits & (0b1 << 1u8)) != 0;
         let e = (input_bits & (0b1 << 2u8)) != 0;

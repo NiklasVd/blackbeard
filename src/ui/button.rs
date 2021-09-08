@@ -36,6 +36,7 @@ impl<T: UIReactor + 'static> Button<T> {
             UIState::Idle | UIState::Disabled => self.spritesheet.set_curr_index(0),
             UIState::Hover => self.spritesheet.set_curr_index(1),
             UIState::Focus => self.spritesheet.set_curr_index(2),
+            _ => ()
         }
     }
 }

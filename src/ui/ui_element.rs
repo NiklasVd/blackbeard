@@ -27,9 +27,10 @@ pub trait UIElement {
 
     fn is_disabled(&self) -> bool {
         if let Some(reactor) = self.get_reactor() {
-            return reactor.get_state() == UIState::Disabled
+            reactor.get_state() == UIState::Disabled
+        } else {
+            false
         }
-        return false
     }
 
     fn set_disabled(&mut self, state: bool) {
@@ -41,13 +42,41 @@ pub trait UIElement {
         }
     }
 
-    fn update_reactor(&mut self, ctx: &mut Context, parent_pos: V2) -> tetra::Result {
-        let rect = self.get_transform().get_padded_rect(parent_pos);
+    fn is_invisible(&self) -> bool {
+        if let Some(reactor) = self.get_reactor() {
+            reactor.get_state() == UIState::Invisible
+        } else {
+            false
+        }
+    }
+
+    fn set_visibility(&mut self, visible: bool) {
         if let Some(reactor) = self.get_reactor_mut() {
-            if reactor.get_state() == UIState::Disabled {
-                return Ok(())
-            }
-            
+            reactor.set_state(match visible {
+                true => UIState::Idle,
+                false => UIState::Invisible
+            });
+        }
+    }
+
+    fn is_active(&self) -> bool {
+        if let Some(reactor) = self.get_reactor() {
+            reactor.get_state() != UIState::Disabled &&
+                reactor.get_state() != UIState::Invisible
+        } else {
+            true
+        }
+    }
+
+    fn update_reactor(&mut self, ctx: &mut Context, parent_pos: V2) -> tetra::Result {
+        let rect = {
+            self.get_transform().get_padded_rect(parent_pos)
+        };
+        if !self.is_active() {
+            return Ok(())
+        }
+        
+        if let Some(reactor) = self.get_reactor_mut() {
             let mouse_pos = get_mouse_position(ctx);
             let mouse_in_rect = rect.contains_point(mouse_pos);
             if is_mouse_button_pressed(ctx, MouseButton::Left) {
@@ -95,7 +124,8 @@ pub enum UIState {
     Idle,
     Hover,
     Focus,
-    Disabled
+    Disabled,
+    Invisible
 }
 
 pub trait UIReactor {

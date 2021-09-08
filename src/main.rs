@@ -78,8 +78,8 @@ pub use diagnostics::*;
 use tetra::ContextBuilder;
 use std::io::{Read, stdin};
 
-pub const WINDOW_WIDTH: f32 = 1050.0;
-pub const WINDOW_HEIGHT: f32 = 700.0;
+pub const WINDOW_WIDTH: f32 = 1000.0;
+pub const WINDOW_HEIGHT: f32 = 680.0;
 
 pub const PRIMARY_VERSION: u32 = 0;
 pub const SECONDARY_VERSION: u32 = 1;
@@ -91,10 +91,10 @@ fn get_version() -> String {
 fn main() -> tetra::Result {
     println!("Blackbeard {} - (c) 2021, Niklas Vaudt", get_version());
     if let Err(e) = ContextBuilder::new("Blackbeard", WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32)
-        .quit_on_escape(true)
         .debug_info(true)
         .high_dpi(true)
         .show_mouse(true)
+        .fullscreen(true)
         .build()?
         .run(Game::new)
     {

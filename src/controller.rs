@@ -62,7 +62,6 @@ impl Controller {
 
     fn apply_step(&mut self, ctx: &mut Context, step: InputStep, world: &mut World) -> tetra::Result {
         self.curr_gen += 1;
-        println!("Client: Applying states and advancing to gen {}", self.curr_gen);
         for (sender, state) in step.states.into_iter() {
             self.apply_state(ctx, sender, state, world)?;
         }
@@ -83,7 +82,6 @@ impl Controller {
 
             if state.rmb {
                 if let Some(mouse_pos) = state.mouse_pos {
-                    //let mouse_pos = self.game.borrow().cam.project_pos(ctx, mouse_pos);
                     ship_ref.set_target_pos(mouse_pos);
                 }
             }
@@ -120,13 +118,10 @@ impl GameState for Controller {
                     let mouse_pos = Some({
                         let game_ref = self.game.borrow();
                         game_ref.cam.get_mouse_pos(ctx)
-                        //game_ref.cam.unproject_pos(ctx, mouse_pos)
                     });
                     self.curr_target_pos = mouse_pos.clone();
                     self.curr_input_state.mouse_pos = mouse_pos;
                     self.curr_input_state.rmb = true;
-                    // Danger: Adding other mouse-related input capture would share the same
-                    // mouse position used for right clicks. Each click would need its own mouse pos field.
                 },
                 Event::KeyPressed { key } => {
                     match key {

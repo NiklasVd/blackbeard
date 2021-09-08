@@ -59,9 +59,6 @@ impl LobbyScene {
             player_world_params: Vec::new(), disconnected: false, game
         })
     }
-
-    fn start_game(&mut self) {
-    }
 }
 
 impl Scene for LobbyScene {
