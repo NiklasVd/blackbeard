@@ -15,10 +15,10 @@ pub struct ConnectionScene {
 
 impl ConnectionScene {
     pub fn new(ctx: &mut Context, game: GC) -> tetra::Result<ConnectionScene> {
-        let mut grid = Grid::new(ctx, UIAlignment::Vertical, V2::zero(),
+        let mut grid = Grid::default(ctx, UIAlignment::Vertical, V2::zero(),
             V2::new(200.0, 100.0), 0.0)?;
         let back_button = grid.add_element(Button::new(ctx, "Back to Menu",
-            V2::new(120.0, 35.0), 5.0, DefaultUIReactor::new(), game.clone())?);
+            V2::new(135.0, 35.0), 5.0, DefaultUIReactor::new(), game.clone())?);
         
         let create_label = grid.add_element(Label::new(ctx, "Create Match", false,
             5.0, game.clone())?);
@@ -27,7 +27,7 @@ impl ConnectionScene {
         
         let join_label = grid.add_element(Label::new(ctx, "Join Match", false,
             5.0, game.clone())?);
-        let mut join_grid = Grid::new(ctx, UIAlignment::Horizontal,
+        let mut join_grid = Grid::default(ctx, UIAlignment::Horizontal,
             V2::zero(), V2::new(150.0, 35.0), 5.0)?;
         let join_endpoint_txt = join_grid.add_element(Textbox::new(ctx,
             format!("127.0.0.1:{}", DEFAULT_HOST_PORT).as_str(), V2::new(200.0, 35.0),

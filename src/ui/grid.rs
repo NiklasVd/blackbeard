@@ -9,27 +9,38 @@ pub enum UIAlignment {
     Horizontal
 }
 
+pub enum UILayout {
+    Default,
+    BottomLeft,
+    Centre,
+    TopRight,
+    BottomRight
+}
+
 pub struct Grid {
-    pub alignment: UIAlignment,
     pub transform: UITransform,
     pub elements: Vec<UIRcc>,
+    alignment: UIAlignment,
+    layout: UILayout,
     reactor: DefaultUIReactor
 }
 
 impl Grid {
-    pub fn new(ctx: &mut Context, alignment: UIAlignment, pos: V2, size: V2, padding: f32)
-        -> tetra::Result<Grid> {
+    pub fn new(ctx: &mut Context, alignment: UIAlignment, layout: UILayout,
+        size: V2, padding: f32) -> tetra::Result<Grid> {
         Ok(Grid {
-            alignment, transform: UITransform::new(ctx, pos, size, V2::one(), padding)?,
-            elements: Vec::new(), reactor: DefaultUIReactor::new()
+            alignment, layout, transform: UITransform::new(ctx, V2::zero(), size,
+            V2::zero(), padding)?, elements: Vec::new(), reactor: DefaultUIReactor::new()
         })
     }
 
-    pub fn centered(ctx: &mut Context, alignment: UIAlignment, size: V2, padding: f32)
-        -> tetra::Result<Grid> {
-        let window_centre = V2::new(get_width(ctx) as f32, get_height(ctx) as f32) * 0.5;
-        let adjusted_topleft_pos = window_centre - size * 0.5;
-        Self::new(ctx, alignment, adjusted_topleft_pos, size, padding)
+    pub fn default(ctx: &mut Context, alignment: UIAlignment, pos: V2, size: V2,
+        padding: f32) -> tetra::Result<Grid> {
+        Ok(Grid {
+            alignment, layout: UILayout::Default, transform: UITransform::new(ctx,
+            V2::zero(), size, pos, padding)?, elements: Vec::new(),
+            reactor: DefaultUIReactor::new()
+        })
     }
 
     pub fn add_element_at<T: UIElement + 'static>(&mut self, element: T,
@@ -47,7 +58,9 @@ impl Grid {
 
     pub fn remove_element_at(&mut self, index: usize) -> UIRcc {
         assert!(index <= self.elements.len() - 1);
-        self.elements.swap_remove(index)
+        let element = self.elements.remove(index);
+        self.update_element_alignments(index);
+        element
     }
 
     pub fn clear_elements(&mut self) {
@@ -64,7 +77,23 @@ impl Grid {
             element.borrow_mut().get_transform_mut().position = next_aligned_pos;
             self.update_element_alignments(from_index + 1);
         }
-    } 
+    }
+
+    fn get_pos(&self, ctx: &mut Context, parent_pos: V2) -> V2 {
+        let size = self.transform.size;
+        match self.layout {
+            UILayout::Default => self.transform.get_abs_pos(parent_pos),
+            UILayout::BottomLeft => V2::new(0.0, get_height(ctx) as f32 - size.y),
+            UILayout::Centre => {
+                let window_centre = V2::new(
+                    get_width(ctx) as f32, get_height(ctx) as f32) * 0.5;
+                window_centre - size * 0.5
+            },
+            UILayout::TopRight => V2::new(get_width(ctx) as f32 - size.x, 0.0),
+            UILayout::BottomRight => V2::new(get_width(ctx) as f32,
+                get_height(ctx) as f32) - size,
+        }
+    }
 }
 
 impl UIElement for Grid {
@@ -88,42 +117,46 @@ impl UIElement for Grid {
         &mut self.transform
     }
 
+    fn draw_rect(&mut self, ctx: &mut Context, parent_pos: V2) {
+        // Not very useful most of the time
+    }
+
     fn update_element(&mut self, ctx: &mut Context, parent_pos: V2) -> tetra::Result {
-        let abs_pos = self.transform.get_abs_pos(parent_pos);
+        let pos = self.get_pos(ctx, parent_pos);
         for element in self.elements.iter() {
             let mut element_ref = element.borrow_mut();
             if !element_ref.is_active() {
                 continue
             }
 
-            element_ref.update_element(ctx, abs_pos)?;
-            element_ref.update_reactor(ctx, abs_pos)?;
+            element_ref.update_element(ctx, pos)?;
+            element_ref.update_reactor(ctx, pos)?;
         }
         Ok(())
     }
 
     fn draw_element(&mut self, ctx: &mut Context, parent_pos: V2) -> tetra::Result {
-        let abs_pos = self.transform.get_abs_pos(parent_pos);
+        let pos = self.get_pos(ctx, parent_pos);
         for element in self.elements.iter() {
             let mut element_ref = element.borrow_mut();
             if !element_ref.is_invisible() {
-                element_ref.draw_element(ctx, abs_pos)?;
+                element_ref.draw_element(ctx, pos)?;
             }
-            element_ref.draw_rect(ctx, abs_pos);
+            element_ref.draw_rect(ctx, pos);
         }
         Ok(())
     }
 
     fn event_element(&mut self, ctx: &mut Context, event: Event, parent_pos: V2)
         -> tetra::Result {
-        let abs_pos = self.transform.get_abs_pos(parent_pos);
+        let pos = self.get_pos(ctx, parent_pos);
         for element in self.elements.iter() {
             let mut element_ref = element.borrow_mut();
             if !element_ref.is_active() {
                 continue
             }
 
-            element_ref.event_element(ctx, event.clone(), parent_pos)?;
+            element_ref.event_element(ctx, event.clone(), pos)?;
         }
         Ok(())
     }

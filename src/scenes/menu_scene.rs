@@ -11,7 +11,7 @@ pub struct MenuScene {
 
 impl MenuScene {
     pub fn new(ctx: &mut Context, game: GC) -> tetra::Result<MenuScene> {
-        let mut grid = Grid::new(ctx, UIAlignment::Horizontal,
+        let mut grid = Grid::default(ctx, UIAlignment::Horizontal,
             V2::zero(), V2::one() * 250.0, 10.0)?;
         let label = grid.add_element(Label::new(ctx, "Blackbeard", true,
             5.0, game.clone())?);

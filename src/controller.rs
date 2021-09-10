@@ -5,6 +5,7 @@ use crate::{BbResult, CannonSide, GC, GameState, Player, Rcc, Sprite, SpriteOrig
 pub struct Controller {
     pub players: HashMap<u16, Rcc<Player>>,
     pub local_player: Option<Rcc<Player>>,
+    pub catch_input: bool,
     input_buffer: PlaybackBuffer,
     curr_input_state: InputState,
     curr_gen: u64,
@@ -18,7 +19,8 @@ impl Controller {
         let target_x = game.borrow_mut().assets.load_texture(
             ctx, "UI/X.png".to_owned(), false)?;
         let mut controller = Controller {
-            players: HashMap::new(), local_player: None, input_buffer: PlaybackBuffer::new(),
+            players: HashMap::new(), local_player: None, catch_input: true,
+            input_buffer: PlaybackBuffer::new(),
             curr_input_state: InputState::default(),
             curr_gen: 0, target_x: Sprite::new(target_x, SpriteOrigin::Centre, None),
             curr_target_pos: None, game
@@ -112,6 +114,10 @@ impl GameState for Controller {
 
     fn event(&mut self, ctx: &mut Context, event: Event, world: &mut World)
         -> tetra::Result {
+        if !self.catch_input {
+            return Ok(())
+        }
+        
         if let Some(local_player) = self.local_player.as_ref() {
             match event {
                 Event::MouseButtonPressed { button } if button == MouseButton::Right => {

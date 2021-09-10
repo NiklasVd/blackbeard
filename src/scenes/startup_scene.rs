@@ -27,7 +27,7 @@ impl StartupScene {
         let logo = game.borrow_mut().assets.load_texture(ctx,
             "UI/Logo.png".to_owned(), false)?;
         Ok(StartupScene {
-            grid: Grid::new(ctx, UIAlignment::Vertical, V2::zero(), V2::one(), 0.0)?,
+            grid: Grid::default(ctx, UIAlignment::Vertical, V2::zero(), V2::one(), 0.0)?,
             timer: Timer::start(get_startup_time()),
             logo, game: game.clone()
         })

@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 use tetra::{Context, Event, State, input::Key};
-use crate::{BbError, BbErrorType, BbResult, Controller, Entity, GC, GameState, ID, Player, Rcc, ShipType, TransformResult, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment}, label::Label, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ui_element::{DefaultUIReactor, UIElement}, world::World};
+use crate::{BbError, BbErrorType, BbResult, Controller, Entity, GC, GameState, ID, Player, Rcc, ShipType, TransformResult, V2, button::{Button, DefaultButton}, chat::Chat, grid::{Grid, UIAlignment, UILayout}, label::Label, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ui_element::{DefaultUIReactor, UIElement}, world::World};
 use super::scenes::{Scene, SceneType};
 
 pub const MAX_INPUT_STEP_BLOCK_DURATION: u64 = 60 * 10;
@@ -16,7 +16,7 @@ pub struct WorldScene {
 
 impl WorldScene {
     pub fn new(ctx: &mut Context, players: Vec<(ID, ShipType)>, game: GC) -> BbResult<WorldScene> {
-        let mut grid = Grid::new(ctx, UIAlignment::Horizontal,
+        let mut grid = Grid::default(ctx, UIAlignment::Horizontal,
             V2::zero(), V2::one() * 200.0, 0.0).convert()?;
         let mut ui = WorldSceneUI::new(ctx, game.clone(), &mut grid).convert()?;
         ui.update_players(ctx, players.iter().map(|(id, ..)| id.clone()).collect()).convert()?;
@@ -107,11 +107,14 @@ impl Scene for WorldScene {
 
 impl State for WorldScene {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
+        self.ui.update(ctx)?;
+        self.update_menu_ui().convert()?;
+        // Don't react to input if player is writing in chat
+        self.controller.catch_input = !self.ui.is_chat_focused();
+
         self.handle_received_packets(ctx).convert()?;
         self.controller.update(ctx, &mut self.world)?;
-        self.world.update(ctx)?;
-        self.ui.update(ctx)?;
-        self.update_menu_ui().convert()
+        self.world.update(ctx)
     }
 
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
@@ -184,9 +187,18 @@ impl NetController for WorldScene {
         self.controller.add_step(step);
         Ok(())
     }
+
+    fn on_chat_message(&mut self, ctx: &mut Context, text: String, sender: u16) -> BbResult {
+        let sender = {
+            self.game.borrow().network.as_ref().unwrap().get_connection_name(sender)
+        };
+        self.ui.add_chat_message(ctx, sender.as_str(), text.as_str()).convert()
+    }
 }
 
 struct WorldSceneUI {
+    // Add event log/chat (combined?)
+    chat: Chat,
     menu_button: Rcc<DefaultButton>,
     menu_grid: Rcc<Grid>,
     leave_button: Rcc<DefaultButton>,
@@ -197,22 +209,30 @@ struct WorldSceneUI {
 
 impl WorldSceneUI {
     fn new(ctx: &mut Context, game: GC, grid: &mut Grid) -> tetra::Result<WorldSceneUI> {
-        let menu_button = grid.add_element(Button::new(ctx, "#", V2::new(20.0, 20.0),
+        let menu_button = grid.add_element(Button::new(ctx, "-", V2::new(20.0, 20.0),
             1.0, DefaultUIReactor::new(), game.clone())?);
 
-        let mut menu_grid = Grid::centered(ctx, UIAlignment::Vertical,
+        let mut menu_grid = Grid::default(ctx, UIAlignment::Vertical, V2::zero(),
             V2::new(100.0, 20.0), 0.0)?;
         menu_grid.set_visibility(false);
         let leave_button = menu_grid.add_element(Button::new(ctx, "Leave Match",
             V2::new(120.0, 35.0), 1.0, DefaultUIReactor::new(), game.clone())?);
         let match_info_label = menu_grid.add_element(Label::new(ctx, "Connected to Server",
             false, 2.0, game.clone())?);
-        let players_grid = menu_grid.add_element(Grid::new(ctx, UIAlignment::Vertical,
+        menu_grid.add_element(Label::new(ctx, "Connected Players", false, 2.0, game.clone())?);
+        let players_grid = menu_grid.add_element(Grid::default(ctx, UIAlignment::Vertical,
             V2::zero(), V2::new(120.0, 300.0), 2.0)?);
         let menu_grid = grid.add_element(menu_grid);
+
+        let chat = Chat::new(ctx, UILayout::BottomLeft, grid, game.clone())?;
         Ok(WorldSceneUI {
-            menu_button, menu_grid, leave_button, match_info_label, players_grid, game
+            chat, menu_button, menu_grid, leave_button, match_info_label, players_grid, game
         })
+    }
+
+    pub fn add_chat_message(&mut self, ctx: &mut Context, sender: &str, msg: &str)
+        -> tetra::Result {
+        self.chat.add_message(ctx, sender, msg)
     }
 
     pub fn toggle_menu_visibility(&mut self) {
@@ -229,15 +249,27 @@ impl WorldSceneUI {
         let mut players_grid_ref = self.players_grid.borrow_mut();
         players_grid_ref.clear_elements();
         for player in players.into_iter() {
-            players_grid_ref.add_element(Label::new(ctx, format!("{:?}", player).as_str(),
-                false, 2.0, self.game.clone())?);
+            players_grid_ref.add_element(Label::new(ctx, format!("{:?} {}", player,
+                match player.n {
+                    0 => "(Host)",
+                    _ => ""
+                }).as_str(), false, 2.0, self.game.clone())?);
         }
         Ok(())
+    }
+
+    pub fn is_chat_focused(&self) -> bool {
+        self.chat.is_focused()
     }
 
     pub fn update(&mut self, ctx: &mut Context) -> tetra::Result {
         if self.menu_button.borrow().is_pressed() {
             self.toggle_menu_visibility();
+        }
+        if let Some(message) = self.chat.check_messages(ctx) {
+            self.game.borrow_mut().network.as_mut().unwrap().send_packet(Packet::ChatMessage {
+                message
+            }).convert()?;
         }
         Ok(())
     }

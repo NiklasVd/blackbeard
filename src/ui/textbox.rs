@@ -1,11 +1,11 @@
-use tetra::{Context, graphics::{Color, DrawParams, Texture, text::Text}, input::{self, Key, is_key_down}};
-use crate::{GC, V2, ui_element::{UIElement, UIReactor, UIState}, ui_transform::UITransform};
+use tetra::{Context, graphics::{Color, DrawParams, Texture, text::Text}, input::{self, Key, is_key_pressed}};
+use crate::{GC, V2, ui_element::{DefaultUIReactor, UIElement, UIReactor, UIState}, ui_transform::UITransform};
 
 pub struct Textbox {
     pub transform: UITransform,
+    pub reactor: DefaultUIReactor,
     texture: Texture,
     text: Text,
-    reactor: TextboxReactor
 }
 
 impl Textbox {
@@ -20,12 +20,24 @@ impl Textbox {
             transform: UITransform::default(ctx, size, V2::new(
                 texture.width() as f32, texture.height() as f32), padding)?,
             texture, text: Text::new(default_text, font),
-            reactor: TextboxReactor::new()
+            reactor: DefaultUIReactor::new()
         })
+    }
+
+    pub fn set_text(&mut self, text: &str) {
+        self.text.set_content(text);
     }
 
     pub fn get_text(&self) -> &str {
         self.text.content()
+    }
+
+    pub fn is_focused(&self) -> bool {
+        self.reactor.get_state() == UIState::Focus
+    }
+
+    pub fn confirm_enter(&self, ctx: &mut Context) -> bool {
+        is_key_pressed(ctx, Key::Enter) && self.is_focused()
     }
 }
 
@@ -55,7 +67,7 @@ impl UIElement for Textbox {
             return Ok(())
         }
 
-        if is_key_down(ctx, Key::Backspace) {
+        if is_key_pressed(ctx, Key::Backspace) {
             self.text.pop();
         }
         if let Some(input) = input::get_text_input(ctx) {
@@ -71,27 +83,5 @@ impl UIElement for Textbox {
             scale: V2::one(), origin: V2::zero(), color: Color::BLACK
         });
         Ok(())
-    }
-}
-
-struct TextboxReactor {
-    state: UIState
-}
-
-impl TextboxReactor {
-    fn new() -> TextboxReactor {
-        TextboxReactor {
-            state: UIState::Idle
-        }
-    }
-}
-
-impl UIReactor for TextboxReactor {
-    fn get_state(&self) -> UIState {
-        self.state
-    }
-
-    fn set_state(&mut self, state: UIState) {
-        self.state = state;
     }
 }

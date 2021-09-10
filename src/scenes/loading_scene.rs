@@ -22,10 +22,10 @@ pub struct LoadingScene {
 impl LoadingScene {
     pub fn new(ctx: &mut Context, players: Vec<(ID, ShipType)>, game: GC)
         -> tetra::Result<LoadingScene> {
-        let mut grid = Grid::new(ctx, UIAlignment::Vertical,
+        let mut grid = Grid::default(ctx, UIAlignment::Vertical,
             V2::zero(), V2::one() * 200.0, 0.0)?;
-        let mut title_grid = Grid::new(ctx, UIAlignment::Horizontal, V2::zero(),
-            V2::new(200.0, 42.0), 0.0)?;
+        let mut title_grid = Grid::default(ctx, UIAlignment::Horizontal,
+            V2::zero(), V2::new(200.0, 42.0), 0.0)?;
         
         let loading_label = Label::new(ctx, "Loading...", true, 5.0, game.clone())?;
         title_grid.add_element(loading_label);
@@ -42,8 +42,9 @@ impl LoadingScene {
     }
 
     fn load_image(&mut self, ctx: &mut Context) -> tetra::Result {
-        if !self.image_loaded {
-            let loading_image = Image::new(ctx, V2::new(200.0 * 4.0, 125.0 * 4.0), 0.0,
+        if !self.image_loaded { // TODO: Put into separate grid for central layout
+            let loading_image = Image::new(ctx,
+                V2::new(200.0 * 4.0, 125.0 * 4.0), 0.0,
                 "UI/Sunk Ship Painting.png".to_owned(), false, self.game.clone())?;
             self.grid.add_element(loading_image);
             self.image_loaded = true;

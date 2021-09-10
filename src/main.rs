@@ -94,7 +94,6 @@ fn main() -> tetra::Result {
         .debug_info(true)
         .high_dpi(true)
         .show_mouse(true)
-        .fullscreen(true)
         .build()?
         .run(Game::new)
     {

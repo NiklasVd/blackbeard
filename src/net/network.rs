@@ -33,6 +33,12 @@ impl Network {
         self.client_poll_received_packets()
     }
 
+    pub fn get_connection_name(&self, id: u16) -> String {
+        self.client.get_connection(id)
+            .map(|id| id.name.clone())
+            .unwrap_or(format!("Unknown player (ID: {})", id))
+    }
+
     pub fn send_packet(&mut self, packet: Packet) -> BbResult {
         self.client.send_packet(packet)
     }

@@ -4,7 +4,7 @@ use crossbeam_channel::{Receiver, Sender};
 use laminar::{Config, Packet as LaminarPacket, Socket, SocketEvent};
 use crate::{BbError, BbErrorType, BbResult};
 
-const IDLE_TIMEOUT_DURATION: f32 = 60.0;
+const IDLE_TIMEOUT_DURATION: f32 = 15.0;
 const HEARTBEAT_INTERVAL: f32 = 5.0;
 
 pub trait NetPeer {

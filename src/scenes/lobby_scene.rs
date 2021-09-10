@@ -1,11 +1,12 @@
 use std::collections::HashMap;
-
 use tetra::{Context, State};
-use crate::{BbError, BbErrorType, BbResult, GC, ID, Rcc, ShipType, TransformResult, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment}, label::Label, loading_scene::LoadingScene, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::{GamePhase, Packet}, peer::DisconnectReason, ui_element::{DefaultUIReactor, UIElement}};
+use crate::{BbError, BbErrorType, BbResult, GC, ID, Rcc, ShipType, TransformResult, V2, button::{Button, DefaultButton}, chat::Chat, grid::{Grid, UIAlignment, UILayout}, label::Label, loading_scene::LoadingScene, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::{GamePhase, Packet}, peer::DisconnectReason, ui_element::{DefaultUIReactor, UIElement}};
 use super::scenes::{Scene, SceneType};
 
 pub struct LobbyScene {
     pub grid: Grid,
+    match_grid: Rcc<Grid>,
+    chat: Chat,
     start_game_button: Rcc<DefaultButton>,
     disconnect_button: Rcc<DefaultButton>,
     player_list_grid: Rcc<Grid>,
@@ -36,26 +37,33 @@ impl LobbyScene {
     }
 
     fn new(ctx: &mut Context, game: GC) -> BbResult<LobbyScene> {
-        let mut grid = Grid::new(ctx, UIAlignment::Vertical, V2::zero(),
-            V2::one() * 500.0, 5.0).convert()?;
-        grid.add_element(Label::new(ctx, "Setting up network...", false,
+        let mut super_grid = Grid::default(ctx, UIAlignment::Horizontal,
+            V2::zero(), V2::one() * 500.0, 5.0).convert()?;
+        let mut match_grid = Grid::default(ctx, UIAlignment::Vertical,
+            V2::zero(), V2::new(330.0, 500.0), 5.0).convert()?;
+        match_grid.add_element(Label::new(ctx, "Setting up network...", false,
             5.0, game.clone()).convert()?);
 
         let mut start_game_button = Button::new(ctx, "Start Game",
-            V2::new(90.0, 30.0), 5.0, DefaultUIReactor::new(), game.clone()).convert()?;
+            V2::new(110.0, 30.0), 5.0, DefaultUIReactor::new(), game.clone()).convert()?;
         if !game.borrow().network.as_ref().unwrap().has_authority() {
             start_game_button.set_disabled(true);
         }
-        let start_game_button = grid.add_element(start_game_button);
-
-        let disconnect_button = grid.add_element(Button::new(ctx, "Disconnect", 
-            V2::new(85.0, 30.0), 5.0, DefaultUIReactor::new(), game.clone()).convert()?);
-        grid.add_element(Label::new(ctx, "Connected Players", true, 5.0, game.clone()).convert()?);
-        let player_list_grid = grid.add_element(Grid::new(ctx, UIAlignment::Vertical,
+        let start_game_button = match_grid.add_element(start_game_button);
+        let disconnect_button = match_grid.add_element(Button::new(ctx, "Disconnect", 
+            V2::new(105.0, 30.0), 5.0, DefaultUIReactor::new(), game.clone()).convert()?);
+        match_grid.add_element(Label::new(ctx, "Connected Players", true, 5.0, game.clone()).convert()?);
+        let player_list_grid = match_grid.add_element(Grid::default(ctx, UIAlignment::Vertical,
             V2::zero(), V2::one() * 300.0, 5.0).convert()?);
-        
+        let match_grid = super_grid.add_element(match_grid);
+
+        let mut game_grid = Grid::default(ctx, UIAlignment::Vertical,
+            V2::zero(), V2::new(250.0, 500.0), 5.0).convert()?;
+        let chat = Chat::new(ctx, UILayout::Default, &mut game_grid, game.clone()).convert()?;
+        super_grid.add_element(game_grid);
+
         Ok(LobbyScene {
-            grid, start_game_button, disconnect_button, player_list_grid, player_index: HashMap::new(),
+            grid: super_grid, match_grid, chat, start_game_button, disconnect_button, player_list_grid, player_index: HashMap::new(),
             player_world_params: Vec::new(), disconnected: false, game
         })
     }
@@ -99,6 +107,12 @@ impl State for LobbyScene {
                 start_game_button_ref.set_disabled(true);
             }
         }
+        if let Some(message) = self.chat.check_messages(ctx) {
+            self.game.borrow_mut().network.as_mut().unwrap().send_packet(Packet::ChatMessage {
+                message
+            }).convert()?
+        }
+
         self.handle_received_packets(ctx).convert()
     }
 }
@@ -116,7 +130,7 @@ impl NetController for LobbyScene {
         for id in players.into_iter() {
             self.on_player_connect(ctx, id)?;
         }
-        self.grid.remove_element_at(0);
+        self.match_grid.borrow_mut().remove_element_at(0);
         Ok(())
     }
 
@@ -151,14 +165,10 @@ impl NetController for LobbyScene {
     }
 
     fn on_chat_message(&mut self, ctx: &mut Context, text: String, sender: u16) -> BbResult {
-        let sender_name = {
-            let game_ref = self.game.as_ref().borrow();
-            game_ref.network.as_ref().unwrap().client.get_connection(sender)
-                .map(|id| id.name.clone())
-                .unwrap_or(format!("Unknown player (ID: {})", sender))
+        let sender = {
+            self.game.borrow().network.as_ref().unwrap().get_connection_name(sender)
         };
-        println!("{} in chat: {}", sender_name, text);
-        Ok(())
+        self.chat.add_message(ctx, sender.as_str(), text.as_str()).convert()
     }
 
     fn on_game_phase_changed(&mut self, ctx: &mut Context, phase: GamePhase) -> BbResult {

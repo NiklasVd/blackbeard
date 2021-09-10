@@ -7,8 +7,8 @@ pub struct Image {
 }
 
 impl Image {
-    pub fn new(ctx: &mut Context, size: V2, padding: f32, image_path: String,
-        cache: bool, game: GC) -> tetra::Result<Image> {
+    pub fn new(ctx: &mut Context, size: V2, padding: f32,
+        image_path: String, cache: bool, game: GC) -> tetra::Result<Image> {
         let image = game.borrow_mut().assets.load_texture(ctx, image_path, cache)?;
         Ok(Image {
             transform: UITransform::default(ctx, size,
