@@ -11,6 +11,9 @@ const BASE_MOVEMENT_FORCE: f32 = 10.0 * MASS_FORCE_SCALE;
 const BASE_TORQUE_FORCE: f32 = 1000.0 * MASS_FORCE_SCALE;
 const TARGET_POS_DIST_MARGIN: f32 = 75.0;
 const TARGET_ROT_MARGIN: f32 = PI / 45.0;
+const ESCUTO_SHOOT_STEAL_PERCENTAGE: f32 = 0.4;
+const ESCUTO_RAM_STEAL_PERCENTAGE: f32 = 0.6;
+const ESCUTO_ACCIDENT_LOSS_PERCENTAGE: f32 = 0.2;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ShipType {
@@ -51,7 +54,7 @@ pub struct ShipAttributes {
 impl ShipAttributes {
     pub fn caravel() -> ShipAttributes {
         ShipAttributes {
-            health: 100,
+            health: 140,
             defense: 60,
             movement_speed: 8.5, turn_rate: 5.0,
             cannon_damage: 20, cannon_reload_time: 5.0,
@@ -61,9 +64,9 @@ impl ShipAttributes {
 
     pub fn galleon() -> ShipAttributes {
         ShipAttributes {
-            health: 120,
+            health: 180,
             defense: 80,
-            movement_speed: 6.5, turn_rate: 3.5,
+            movement_speed: 6.0, turn_rate: 3.85,
             cannon_damage: 20, cannon_reload_time: 5.0,
             ram_damage: 35
         }
@@ -71,8 +74,8 @@ impl ShipAttributes {
 
     pub fn schooner() -> ShipAttributes {
         ShipAttributes {
-            health: 80,
-            defense: 40,
+            health: 115,
+            defense: 35,
             movement_speed: 10.0, turn_rate: 5.0,
             cannon_damage: 20, cannon_reload_time: 5.0,
             ram_damage: 15
@@ -93,6 +96,7 @@ pub struct Ship {
     pub attr: ShipAttributes,
     pub cannons: Vec<Cannon>,
     pub transform: Transform,
+    pub escudos: u32,
     sprite: Sprite,
     label: Text,
     spawn: Option<V2>,
@@ -116,7 +120,7 @@ impl Ship {
     pub fn schooner(ctx: &mut Context, game: GC, name: String, spawn: V2, respawn: bool)
         -> tetra::Result<Ship> {
         Self::new(ctx, name, "Schooner.png", ShipAttributes::schooner(), spawn, respawn,
-            2, 1.5 /* Small collider sizes warrants greater density as a balance */, game)
+            2, 1.5 /* Small collider size warrants greater density as a balance */, game)
     }
 
     fn new(ctx: &mut Context, name: String, ship_texture: &str, attributes: ShipAttributes, spawn: V2,
@@ -158,7 +162,7 @@ impl Ship {
         Ok(Ship {
             stype: ShipType::Caravel, curr_health: attr.health, name,
             target_pos: None, attr, cannons,
-            transform, stun: Timer::new(stun_length),
+            transform, escudos: 100, stun: Timer::new(stun_length),
             sprite, label, spawn,
             destroy: false, game
         })
@@ -172,9 +176,10 @@ impl Ship {
         self.stun.is_running()
     }
 
-    pub fn take_damage(&mut self, ctx: &mut Context, damage: u16, world: &mut World) -> tetra::Result {
+    pub fn take_damage(&mut self, ctx: &mut Context, damage: u16, world: &mut World)
+        -> tetra::Result<bool> {
         if damage <= 0 {
-            return Ok(())
+            return Ok(false)
         }
 
         if self.curr_health < damage {
@@ -187,8 +192,10 @@ impl Ship {
         self.curr_health = self.curr_health.clamped(0, self.attr.health);
         if self.curr_health == 0 {
             self.sink(ctx, world)?;
+            Ok(true)
+        } else {
+            Ok(false)
         }
-        Ok(())
     }
 
     pub fn sink(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
@@ -221,16 +228,22 @@ impl Ship {
 
     pub fn take_cannon_ball_hit(&mut self, ctx: &mut Context, dmg: u16,
         shooter_index: Index, world: &mut World) -> tetra::Result {
-        let shooter_name = match world.get_ship(shooter_index) {
-            Some(shooter) => {
-                shooter.borrow().get_name()
-            },
-            _ => "unknown ship".to_owned()
-        };
-
+        let shooter = world.get_ship(shooter_index).unwrap();
+        let mut shooter_ref = shooter.borrow_mut(); // Bold unwrap but what else...
         println!("{} was hit by {} cannon and took {} damage!",
-            self.get_name(), shooter_name, dmg);
-        self.take_damage(ctx, dmg, world)
+            self.get_name(), shooter_ref.get_name(), dmg);
+        match self.take_damage(ctx, dmg, world) {
+            Ok(true) => {
+                let forfeited_escudos = (self.escudos as f32 * ESCUTO_SHOOT_STEAL_PERCENTAGE) as u32;
+                shooter_ref.escudos += forfeited_escudos;
+                self.escudos -= forfeited_escudos;
+                println!("{} sunk {}'s ship with a cannon shot and stole {} escudos!",
+                    shooter_ref.get_name(), self.get_name(), forfeited_escudos);
+                Ok(())
+            },
+            Ok(false) => Ok(()),
+            Err(e) => Err(e)
+        }
     }
 
     pub fn shoot_cannons_on_side(&mut self, ctx: &mut Context,
@@ -331,10 +344,21 @@ impl Entity for Ship {
     fn collide_with_ship(&mut self, ctx: &mut Context, other: Rcc<Ship>, world: &mut World) -> tetra::Result {
         let mut other_ref = other.borrow_mut();
         println!("{} collided with {} and dealt {} ram damage!",
-        self.get_name(), other_ref.get_name(), self.attr.ram_damage);
-
+            self.get_name(), other_ref.get_name(), self.attr.ram_damage);
+        
         other_ref.stun();
-        other_ref.take_damage(ctx, self.attr.ram_damage, world)
+        match other_ref.take_damage(ctx, self.attr.ram_damage, world) {
+            Ok(true) => {
+                let forfeited_escudos = (other_ref.escudos as f32 * ESCUTO_RAM_STEAL_PERCENTAGE) as u32;
+                other_ref.escudos -= forfeited_escudos;
+                self.escudos += forfeited_escudos;
+                println!("{} sunk {}'s ship via ramming and stole {} escudos!",
+                    self.get_name(), other_ref.get_name(), forfeited_escudos);
+                Ok(())
+            },
+            Ok(false) => Ok(()),
+            Err(e) => Err(e)
+        }
     }
 
     fn collide_with_entity(&mut self, ctx: &mut Context, other: Rcc<dyn Entity>, world: &mut World)
@@ -345,6 +369,7 @@ impl Entity for Ship {
             return Ok(())
         }
 
+        // TODO: Rework
         let absorption = BASE_OBJECT_COLLISION_DAMAGE *
             (self.attr.defense / MAX_SHIP_DEFENSE);
         let damage = BASE_OBJECT_COLLISION_DAMAGE - absorption;
@@ -354,7 +379,17 @@ impl Entity for Ship {
         println!("{} collided with object {}!", self.get_name(), other_ref.get_name());
 
         self.stun();
-        self.take_damage(ctx, damage, world)
+        match self.take_damage(ctx, damage, world) {
+            Ok(true) => {
+                let forfeited_escudos = (self.escudos as f32 * ESCUTO_ACCIDENT_LOSS_PERCENTAGE) as u32;
+                self.escudos -= forfeited_escudos;
+                println!("{} lost {} escudos after sinking their ship in an accident!",
+                    self.get_name(), forfeited_escudos);
+                Ok(())
+            },
+            Ok(false) => Ok(()),
+            Err(e) => Err(e)
+        }
     }
 
     fn collide_with_neutral(&mut self, ctx: &mut Context)

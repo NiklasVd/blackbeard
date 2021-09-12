@@ -27,6 +27,8 @@ impl WorldScene {
             grid, ui, back_to_menu: false, game: game.clone()
         };
         world_scene.init_players(ctx, players)?;
+        world_scene.ui.set_local_player(
+            world_scene.controller.local_player.as_ref().unwrap().clone());
         
         world_scene.world.add_island(ctx, V2::new(800.0, 500.0), 0.6, 1).convert()?;
         world_scene.world.add_island(ctx, V2::new(150.0, 1000.0), 4.0, 2).convert()?;
@@ -209,11 +211,15 @@ struct WorldSceneUI {
     leave_button: Rcc<DefaultButton>,
     match_info_label: Rcc<Label>,
     players_grid: Rcc<Grid>,
+    health_label: Rcc<Label>,
+    escudos_label: Rcc<Label>,
+    local_player: Option<Rcc<Player>>,
     game: GC
 }
 
 impl WorldSceneUI {
-    fn new(ctx: &mut Context, game: GC, grid: &mut Grid) -> tetra::Result<WorldSceneUI> {
+    fn new(ctx: &mut Context, game: GC, grid: &mut Grid)
+        -> tetra::Result<WorldSceneUI> {
         let menu_button = grid.add_element(Button::new(ctx, "-", V2::new(20.0, 20.0),
             1.0, DefaultUIReactor::new(), game.clone())?);
 
@@ -229,10 +235,23 @@ impl WorldSceneUI {
             V2::zero(), V2::new(120.0, 300.0), 2.0)?);
         let menu_grid = grid.add_element(menu_grid);
 
+        let mut player_info_grid = Grid::new(ctx, UIAlignment::Horizontal,
+            UILayout::TopRight, V2::new(330.0, 35.0), 0.0)?;
+        let health_label = player_info_grid.add_element(Label::new(ctx,
+            "1000/1000 Health", false, 1.0, game.clone())?);
+        let escudos_label = player_info_grid.add_element(Label::new(ctx,
+            "1000 Escudos", false, 1.0, game.clone())?);
+        grid.add_element(player_info_grid);
+
         let chat = Chat::new(ctx, UILayout::BottomLeft, grid, game.clone())?;
         Ok(WorldSceneUI {
-            chat, menu_button, menu_grid, leave_button, match_info_label, players_grid, game
+            chat, menu_button, menu_grid, leave_button, match_info_label, players_grid,
+            health_label, escudos_label, local_player: None, game
         })
+    }
+
+    pub fn set_local_player(&mut self, player: Rcc<Player>) {
+        self.local_player = Some(player);
     }
 
     pub fn add_chat_message(&mut self, ctx: &mut Context, sender: &str, msg: &str)
@@ -275,6 +294,14 @@ impl WorldSceneUI {
             self.game.borrow_mut().network.as_mut().unwrap().send_packet(Packet::ChatMessage {
                 message
             }).convert()?;
+        }
+        if let Some(local_player) = self.local_player.as_ref() {
+            let player_ref = local_player.borrow();
+            let ship_ref = player_ref.possessed_ship.borrow();
+            self.health_label.borrow_mut().set_text(
+                &format!("{}/{} Health", ship_ref.curr_health, ship_ref.attr.health));
+            self.escudos_label.borrow_mut().set_text(
+                &format!("{} Escudos", ship_ref.escudos));
         }
         Ok(())
     }

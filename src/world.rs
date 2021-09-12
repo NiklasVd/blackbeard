@@ -96,8 +96,7 @@ impl World {
             ShipType::Galleon => Ship::galleon(ctx, self.game.clone(),
                 name, spawn, respawn),
             ShipType::Schooner => Ship::schooner(ctx, self.game.clone(),
-                name, spawn, respawn),
-            _ => todo!()
+                name, spawn, respawn)
         }?;
         let index = ship.get_index();
         let ship_ref = self.add_entity::<Ship>(ship).unwrap();

@@ -174,7 +174,7 @@ impl LobbySceneUI {
         let mut game_grid = Grid::default(ctx, UIAlignment::Vertical,
             V2::zero(), V2::new(250.0, 500.0), 5.0).convert()?;
         let mut game_settings_grid = Grid::default(ctx, UIAlignment::Vertical,
-            V2::zero(), V2::new(120.0, 80.0), 2.0).convert()?;
+            V2::zero(), V2::new(120.0, 110.0), 2.0).convert()?;
         game_settings_grid.add_element(Label::new(ctx,
             "Select Ship", false, 1.0, game.clone()).convert()?);
         let caravel_ship_button = game_settings_grid.add_element(Button::new(ctx,
