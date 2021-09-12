@@ -60,7 +60,7 @@ impl Server {
         self.send_multicast(Packet::PlayerDisconnect {
             reason: DisconnectReason::HostShutdown
         }, 0)?;
-        thread::sleep(Duration::from_secs_f32(2.0));
+        thread::sleep(Duration::from_secs_f32(1.5));
         self.peer.shutdown()
     }
 

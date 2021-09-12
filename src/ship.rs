@@ -1,4 +1,5 @@
 use std::{f32::consts::PI};
+use binary_stream::{BinaryStream, Serializable};
 use rapier2d::{data::Index};
 use tetra::{Context, State, graphics::{text::Text}, math::Clamp};
 use crate::{Cannon, CannonSide, Entity, EntityType, GC, GameState, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, conv_vec, disassemble_iso, get_angle, pi_to_pi2_range, polar_to_cartesian, world::World};
@@ -18,6 +19,25 @@ pub enum ShipType {
     Galleon
 }
 
+impl Serializable for ShipType {
+    fn to_stream(&self, stream: &mut BinaryStream) {
+        stream.write_buffer_single(match self {
+            ShipType::Caravel => 0,
+            ShipType::Schooner => 1,
+            ShipType::Galleon => 2
+        }).unwrap();
+    }
+
+    fn from_stream(stream: &mut BinaryStream) -> Self {
+        match stream.read_buffer_single().unwrap() {
+            0 => ShipType::Caravel,
+            1 => ShipType::Galleon,
+            2 => ShipType::Schooner,
+            n @ _ => panic!("Index {} is not assigned to any ship type", n)
+        }
+    }
+}
+
 pub struct ShipAttributes {
     pub health: u16,
     pub defense: u16, // 1-100
@@ -34,8 +54,28 @@ impl ShipAttributes {
             health: 100,
             defense: 60,
             movement_speed: 8.5, turn_rate: 5.0,
-            cannon_damage: 30, cannon_reload_time: 5.0,
+            cannon_damage: 20, cannon_reload_time: 5.0,
             ram_damage: 20
+        }
+    }
+
+    pub fn galleon() -> ShipAttributes {
+        ShipAttributes {
+            health: 120,
+            defense: 80,
+            movement_speed: 6.5, turn_rate: 3.5,
+            cannon_damage: 20, cannon_reload_time: 5.0,
+            ram_damage: 35
+        }
+    }
+
+    pub fn schooner() -> ShipAttributes {
+        ShipAttributes {
+            health: 80,
+            defense: 40,
+            movement_speed: 10.0, turn_rate: 5.0,
+            cannon_damage: 20, cannon_reload_time: 5.0,
+            ram_damage: 15
         }
     }
 
@@ -63,11 +103,29 @@ pub struct Ship {
 impl Ship {
     pub fn caravel(ctx: &mut Context, game: GC, name: String, spawn: V2,
         respawn: bool) -> tetra::Result<Ship> {
+        Self::new(ctx, name, "Caravel.png", ShipAttributes::caravel(), spawn, respawn,
+            3, 1.0, game)
+    }
+
+    pub fn galleon(ctx: &mut Context, game: GC, name: String, spawn: V2, respawn: bool)
+        -> tetra::Result<Ship> {
+        Self::new(ctx, name, "Galleon.png", ShipAttributes::galleon(), spawn, respawn,
+            4, 1.0, game)
+    }
+
+    pub fn schooner(ctx: &mut Context, game: GC, name: String, spawn: V2, respawn: bool)
+        -> tetra::Result<Ship> {
+        Self::new(ctx, name, "Schooner.png", ShipAttributes::schooner(), spawn, respawn,
+            2, 1.5 /* Small collider sizes warrants greater density as a balance */, game)
+    }
+
+    fn new(ctx: &mut Context, name: String, ship_texture: &str, attributes: ShipAttributes, spawn: V2,
+        respawn: bool, cannons_per_side: u32, mass: f32, game: GC) -> tetra::Result<Ship> {
         let mut game_ref = game.borrow_mut();
         let sprite = Sprite::new(game_ref.assets.load_texture(
-            ctx, "Caravel.png".to_owned(), true)?, SpriteOrigin::Centre, None);
+            ctx, ship_texture.to_owned(), true)?, SpriteOrigin::Centre, None);
         let handle = game_ref.physics.build_ship_collider(
-            sprite.texture.width() as f32 * 0.5, sprite.texture.height() as f32 * 0.5);
+            sprite.texture.width() as f32 * 0.5, sprite.texture.height() as f32 * 0.5, mass);
         let label = Text::new("", game_ref.assets.font.clone());
         let attr = ShipAttributes::caravel();
         let stun_length = attr.get_stun_length();
@@ -84,15 +142,15 @@ impl Ship {
         let mut cannons = Vec::new();
         let mut bow_pos = V2::new(48.0, -50.0);
         let bow_rot = PI * 1.5;
-        for _ in 0..3 {
-            cannons.push(Cannon::new(ctx, bow_pos, bow_rot, 20,
+        for _ in 0..cannons_per_side {
+            cannons.push(Cannon::new(ctx, bow_pos, bow_rot, attr.cannon_damage,
                 CannonSide::Bowside, attr.cannon_reload_time, index, game.clone())?);
             bow_pos -= V2::new(45.0, 0.0);
         }
         let mut port_pos = V2::new(48.0, 50.0);
         let port_rot = PI / 2.0;
-        for _ in 0..3 {
-            cannons.push(Cannon::new(ctx, port_pos, port_rot, 20,
+        for _ in 0..cannons_per_side {
+            cannons.push(Cannon::new(ctx, port_pos, port_rot, attr.cannon_damage,
                 CannonSide::Portside, attr.cannon_reload_time, index, game.clone())?);
             port_pos -= V2::new(45.0, 0.0);
         }
@@ -119,7 +177,6 @@ impl Ship {
             return Ok(())
         }
 
-        println!("{} took {} damage.", self.get_name(), damage);
         if self.curr_health < damage {
             self.curr_health = 0;
         }

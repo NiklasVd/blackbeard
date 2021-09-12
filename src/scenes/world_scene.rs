@@ -26,23 +26,8 @@ impl WorldScene {
             world: World::new(ctx, game.clone()),
             grid, ui, back_to_menu: false, game: game.clone()
         };
+        world_scene.init_players(ctx, players)?;
         
-        let local_id = {
-            if let Some(network) = game.borrow().network.as_ref() {
-                network.client.get_local_id()
-            } else {
-                None
-            }
-        };
-        for (id, ship_type) in players.into_iter() {
-            let player = world_scene.add_player(ctx, id.clone(), ship_type)?;
-            if let Some(local_id) = local_id.as_ref() {
-                if &id != local_id {
-                    continue
-                }
-            }
-            world_scene.controller.set_local_player(player);
-        }
         world_scene.world.add_island(ctx, V2::new(800.0, 500.0), 0.6, 1).convert()?;
         world_scene.world.add_island(ctx, V2::new(150.0, 1000.0), 4.0, 2).convert()?;
         world_scene.world.add_island(ctx, V2::new(-200.0, -800.0), 0.0, 1).convert()?;
@@ -62,6 +47,26 @@ impl WorldScene {
         self.game.borrow_mut().network.as_mut().unwrap().disconnect(
             DisconnectReason::Timeout)?;
         self.back_to_menu = true;
+        Ok(())
+    }
+
+    fn init_players(&mut self, ctx: &mut Context, players: Vec<(ID, ShipType)>) -> BbResult {
+        let local_id = {
+            if let Some(network) = self.game.borrow().network.as_ref() {
+                network.client.get_local_id()
+            } else {
+                None
+            }
+        };
+        for (id, ship_type) in players.into_iter() {
+            let player_instance = self.add_player(ctx, id.clone(), ship_type)?;
+            if let Some(local_id) = local_id.as_ref() {
+                if &id != local_id {
+                    continue
+                }
+            }
+            self.controller.set_local_player(player_instance);
+        }
         Ok(())
     }
 

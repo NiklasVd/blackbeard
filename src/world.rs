@@ -92,9 +92,13 @@ impl World {
         -> tetra::Result<Rcc<Ship>> {
         let ship = match ship_type {
             ShipType::Caravel => Ship::caravel(ctx, self.game.clone(),
-                name, spawn, respawn)?,
+                name, spawn, respawn),
+            ShipType::Galleon => Ship::galleon(ctx, self.game.clone(),
+                name, spawn, respawn),
+            ShipType::Schooner => Ship::schooner(ctx, self.game.clone(),
+                name, spawn, respawn),
             _ => todo!()
-        };
+        }?;
         let index = ship.get_index();
         let ship_ref = self.add_entity::<Ship>(ship).unwrap();
         self.ships.insert(index, ship_ref.clone());

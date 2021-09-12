@@ -51,18 +51,20 @@ impl Physics {
         }
     }
 
-    pub fn build_ship_collider(&mut self, half_x: f32, half_y: f32) -> PhysicsHandle {
+    pub fn build_ship_collider(&mut self, half_x: f32, half_y: f32, mass: f32)
+        -> PhysicsHandle {
         let rb = RigidBodyBuilder::new_dynamic()
             .linear_damping(2.5).angular_damping(3.0).build();
         let rb_handle = self.rb_set.insert(rb);
         let coll = ColliderBuilder::cuboid(half_x * 0.9, half_y * 0.835)
-            .density(1.0).friction(2.0).restitution(0.8)
+            .density(mass).friction(2.0).restitution(0.8)
             .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
             .collision_groups(InteractionGroups::new(
                 get_any_coll_group(), get_any_coll_group()))
             .user_data(EntityType::Ship.to_num()).build();
         let coll_handle = self.coll_set.insert_with_parent(coll, rb_handle,
             &mut self.rb_set);
+            
         PhysicsHandle(rb_handle, coll_handle)
     }
 
