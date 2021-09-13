@@ -74,6 +74,7 @@ pub use ui::*;
 pub use net::*;
 pub use err::*;
 pub use diagnostics::*;
+pub use world::*;
 
 use tetra::ContextBuilder;
 use std::io::{Read, stdin};

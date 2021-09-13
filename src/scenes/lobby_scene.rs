@@ -116,13 +116,21 @@ impl NetController for LobbyScene {
 
     fn on_player_connect(&mut self, ctx: &mut Context, id: ID) -> BbResult {
         self.players.insert(id.n, (id.clone(), ShipType::Galleon));
-        self.ui.add_player(ctx, id, ShipType::Galleon)
+        self.ui.add_player(ctx, id.clone(), ShipType::Galleon)?;
+        self.ui.chat.add_line(ctx, &format!("{:?} connected to the game!", id)).convert()
     }
 
-    fn on_player_disconnect(&mut self, ctx: &mut Context, id: u16, reason: DisconnectReason) -> BbResult {
-        self.players.remove(&id);
-        self.ui.update_player_list(ctx, self.players.values()
-            .map(|(id, ship_type)| (id.clone(), ship_type.clone())).collect())
+    fn on_player_disconnect(&mut self, ctx: &mut Context, id: u16, reason: DisconnectReason)
+        -> BbResult {
+        if let Some((id, ship_type)) = self.players.remove(&id) {
+            self.ui.update_player_list(ctx, self.players.values()
+                .map(|(id, ship_type)| (id.clone(), ship_type.clone())).collect())?;
+            self.ui.chat.add_line(ctx,
+                &format!("{:?} left the game. Reason: {:?}.", id, reason)).convert()
+        } else {
+            println!("Unknown player with id {} left the game. Reason: {:?}", id, reason);
+            Ok(())
+        }
     }
 
     fn on_chat_message(&mut self, ctx: &mut Context, text: String, sender: u16) -> BbResult {

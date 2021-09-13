@@ -33,17 +33,20 @@ impl Chat {
         })
     }
 
-    pub fn add_message(&mut self, ctx: &mut Context, sender: &str, msg: &str)
-        -> tetra::Result {
+    pub fn add_line(&mut self, ctx: &mut Context, text: &str) -> tetra::Result {
         let mut messages_grid_ref = self.messages_grid.borrow_mut();
         let msg_count = messages_grid_ref.elements.len();
         if msg_count >= MAX_CHAT_MESSAGES_COUNT {
             messages_grid_ref.remove_element_at(0);
         }
         messages_grid_ref.add_element(Label::new(ctx,
-            &format!("{}: {}", sender, msg), false, 2.0, self.game.clone())?);
-
+            text, false, 2.0, self.game.clone())?);
         Ok(())
+    }
+
+    pub fn add_message(&mut self, ctx: &mut Context, sender: &str, msg: &str)
+        -> tetra::Result {
+        self.add_line(ctx, &format!("{}: {}", sender, msg))
     }
 
     pub fn is_focused(&self) -> bool {

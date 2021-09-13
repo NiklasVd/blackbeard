@@ -1,5 +1,26 @@
 use binary_stream::Serializable;
 
+pub struct WorldSettings {
+    pub weather: Weather,
+    events: Vec<WorldEvent>
+}
+
+impl WorldSettings {
+    pub fn new() -> WorldSettings {
+        WorldSettings {
+            weather: Weather::Sunny, events: Vec::new()
+        }
+    }
+
+    pub fn add_event(&mut self, event: WorldEvent) {
+        self.events.push(event);
+    }
+
+    pub fn flush_events(&mut self) -> Vec<WorldEvent> {
+        self.events.drain(0..).collect()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Weather {
     Sunny = 0,
@@ -29,14 +50,8 @@ impl Serializable for Weather {
     }
 }
 
-pub struct WorldSettings {
-    pub weather: Weather
-}
-
-impl WorldSettings {
-    pub fn new() -> WorldSettings {
-        WorldSettings {
-            weather: Weather::Sunny
-        }
-    }
+pub enum WorldEvent {
+    PlayerSunkByCannon(String, String),
+    PlayerSunkByRamming(String, String),
+    PlayerSunkByAccident(String)
 }

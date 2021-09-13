@@ -56,7 +56,7 @@ impl Game {
             physics: Physics::setup(),
             settings: Settings::new(),
             world: WorldSettings::new(),
-            cam: Cam::setup(400.0),
+            cam: Cam::setup(550.0),
             network: None
         });
         

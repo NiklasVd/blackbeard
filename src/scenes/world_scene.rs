@@ -3,7 +3,7 @@ use tetra::{Context, Event, State, input::Key};
 use crate::{BbError, BbErrorType, BbResult, Controller, Entity, GC, GameState, ID, Player, Rcc, ShipType, TransformResult, V2, button::{Button, DefaultButton}, chat::Chat, grid::{Grid, UIAlignment, UILayout}, label::Label, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ui_element::{DefaultUIReactor, UIElement}, world::World};
 use super::scenes::{Scene, SceneType};
 
-pub const MAX_INPUT_STEP_BLOCK_DURATION: u64 = 60 * 10;
+pub const MAX_INPUT_STEP_BLOCK_DURATION: u64 = 15;
 
 pub struct WorldScene {
     pub controller: Controller,
@@ -158,7 +158,7 @@ impl NetController for WorldScene {
 
                 std::thread::sleep(Duration::from_millis(1));
                 let elapsed_secs = time.elapsed().as_secs();
-                if elapsed_secs % 2 == 0 {
+                if elapsed_secs % 3 == 0 {
                     println!("Blocking until next input step arrives from server...");
                 }
                 if elapsed_secs >= MAX_INPUT_STEP_BLOCK_DURATION {
@@ -178,12 +178,16 @@ impl NetController for WorldScene {
         self.leave_match() // Previously only set self.back_to_menu to true. Problem if connection is already terminated when calling network.disconnect()? 
     }
     
-    fn on_player_disconnect(&mut self, ctx: &mut Context, id: u16, reason: DisconnectReason) -> BbResult {
+    fn on_player_disconnect(&mut self, ctx: &mut Context, id: u16, reason: DisconnectReason)
+        -> BbResult {
         if let Some(player) = self.controller.remove_player(id) {
-            player.borrow_mut().possessed_ship.borrow_mut().destroy();
+            let player_ref = player.borrow_mut();
+            player_ref.possessed_ship.borrow_mut().destroy();
             self.ui.update_players(ctx, self.game.borrow().network.as_ref().unwrap()
                 .client.get_connections()).convert()?;
-            println!("Player with ID {} disconnected. Reason: {:?}", id, reason);
+            //println!("Player with ID {} disconnected. Reason: {:?}", id, reason);
+            self.ui.chat.add_line(ctx,
+                &format!("{:?} left the game. Reason: {:?}.", player_ref.id, reason)).convert()?;
             Ok(())
         } else {
             Err(BbError::Bb(BbErrorType::InvalidPlayerID(id)))
@@ -199,13 +203,13 @@ impl NetController for WorldScene {
         let sender = {
             self.game.borrow().network.as_ref().unwrap().get_connection_name(sender)
         };
-        self.ui.add_chat_message(ctx, sender.as_str(), text.as_str()).convert()
+        self.ui.chat.add_message(ctx, sender.as_str(), text.as_str()).convert()
     }
 }
 
 struct WorldSceneUI {
     // Add event log/chat (combined?)
-    chat: Chat,
+    pub chat: Chat,
     menu_button: Rcc<DefaultButton>,
     menu_grid: Rcc<Grid>,
     leave_button: Rcc<DefaultButton>,
@@ -254,11 +258,6 @@ impl WorldSceneUI {
         self.local_player = Some(player);
     }
 
-    pub fn add_chat_message(&mut self, ctx: &mut Context, sender: &str, msg: &str)
-        -> tetra::Result {
-        self.chat.add_message(ctx, sender, msg)
-    }
-
     pub fn toggle_menu_visibility(&mut self) {
         let mut menu_grid_ref = self.menu_grid.borrow_mut();
         let state = menu_grid_ref.is_invisible();
@@ -302,6 +301,25 @@ impl WorldSceneUI {
                 &format!("{}/{} Health", ship_ref.curr_health, ship_ref.attr.health));
             self.escudos_label.borrow_mut().set_text(
                 &format!("{} Escudos", ship_ref.escudos));
+        }
+
+        self.update_world_events(ctx)
+    }
+
+    fn update_world_events(&mut self, ctx: &mut Context) -> tetra::Result {
+        let events = {
+            let mut game_ref = self.game.borrow_mut();
+            game_ref.world.flush_events().into_iter()
+        };
+        for event in events {
+            match event {
+                crate::WorldEvent::PlayerSunkByCannon(a, b) =>
+                    self.chat.add_line(ctx, &format!("{} sunk {} with a cannon shot!", a, b)),
+                crate::WorldEvent::PlayerSunkByRamming(a, b) =>
+                    self.chat.add_line(ctx, &format!("{} sunk {} by ramming!", a, b)),
+                crate::WorldEvent::PlayerSunkByAccident(a) =>
+                    self.chat.add_line(ctx, &format!("{} sunk their own ship by accident!", a))
+            }?;
         }
         Ok(())
     }

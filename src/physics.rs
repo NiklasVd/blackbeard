@@ -1,5 +1,6 @@
 use crossbeam_channel::{Receiver};
-use rapier2d::{math::Real, na::{Isometry2}, prelude::{ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, Collider, ColliderBuilder, ColliderHandle, ColliderSet, ContactEvent, IntegrationParameters, InteractionGroups, IntersectionEvent, IslandManager, JointSet, NarrowPhase, PhysicsPipeline, QueryPipeline, Ray, RigidBody, RigidBodyBuilder, RigidBodyHandle, RigidBodySet}};
+use nalgebra::Isometry;
+use rapier2d::{math::Real, na::{Isometry2, Vector2}, prelude::{ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, Collider, ColliderBuilder, ColliderHandle, ColliderSet, ContactEvent, Cuboid, IntegrationParameters, InteractionGroups, IntersectionEvent, IslandManager, JointSet, NarrowPhase, PhysicsPipeline, QueryPipeline, Ray, RigidBody, RigidBodyBuilder, RigidBodyHandle, RigidBodySet}};
 use tetra::{State, graphics::{Color, DrawParams}, math::{Vec2}};
 use crate::{EntityType, conv_vec, conv_vec_point};
 
@@ -159,14 +160,36 @@ impl Physics {
     pub fn cast_ray(&self, ray: Ray, dist: f32) -> Option<ColliderHandle> {
         if let Some((coll_handle, _)) = self.query_pipeline.cast_ray(
             &self.coll_set, &ray, dist, false,InteractionGroups::all(), None) {
-            return Some(coll_handle)
+            Some(coll_handle)
+        } else {
+            None
         }
-        return None
     }
 
     pub fn cast_ray2(&self, from: V2, dir: V2, dist: f32) -> Option<ColliderHandle> {
         let ray = Ray::new(conv_vec_point(from), conv_vec(dir));
         self.cast_ray(ray, dist)
+    }
+
+    pub fn cast_cuboid(&self, from: V2, size: V2, dir: V2, dist: f32) -> Option<ColliderHandle> {
+        let cuboid = Cuboid::new(conv_vec(size));
+        if let Some((coll_handle, hit)) = self.query_pipeline.cast_shape(
+            &self.coll_set, &Isometry2::new(conv_vec(from), 0.0), &conv_vec(dir), &cuboid,
+            dist, InteractionGroups::all(), None) {
+            Some(coll_handle)
+        } else {
+            None
+        }
+    }
+
+    pub fn check_for_space(&self, mut at: V2, size: V2, dir: V2) -> V2 {
+        let rel_dir = size * dir.normalized();
+        let dist = rel_dir.magnitude();
+        while let Some(obstacle) = self.cast_cuboid(at, size, dir, dist) {
+            // Hit an object, try again
+            at += rel_dir;
+        }
+        at
     }
 }
 

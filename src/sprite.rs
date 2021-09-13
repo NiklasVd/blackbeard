@@ -32,6 +32,10 @@ impl Sprite {
         }
     }
 
+    pub fn get_size(&self) -> V2 {
+        V2::new(self.texture.width() as f32, self.texture.height() as f32)
+    }
+
     pub fn draw(&self, ctx: &mut Context, position: V2, rotation: f32) {
         self.texture.draw(ctx, DrawParams {
             position, rotation, origin: self.origin, scale: V2::one(), color: Color::WHITE

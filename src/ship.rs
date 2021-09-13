@@ -2,7 +2,7 @@ use std::{f32::consts::PI};
 use binary_stream::{BinaryStream, Serializable};
 use rapier2d::{data::Index};
 use tetra::{Context, State, graphics::{text::Text}, math::Clamp};
-use crate::{Cannon, CannonSide, Entity, EntityType, GC, GameState, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, conv_vec, disassemble_iso, get_angle, pi_to_pi2_range, polar_to_cartesian, world::World};
+use crate::{Cannon, CannonSide, Entity, EntityType, GC, GameState, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, WorldEvent, conv_vec, disassemble_iso, get_angle, pi_to_pi2_range, polar_to_cartesian, world::World};
 
 const BASE_STUN_LENGTH: f32 = 2.0;
 const BASE_OBJECT_COLLISION_DAMAGE: u16 = 20;
@@ -205,7 +205,9 @@ impl Ship {
 
         if let Some(spawn) = self.spawn { // Respawn
             self.reset();
-            self.transform.set_pos(spawn, 0.0);
+            let free_spawn = self.game.borrow().physics.check_for_space(
+                spawn, self.sprite.get_size() * 1.5, V2::right());
+            self.transform.set_pos(free_spawn, 0.0);
         }
         else {
             self.curr_health = 0;
@@ -237,8 +239,10 @@ impl Ship {
                 let forfeited_escudos = (self.escudos as f32 * ESCUTO_SHOOT_STEAL_PERCENTAGE) as u32;
                 shooter_ref.escudos += forfeited_escudos;
                 self.escudos -= forfeited_escudos;
-                println!("{} sunk {}'s ship with a cannon shot and stole {} escudos!",
-                    shooter_ref.get_name(), self.get_name(), forfeited_escudos);
+                // println!("{} sunk {}'s ship with a cannon shot and stole {} escudos!",
+                //     shooter_ref.get_name(), self.get_name(), forfeited_escudos);
+                self.game.borrow_mut().world.add_event(
+                    WorldEvent::PlayerSunkByCannon(shooter_ref.get_name(), self.get_name()));
                 Ok(())
             },
             Ok(false) => Ok(()),
@@ -352,8 +356,10 @@ impl Entity for Ship {
                 let forfeited_escudos = (other_ref.escudos as f32 * ESCUTO_RAM_STEAL_PERCENTAGE) as u32;
                 other_ref.escudos -= forfeited_escudos;
                 self.escudos += forfeited_escudos;
-                println!("{} sunk {}'s ship via ramming and stole {} escudos!",
-                    self.get_name(), other_ref.get_name(), forfeited_escudos);
+                // println!("{} sunk {}'s ship via ramming and stole {} escudos!",
+                //     self.get_name(), other_ref.get_name(), forfeited_escudos);
+                self.game.borrow_mut().world.add_event(
+                    WorldEvent::PlayerSunkByRamming(self.get_name(), other_ref.get_name()));
                 Ok(())
             },
             Ok(false) => Ok(()),
@@ -383,8 +389,10 @@ impl Entity for Ship {
             Ok(true) => {
                 let forfeited_escudos = (self.escudos as f32 * ESCUTO_ACCIDENT_LOSS_PERCENTAGE) as u32;
                 self.escudos -= forfeited_escudos;
-                println!("{} lost {} escudos after sinking their ship in an accident!",
-                    self.get_name(), forfeited_escudos);
+                // println!("{} lost {} escudos after sinking their ship in an accident!",
+                //     self.get_name(), forfeited_escudos);
+                self.game.borrow_mut().world.add_event(
+                    WorldEvent::PlayerSunkByAccident(self.get_name()));
                 Ok(())
             },
             Ok(false) => Ok(()),

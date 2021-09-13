@@ -94,7 +94,8 @@ impl Server {
     fn handle_internal_packet(&mut self, packet: Packet, sender: ID) -> BbResult {
         //println!("Server: Received packet {:?} from {:?}", &packet, sender);
         match &packet {
-            Packet::PlayerDisconnect { reason } => self.on_receive_disconnect(sender.n, *reason)?,
+            Packet::PlayerDisconnect { reason } =>
+                return self.on_receive_disconnect(sender.n, *reason),
             Packet::Input { state } => {
                 self.on_receive_input(sender.n, state.clone());
                 return Ok(())
@@ -109,6 +110,7 @@ impl Server {
             }
             _ => ()
         }
+        // If not returned before, echo back the packet to all clients
         self.send_multicast(packet, sender.n)
     }
 
@@ -162,7 +164,11 @@ impl Server {
             if let Some(pool) = self.input_pool.as_mut() {
                 pool.remove_player(sender);
             }
-            Ok(())
+            // As this method is also called upon timeouts (which don't simply echo back
+            // all client packets), this is done manually here.
+            self.send_multicast(Packet::PlayerDisconnect {
+                reason
+            }, sender)
         } else {
             Err(BbError::Bb(BbErrorType::InvalidPlayerID(sender)))
         }

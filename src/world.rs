@@ -19,7 +19,7 @@ impl World {
     }
 
     pub fn add_player_ship(&mut self, ctx: &mut Context, id: ID, ship_type: ShipType) -> tetra::Result<Rcc<Ship>> {
-        self.add_ship(ctx, ship_type, id.name, V2::right() * id.n as f32 * 400.0, true)
+        self.add_ship(ctx, ship_type, id.name, V2::right() * id.n as f32 * 1000.0, true)
     }
 
     pub fn add_island(&mut self, ctx: &mut Context, pos: V2, rot: f32, island_type: u32)
