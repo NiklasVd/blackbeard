@@ -1,6 +1,6 @@
 use binary_stream::{BinaryStream, Serializable};
 use rapier2d::data::Index;
-use crate::{Entity, ID, Rcc, Ship, ShipType};
+use crate::{ID, Rcc, entity::Entity, ship::{Ship, ShipType}};
 
 pub struct Player {
     pub id: ID,

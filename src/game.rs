@@ -1,6 +1,6 @@
 use std::{cell::RefCell , rc::Rc};
-use tetra::{Context, Event, State, graphics::{self, Color}};
-use crate::{Assets, BbResult, Cam, Physics, Settings, TransformResult, WorldSettings, network::Network, scenes::scenes::{Scenes}};
+use tetra::{Context, Event, State, graphics::{self, Color, text::Text}, window::{get_height, get_width}};
+use crate::{Assets, BbResult, Cam, Physics, Settings, TransformResult, V2, WorldSettings, get_version, network::Network, scenes::scenes::{Scenes}};
 
 pub type Rcc<T> = Rc<RefCell<T>>;
 pub type GC = Rcc<GameContainer>;
@@ -46,7 +46,8 @@ pub struct GameContainer {
 
 pub struct Game {
     pub container: GC,
-    pub scenes: Scenes
+    pub scenes: Scenes,
+    watermark: Text
 }
 
 impl Game {
@@ -59,10 +60,13 @@ impl Game {
             cam: Cam::setup(550.0),
             network: None
         });
+        let watermark = Text::new(format!("Blackbeard Alpha {}", get_version()),
+                gc.borrow().assets.small_font.clone());
         
         Ok(Game {
             container: gc.clone(),
-            scenes: Scenes::setup(ctx, gc)?
+            scenes: Scenes::setup(ctx, gc)?,
+            watermark
         })
     }
 }
@@ -88,6 +92,10 @@ impl State for Game {
         
         graphics::reset_transform_matrix(ctx);
         self.scenes.draw_ui(ctx)?;
+        if self.container.borrow().settings.show_watermark {
+            self.watermark.draw(ctx, V2::new(get_width(ctx) as f32, get_height(ctx) as f32)
+                - V2::new(self.watermark.content().len() as f32 * 17.0 * 0.5, 20.0));
+        }
         Ok(())
     }
 

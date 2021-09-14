@@ -79,7 +79,7 @@ impl UIElement for Textbox {
     fn draw_element(&mut self, ctx: &mut Context, parent_pos: V2) -> tetra::Result {
         self.texture.draw(ctx, self.get_draw_params(parent_pos));
         self.text.draw(ctx, DrawParams {
-            position: parent_pos + self.transform.get_padded_pos() * 1.1, rotation: 0.0,
+            position: parent_pos + self.transform.get_padded_pos() /* * 1.1 */, rotation: 0.0,
             scale: V2::one(), origin: V2::zero(), color: Color::BLACK
         });
         Ok(())

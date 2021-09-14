@@ -110,6 +110,7 @@ pub trait UIElement {
     fn update_element(&mut self, ctx: &mut Context, parent_pos: V2) -> tetra::Result {
         Ok(())
     }
+    // Does the draw_element method need to be mutable?
     fn draw_element(&mut self, ctx: &mut Context, parent_pos: V2) -> tetra::Result {
         Ok(())
     }

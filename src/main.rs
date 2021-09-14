@@ -1,11 +1,17 @@
 #![allow(unused_variables)]
 
 mod game;
-mod ship;
 mod physics;
 mod assets;
+mod entities {
+    pub mod entity;
+    pub mod object;
+    pub mod ship;
+    pub mod cannon;
+    pub mod harbour;
+}
+mod ship_mod;
 mod controller;
-mod entity;
 mod scenes {
     pub mod scenes;
     pub mod startup_scene;
@@ -21,12 +27,10 @@ mod util;
 mod settings;
 mod world_settings;
 mod cam;
-mod object;
 mod transform;
 mod id;
 mod sprite;
 mod animated_sprite;
-mod cannon;
 mod ui {
     pub mod grid;
     pub mod ui_element;
@@ -53,18 +57,15 @@ mod diagnostics;
 mod world;
 
 pub use game::*;
-pub use ship::*;
 pub use physics::*;
 pub use assets::*;
 pub use controller::*;
-pub use entity::*;
 pub use scenes::*;
 pub use player::*;
 pub use util::*;
 pub use settings::*;
 pub use world_settings::*;
 pub use cam::*;
-pub use object::*;
 pub use transform::*;
 pub use id::*;
 pub use sprite::*;
@@ -75,12 +76,13 @@ pub use net::*;
 pub use err::*;
 pub use diagnostics::*;
 pub use world::*;
+pub use entities::*;
 
 use tetra::ContextBuilder;
 use std::io::{Read, stdin};
 
 pub const WINDOW_WIDTH: f32 = 1000.0;
-pub const WINDOW_HEIGHT: f32 = 680.0;
+pub const WINDOW_HEIGHT: f32 = 600.0;
 
 pub const PRIMARY_VERSION: u32 = 0;
 pub const SECONDARY_VERSION: u32 = 1;

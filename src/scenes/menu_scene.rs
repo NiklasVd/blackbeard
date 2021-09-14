@@ -1,5 +1,5 @@
 use tetra::{Context, State, window::quit};
-use crate::{BbResult, GC, Rcc, TransformResult, V2, button::{Button, DefaultButton}, connection_scene::ConnectionScene, grid::{Grid, UIAlignment}, label::Label, ui_element::{DefaultUIReactor}};
+use crate::{BbResult, GC, Rcc, TransformResult, V2, button::{Button, DefaultButton}, connection_scene::ConnectionScene, grid::{Grid, UIAlignment}, label::{FontSize, Label}, ui_element::{DefaultUIReactor}};
 use super::scenes::{Scene, SceneType};
 
 pub struct MenuScene {
@@ -13,7 +13,7 @@ impl MenuScene {
     pub fn new(ctx: &mut Context, game: GC) -> tetra::Result<MenuScene> {
         let mut grid = Grid::default(ctx, UIAlignment::Horizontal,
             V2::zero(), V2::one() * 250.0, 10.0)?;
-        let label = grid.add_element(Label::new(ctx, "Blackbeard", true,
+        let label = grid.add_element(Label::new(ctx, "Blackbeard", FontSize::Header,
             5.0, game.clone())?);
                 
         // let private_game_button = grid.add_element(Button::new(ctx, "Private Game",

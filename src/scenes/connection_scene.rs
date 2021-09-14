@@ -1,5 +1,5 @@
 use tetra::{Context, State};
-use crate::{BbResult, GC, Rcc, TransformResult, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment}, label::Label, lobby_scene::LobbyScene, menu_scene::MenuScene, net_settings::NetSettings, textbox::Textbox, ui_element::{DefaultUIReactor}};
+use crate::{BbResult, GC, Rcc, TransformResult, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment}, label::{FontSize, Label}, lobby_scene::LobbyScene, menu_scene::MenuScene, net_settings::NetSettings, textbox::Textbox, ui_element::{DefaultUIReactor}};
 use super::scenes::{Scene, SceneType};
 
 const DEFAULT_HOST_PORT: u16 = 8080;
@@ -20,12 +20,12 @@ impl ConnectionScene {
         let back_button = grid.add_element(Button::new(ctx, "Back to Menu",
             V2::new(135.0, 35.0), 5.0, DefaultUIReactor::new(), game.clone())?);
         
-        let create_label = grid.add_element(Label::new(ctx, "Create Match", false,
+        let create_label = grid.add_element(Label::new(ctx, "Create Match", FontSize::Normal,
             5.0, game.clone())?);
         let create_button = grid.add_element(Button::new(ctx, "Create", V2::new(80.0, 35.0),
-            5.0, DefaultUIReactor::new(), game.clone())?);
+            3.0, DefaultUIReactor::new(), game.clone())?);
         
-        let join_label = grid.add_element(Label::new(ctx, "Join Match", false,
+        let join_label = grid.add_element(Label::new(ctx, "Join Match", FontSize::Normal,
             5.0, game.clone())?);
         let mut join_grid = Grid::default(ctx, UIAlignment::Horizontal,
             V2::zero(), V2::new(150.0, 35.0), 5.0)?;
@@ -33,7 +33,7 @@ impl ConnectionScene {
             format!("127.0.0.1:{}", DEFAULT_HOST_PORT).as_str(), V2::new(200.0, 35.0),
             5.0, game.clone())?);
         let join_button = join_grid.add_element(Button::new(ctx, "Join",
-            V2::new(70.0, 35.0), 5.0, DefaultUIReactor::new(), game.clone())?);
+            V2::new(70.0, 35.0), 3.0, DefaultUIReactor::new(), game.clone())?);
         let join_grid = grid.add_element(join_grid);
         
         Ok(ConnectionScene {

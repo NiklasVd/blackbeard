@@ -1,8 +1,7 @@
 use crossbeam_channel::{Receiver};
-use nalgebra::Isometry;
-use rapier2d::{math::Real, na::{Isometry2, Vector2}, prelude::{ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, Collider, ColliderBuilder, ColliderHandle, ColliderSet, ContactEvent, Cuboid, IntegrationParameters, InteractionGroups, IntersectionEvent, IslandManager, JointSet, NarrowPhase, PhysicsPipeline, QueryPipeline, Ray, RigidBody, RigidBodyBuilder, RigidBodyHandle, RigidBodySet}};
+use rapier2d::{math::Real, na::{Isometry2}, prelude::{ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, Collider, ColliderBuilder, ColliderHandle, ColliderSet, ContactEvent, Cuboid, IntegrationParameters, InteractionGroups, IntersectionEvent, IslandManager, JointSet, NarrowPhase, PhysicsPipeline, QueryPipeline, Ray, RigidBody, RigidBodyBuilder, RigidBodyHandle, RigidBodySet}};
 use tetra::{State, graphics::{Color, DrawParams}, math::{Vec2}};
-use crate::{EntityType, conv_vec, conv_vec_point};
+use crate::{conv_vec, conv_vec_point, entity::EntityType};
 
 pub const MASS_FORCE_SCALE: f32 = 1000.0;
 
@@ -69,24 +68,47 @@ impl Physics {
         PhysicsHandle(rb_handle, coll_handle)
     }
 
-    pub fn build_object_collider(&mut self, half_x: f32, half_y: f32) -> PhysicsHandle {
+    pub fn build_static_collider(&mut self, density: f32, half_x: f32, half_y: f32,
+        entity_type: EntityType) -> PhysicsHandle {
         let rb = RigidBodyBuilder::new_static().build();
         let rb_handle = self.rb_set.insert(rb);
-        let coll = ColliderBuilder::cuboid(half_x, half_y).density(4.0)
+        let coll = ColliderBuilder::cuboid(half_x, half_y).density(density)
             .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
             .collision_groups(InteractionGroups::new(
                 get_any_coll_group(), get_any_coll_group()))
-            .user_data(EntityType::Object.to_num()).build();
+            .user_data(entity_type.to_num()).build();
         let coll_handle = self.coll_set.insert_with_parent(coll, rb_handle,
             &mut self.rb_set);
         PhysicsHandle(rb_handle, coll_handle)
     }
 
-    pub fn build_cannon_ball(&mut self) -> PhysicsHandle {
+    pub fn build_object_collider(&mut self, half_x: f32, half_y: f32) -> PhysicsHandle {
+       self.build_static_collider(4.0, half_x, half_y, EntityType::Object)
+    }
+
+    pub fn build_harbour_collider(&mut self, half_x: f32, half_y: f32) -> PhysicsHandle {
+        self.build_static_collider(4.0, half_x, half_y, EntityType::Harbour)
+    }
+
+    pub fn build_harbour_zone(&mut self, pos: V2, rot: f32, half_x: f32, half_y: f32)
+        -> ColliderHandle {
+        let mut rb = RigidBodyBuilder::new_static().build();
+        rb.set_position(Isometry2::new(conv_vec(pos), rot), true);
+        let rb_handle = self.rb_set.insert(rb);
+        let coll = ColliderBuilder::cuboid(half_x, half_y)
+            .sensor(true).user_data(EntityType::Harbour.to_num())
+            .active_events(ActiveEvents::INTERSECTION_EVENTS)
+            .build();
+        let coll_handle = self.coll_set.insert_with_parent(coll, rb_handle,
+            &mut self.rb_set);
+        coll_handle
+    }
+
+    pub fn build_cannon_ball(&mut self, size: f32) -> PhysicsHandle {
         let rb = RigidBodyBuilder::new_dynamic().ccd_enabled(true)
             .linear_damping(5.0).angular_damping(5.0).build();
         let rb_handle = self.rb_set.insert(rb);
-        let coll = ColliderBuilder::ball(5.0).active_events(ActiveEvents::CONTACT_EVENTS)
+        let coll = ColliderBuilder::ball(size).active_events(ActiveEvents::CONTACT_EVENTS)
             .user_data(EntityType::CannonBall.to_num())
             .collision_groups(InteractionGroups::new(
                 get_any_coll_group(), get_any_coll_group()))
@@ -125,17 +147,22 @@ impl Physics {
         self.rb_set.get_mut(rb_handle).unwrap()
     }
 
-    pub fn convert_rb_iso(&self, iso: Isometry2<Real>) -> (V2, f32) {
+    pub fn set_translation(&mut self, rb_handle: RigidBodyHandle, pos: V2, rot: f32) {
+        let rb = self.get_rb_mut(rb_handle);
+        rb.set_position(Isometry2::new(conv_vec(pos), rot), true)
+    }
+
+    pub fn convert_iso_to_translation(&self, iso: Isometry2<Real>) -> (V2, f32) {
         (V2::new(iso.translation.vector.x, iso.translation.vector.y),
             iso.rotation.angle())
     }
 
-    pub fn get_converted_rb_iso(&self, rb_handle: RigidBodyHandle) -> (V2, f32) {
-        self.convert_rb_iso(*self.get_rb(rb_handle).position())
+    pub fn get_translation(&self, rb_handle: RigidBodyHandle) -> (V2, f32) {
+        self.convert_iso_to_translation(*self.get_rb(rb_handle).position())
     }
 
     pub fn get_rb_draw_params(&self, handle: RigidBodyHandle, origin: V2) -> DrawParams {
-        let (position, rotation) = self.get_converted_rb_iso(handle);
+        let (position, rotation) = self.get_translation(handle);
         DrawParams {
             position, rotation, scale: V2::one(), origin, color: Color::WHITE
         }

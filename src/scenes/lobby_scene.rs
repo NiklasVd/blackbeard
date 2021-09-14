@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use tetra::{Context, State};
-use crate::{BbResult, GC, ID, Rcc, ShipType, TransformResult, V2, button::{Button, DefaultButton}, chat::Chat, grid::{Grid, UIAlignment, UILayout}, label::Label, loading_scene::LoadingScene, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::{GamePhase, Packet}, peer::DisconnectReason, ui_element::{DefaultUIReactor, UIElement}};
+use crate::{BbResult, GC, ID, Rcc, TransformResult, V2, button::{Button, DefaultButton}, chat::Chat, grid::{Grid, UIAlignment, UILayout}, label::{FontSize, Label}, loading_scene::LoadingScene, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::{GamePhase, Packet}, peer::DisconnectReason, ship::ShipType, ui_element::{DefaultUIReactor, UIElement}};
 use super::scenes::{Scene, SceneType};
 
 pub struct LobbyScene {
@@ -110,13 +110,13 @@ impl NetController for LobbyScene {
 
     fn on_connection_lost(&mut self, ctx: &mut Context, reason: DisconnectReason) -> BbResult {
         self.disconnected = true;
-        println!("Host shut down server. Returning to menu...");
+        println!("Host shut down server. Reason: {:?}. Returning to menu...", reason);
         Ok(())
     }
 
     fn on_player_connect(&mut self, ctx: &mut Context, id: ID) -> BbResult {
-        self.players.insert(id.n, (id.clone(), ShipType::Galleon));
-        self.ui.add_player(ctx, id.clone(), ShipType::Galleon)?;
+        self.players.insert(id.n, (id.clone(), ShipType::Caravel));
+        self.ui.add_player(ctx, id.clone(), ShipType::Caravel)?;
         self.ui.chat.add_line(ctx, &format!("{:?} connected to the game!", id)).convert()
     }
 
@@ -163,18 +163,19 @@ impl LobbySceneUI {
     pub fn new(ctx: &mut Context, grid: &mut Grid, game: GC) -> BbResult<LobbySceneUI> {
         let mut match_grid = Grid::default(ctx, UIAlignment::Vertical,
             V2::zero(), V2::new(330.0, 500.0), 5.0).convert()?;
-        match_grid.add_element(Label::new(ctx, "Setting up network...", false,
+        match_grid.add_element(Label::new(ctx, "Setting up network...", FontSize::Header,
             5.0, game.clone()).convert()?);
 
         let mut start_game_button = Button::new(ctx, "Start Game",
-            V2::new(110.0, 30.0), 5.0, DefaultUIReactor::new(), game.clone()).convert()?;
+            V2::new(110.0, 30.0), 2.0, DefaultUIReactor::new(), game.clone()).convert()?;
         if !game.borrow().network.as_ref().unwrap().has_authority() {
             start_game_button.set_disabled(true);
         }
         let start_game_button = match_grid.add_element(start_game_button);
         let disconnect_button = match_grid.add_element(Button::new(ctx, "Disconnect", 
-            V2::new(105.0, 30.0), 5.0, DefaultUIReactor::new(), game.clone()).convert()?);
-        match_grid.add_element(Label::new(ctx, "Connected Players", true, 5.0, game.clone()).convert()?);
+            V2::new(105.0, 30.0), 2.0, DefaultUIReactor::new(), game.clone()).convert()?);
+        match_grid.add_element(Label::new(ctx, "Connected Players", FontSize::Header,
+            5.0, game.clone()).convert()?);
         let player_list_grid = match_grid.add_element(Grid::default(ctx, UIAlignment::Vertical,
             V2::zero(), V2::one() * 300.0, 5.0).convert()?);
         let match_grid = grid.add_element(match_grid);
@@ -184,7 +185,7 @@ impl LobbySceneUI {
         let mut game_settings_grid = Grid::default(ctx, UIAlignment::Vertical,
             V2::zero(), V2::new(120.0, 110.0), 2.0).convert()?;
         game_settings_grid.add_element(Label::new(ctx,
-            "Select Ship", false, 1.0, game.clone()).convert()?);
+            "Select Ship", FontSize::Normal, 1.0, game.clone()).convert()?);
         let caravel_ship_button = game_settings_grid.add_element(Button::new(ctx,
             "Caravel", V2::new(90.0, 35.0), 2.0, DefaultUIReactor::new(), game.clone()).convert()?);
         caravel_ship_button.borrow_mut().set_disabled(true);
@@ -204,7 +205,7 @@ impl LobbySceneUI {
 
     fn add_player(&mut self, ctx: &mut Context, id: ID, ship_type: ShipType) -> BbResult {
         let mut player_list_grid_ref = self.player_list_grid.borrow_mut();
-        let name = format!("{:?} {} - {:?}", &id, {
+        let name = format!(" {:?} {} - {:?}", &id, {
             if id.n == 0 {
                 "(Host)"
             } else {
@@ -212,7 +213,7 @@ impl LobbySceneUI {
             }
         }, ship_type);
         player_list_grid_ref.add_element(
-            Label::new(ctx, name.as_str(), false, 2.0, self.game.clone()).convert()?);
+            Label::new(ctx, name.as_str(), FontSize::Normal, 2.0, self.game.clone()).convert()?);
         Ok(())
     }
 

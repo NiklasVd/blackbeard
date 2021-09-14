@@ -1,12 +1,13 @@
 use rapier2d::data::Index;
 use tetra::{Context, Event};
-use crate::{Rcc, Ship, Transform, world::World};
+use crate::{Rcc, Transform, ship::Ship, world::World};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum EntityType {
     Ship = 0,
     Object = 1,
-    CannonBall = 2
+    CannonBall = 2,
+    Harbour = 3
 }
 
 impl EntityType {
@@ -14,7 +15,8 @@ impl EntityType {
         match self {
             EntityType::Ship => 0,
             EntityType::Object => 1,
-            &EntityType::CannonBall => 2
+            EntityType::CannonBall => 2,
+            EntityType::Harbour => 3
         }
     }
 
@@ -23,6 +25,7 @@ impl EntityType {
             0 => EntityType::Ship,
             1 => EntityType::Object,
             2 => EntityType::CannonBall,
+            3 => EntityType::Harbour,
             n @ _ => panic!("Index {} does not correspond with any entity type", n)
         }
     }
@@ -51,7 +54,8 @@ pub trait Entity : GameState {
     fn marked_destroy(&self) -> bool {
         false
     }
-    fn destroy(&mut self);
+    fn destroy(&mut self) {
+    }
 
     fn collide_with_ship(&mut self, ctx: &mut Context, other: Rcc<Ship>,
         world: &mut World) -> tetra::Result {

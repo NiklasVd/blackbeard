@@ -1,6 +1,6 @@
 use std::{collections::HashMap};
 use tetra::{Context, Event, State, input::{Key, MouseButton}};
-use crate::{BbResult, CannonSide, GC, GameState, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, packet::{InputState, InputStep}, playback_buffer::PlaybackBuffer, world::World, wrap_rcc};
+use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, packet::{InputState, InputStep}, playback_buffer::PlaybackBuffer, world::World, wrap_rcc};
 
 pub struct Controller {
     pub players: HashMap<u16, Rcc<Player>>,

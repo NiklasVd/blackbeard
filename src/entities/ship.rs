@@ -2,7 +2,7 @@ use std::{f32::consts::PI};
 use binary_stream::{BinaryStream, Serializable};
 use rapier2d::{data::Index};
 use tetra::{Context, State, graphics::{text::Text}, math::Clamp};
-use crate::{Cannon, CannonSide, Entity, EntityType, GC, GameState, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, WorldEvent, conv_vec, disassemble_iso, get_angle, pi_to_pi2_range, polar_to_cartesian, world::World};
+use crate::{BbResult, Cannon, CannonSide, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, WorldEvent, conv_vec, disassemble_iso, entity::{Entity, EntityType, GameState}, get_angle, pi_to_pi2_range, polar_to_cartesian, ship_mod::{ShipMod, ShipModType}, world::World};
 
 const BASE_STUN_LENGTH: f32 = 2.0;
 const BASE_OBJECT_COLLISION_DAMAGE: u16 = 20;
@@ -11,8 +11,8 @@ const BASE_MOVEMENT_FORCE: f32 = 10.0 * MASS_FORCE_SCALE;
 const BASE_TORQUE_FORCE: f32 = 1000.0 * MASS_FORCE_SCALE;
 const TARGET_POS_DIST_MARGIN: f32 = 75.0;
 const TARGET_ROT_MARGIN: f32 = PI / 45.0;
-const ESCUTO_SHOOT_STEAL_PERCENTAGE: f32 = 0.4;
-const ESCUTO_RAM_STEAL_PERCENTAGE: f32 = 0.6;
+const ESCUTO_RAM_STEAL_PERCENTAGE: f32 = 0.4;
+const ESCUTO_SHOOT_STEAL_PERCENTAGE: f32 = 0.3;
 const ESCUTO_ACCIDENT_LOSS_PERCENTAGE: f32 = 0.2;
 
 #[derive(Debug, Clone, Copy)]
@@ -97,6 +97,8 @@ pub struct Ship {
     pub cannons: Vec<Cannon>,
     pub transform: Transform,
     pub escudos: u32,
+    pub mods: Vec<Box<dyn ShipMod>>,
+    pub is_in_harbour: bool,
     sprite: Sprite,
     label: Text,
     spawn: Option<V2>,
@@ -162,10 +164,27 @@ impl Ship {
         Ok(Ship {
             stype: ShipType::Caravel, curr_health: attr.health, name,
             target_pos: None, attr, cannons,
-            transform, escudos: 100, stun: Timer::new(stun_length),
-            sprite, label, spawn,
+            transform, escudos: 100, mods: Vec::new(), is_in_harbour: false,
+            stun: Timer::new(stun_length), sprite, label, spawn,
             destroy: false, game
         })
+    }
+
+    pub fn apply_mod<T: ShipMod + 'static>(&mut self, ship_mod: T) {
+        // Cannot apply mod inside ship method as this will lead to a borrow conflict
+        self.mods.push(Box::new(ship_mod));
+    }
+
+    pub fn remove_mod(&mut self, ship_mod_type: ShipModType)
+        -> BbResult<Option<Box<dyn ShipMod + 'static>>> {
+        for (i, ship_mod) in self.mods.iter_mut().enumerate() {
+            if ship_mod.get_type() == ship_mod_type {
+                // Called after ship borrow is dropped in upper level call:
+                // ship_mod.on_remove()?;
+                return Ok(Some(self.mods.remove(i)))
+            }
+        }
+        Ok(None)
     }
 
     pub fn stun(&mut self) {
@@ -222,7 +241,7 @@ impl Ship {
     }
 
     pub fn reset(&mut self) {
-        self.transform.reset();
+        self.transform.reset_velocity();
         self.reset_target_pos();
         self.stun.end();
         self.curr_health = self.attr.health;
@@ -412,6 +431,9 @@ impl GameState for Ship {
         for cannon in self.cannons.iter_mut() {
             cannon.update(ctx)?;
         }
+        for ship_mod in self.mods.iter_mut() {
+            ship_mod.update(ctx, world)?;
+        }
         self.move_to_target_pos();
         self.update_label();
         Ok(())
@@ -424,6 +446,7 @@ impl GameState for Ship {
             cannon.set_ship_translation(translation);
             cannon.draw(ctx)?;
         }
+        // Ship mod draw call unneccessary
         self.label.draw(ctx, translation.0 - V2::new(90.0, 15.0));
         Ok(())
     }

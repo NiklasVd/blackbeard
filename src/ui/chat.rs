@@ -1,7 +1,7 @@
 use tetra::{Context};
-use crate::{GC, Rcc, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment, UILayout}, label::Label, textbox::Textbox, ui_element::{DefaultUIReactor}};
+use crate::{GC, Rcc, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment, UILayout}, label::{FontSize, Label}, textbox::Textbox, ui_element::{DefaultUIReactor}};
 
-const MAX_CHAT_MESSAGES_COUNT: usize = 8;
+const MAX_CHAT_MESSAGES_COUNT: usize = 13;
 
 pub struct Chat {
     grid: Rcc<Grid>,
@@ -40,7 +40,7 @@ impl Chat {
             messages_grid_ref.remove_element_at(0);
         }
         messages_grid_ref.add_element(Label::new(ctx,
-            text, false, 2.0, self.game.clone())?);
+            text, FontSize::Small, 2.0, self.game.clone())?);
         Ok(())
     }
 

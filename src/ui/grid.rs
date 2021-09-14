@@ -1,5 +1,5 @@
-use tetra::{Context, Event, window::{get_height, get_width}};
-use crate::{Rcc, V2, ui_element::{DefaultUIReactor, UIElement, UIReactor}, ui_transform::UITransform, wrap_rcc};
+use tetra::{Context, Event, graphics::Texture, window::{get_height, get_width}};
+use crate::{GC, Rcc, V2, image::Image, ui_element::{DefaultUIReactor, UIElement, UIReactor}, ui_transform::UITransform, wrap_rcc};
 
 pub type UIRcc = Rcc<dyn UIElement>;
 
@@ -22,15 +22,28 @@ pub struct Grid {
     pub elements: Vec<UIRcc>,
     alignment: UIAlignment,
     layout: UILayout,
+    background: Option<Image>,
     reactor: DefaultUIReactor
 }
 
 impl Grid {
     pub fn new(ctx: &mut Context, alignment: UIAlignment, layout: UILayout,
         size: V2, padding: f32) -> tetra::Result<Grid> {
+        Self::new_bg(ctx, alignment, layout, size, padding, None, None)
+    }
+
+    pub fn new_bg(ctx: &mut Context, alignment: UIAlignment, layout: UILayout,
+        size: V2, padding: f32, background: Option<String>, game: Option<GC>)
+        -> tetra::Result<Grid> {
+        let background = match background {
+            Some(background) => Some(Image::new(ctx, size, padding, background,
+                true, game.unwrap())?),
+            _ => None
+        };
         Ok(Grid {
             alignment, layout, transform: UITransform::new(ctx, V2::zero(), size,
-            V2::zero(), padding)?, elements: Vec::new(), reactor: DefaultUIReactor::new()
+            V2::zero(), padding)?, elements: Vec::new(), background,
+            reactor: DefaultUIReactor::new()
         })
     }
 
@@ -38,7 +51,7 @@ impl Grid {
         padding: f32) -> tetra::Result<Grid> {
         Ok(Grid {
             alignment, layout: UILayout::Default, transform: UITransform::new(ctx,
-            V2::zero(), size, pos, padding)?, elements: Vec::new(),
+            V2::zero(), size, pos, padding)?, elements: Vec::new(), background: None,
             reactor: DefaultUIReactor::new()
         })
     }
@@ -137,6 +150,9 @@ impl UIElement for Grid {
 
     fn draw_element(&mut self, ctx: &mut Context, parent_pos: V2) -> tetra::Result {
         let pos = self.get_pos(ctx, parent_pos);
+        if let Some(background) = self.background.as_mut() {
+            background.draw_element(ctx, pos)?;
+        }
         for element in self.elements.iter() {
             let mut element_ref = element.borrow_mut();
             if !element_ref.is_invisible() {

@@ -1,5 +1,5 @@
 use tetra::{Context};
-use crate::{Entity, EntityType, GC, GameState, Sprite, SpriteOrigin, Transform, V2};
+use crate::{GC, Sprite, SpriteOrigin, Transform, V2, entity::{Entity, EntityType, GameState}};
 
 // Reefs only pose hazard to big ships (with greater keel depth), hence providing
 // a way of escape for smaller ships
@@ -34,6 +34,11 @@ impl Object {
 
     pub fn build_ship_wreck(ctx: &mut Context, game: GC, pos: V2, rot: f32)
         -> tetra::Result<Object> {
+        // IDEA: Add timer that removes wreck after some time to avoid cluttering?
+        // Only for practical reasons; the idea of 'ship graveyards' forming sounds
+        // strangely appealing too.
+        // Regardless, shipwrecks should take up less space and visual focus.
+        // Add a transparent gradient for submerging effect.
         Self::build_object(ctx, ObjectType::Shipwreck, game, "Destroyed Caravel.png".to_owned(),
             pos, rot)
     }

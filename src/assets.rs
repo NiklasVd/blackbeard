@@ -5,8 +5,9 @@ pub const ASSETS_ROOT_PATH: &str = "assets";
 pub const TEXTURES_PATH: &str = "textures";
 
 pub struct Assets {
+    pub small_font: Font,
     pub font: Font,
-    pub title_font: Font,
+    pub header_font: Font,
     cached_textures: HashMap<String, Texture>
 }
 
@@ -14,8 +15,9 @@ impl Assets {
     pub fn load(ctx: &mut Context) -> tetra::Result<Assets> {
         let font_path = Self::get_full_path("Calisto.ttf".to_owned());
         Ok(Assets {
+            small_font: Font::vector(ctx, font_path.clone(), 17.0)?,
             font: Font::vector(ctx, font_path.clone(), 20.0)?,
-            title_font: Font::vector(ctx, font_path, 35.0)?,
+            header_font: Font::vector(ctx, font_path, 35.0)?,
             cached_textures: HashMap::new()
         })
     }
@@ -32,7 +34,7 @@ impl Assets {
         if cache {
             self.cached_textures.insert(name, tex.clone());
         }
-        return Ok(tex)
+        Ok(tex)
     }
 
     fn get_full_path(file_name: String) -> PathBuf {

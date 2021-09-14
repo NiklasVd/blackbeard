@@ -1,18 +1,25 @@
 use tetra::{Context, graphics::text::Text};
 use crate::{GC, V2, ui_element::{UIElement}, ui_transform::UITransform};
 
+pub enum FontSize {
+    Small,
+    Normal,
+    Header
+}
+
 pub struct Label {
     pub transform: UITransform,
     text: Text,
 }
 
 impl Label {
-    pub fn new(ctx: &mut Context, text: &str, header: bool, padding: f32, game: GC)
+    pub fn new(ctx: &mut Context, text: &str, size: FontSize, padding: f32, game: GC)
         -> tetra::Result<Label> {
-        let (font, font_size) = match header {
-            true => (game.borrow().assets.title_font.clone(), 35.0),
-            false => (game.borrow().assets.font.clone(), 20.0)
-        } ;
+        let (font, font_size) = match size {
+            FontSize::Small => (game.borrow().assets.small_font.clone(), 17.0),
+            FontSize::Normal => (game.borrow().assets.font.clone(), 20.0),
+            FontSize::Header => (game.borrow().assets.header_font.clone(), 35.0),
+        };
         let x_size = text.len() as f32 * font_size * 0.5;
         let text = Text::new(text, font);
         Ok(Label {

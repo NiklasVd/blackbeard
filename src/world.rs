@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use rapier2d::{data::Index, prelude::ContactEvent};
 use tetra::{Context, Event, State};
-use crate::{CannonBall, Entity, EntityType, GC, ID, Object, Rcc, Ship, ShipType, V2, wrap_rcc};
+use crate::{CannonBall, GC, ID, Rcc, V2, entity::{Entity, EntityType}, harbour::Harbour, object::Object, ship::{Ship, ShipType}, wrap_rcc};
 
 pub type Entities<T = dyn Entity + 'static> = HashMap<Index, Rcc<T>>;
 
 pub struct World {
     entities: Entities,
+    sensors: Entities,
     ships: Entities<Ship>,
     game: GC
 }
@@ -14,12 +15,15 @@ pub struct World {
 impl World {
     pub fn new(ctx: &mut Context, game: GC) -> World  {
         World {
-            entities: HashMap::new(), ships: HashMap::new(), game
+            entities: HashMap::new(), sensors: HashMap::new(),
+            ships: HashMap::new(), game
         }
     }
 
     pub fn add_player_ship(&mut self, ctx: &mut Context, id: ID, ship_type: ShipType) -> tetra::Result<Rcc<Ship>> {
-        self.add_ship(ctx, ship_type, id.name, V2::right() * id.n as f32 * 1000.0, true)
+        self.add_ship(ctx, ship_type, id.name,
+            V2::right() * id.n as f32 * 1000.0, // Initial spawn position
+            true)
     }
 
     pub fn add_island(&mut self, ctx: &mut Context, pos: V2, rot: f32, island_type: u32)
@@ -32,6 +36,18 @@ impl World {
         /* Ship Type */) -> tetra::Result<Rcc<Object>> {
         let ship_wreck = Object::build_ship_wreck(ctx, self.game.clone(), pos, rot)?;
         Ok(self.add_entity(ship_wreck).unwrap())
+    }
+
+    pub fn add_harbour(&mut self, ctx: &mut Context, name: &str, pos: V2, rot: f32)
+        -> tetra::Result<Rcc<Harbour>> {
+        let harbour = Harbour::new(ctx, name.to_owned(), pos, rot, self.game.clone())?;
+        let index = harbour.get_index();
+        let zone_index = harbour.zone_handle.0;
+        let harbour_ref = wrap_rcc(harbour);
+        
+        self.add_entity_unchecked(index, harbour_ref.clone());
+        self.sensors.insert(zone_index, harbour_ref.clone());
+        Ok(harbour_ref)
     }
 
     pub fn add_cannon_ball(&mut self, ctx: &mut Context, cannon_ball: CannonBall) -> Rcc<CannonBall> {
@@ -88,8 +104,8 @@ impl World {
         self.entities.insert(index, entity);
     }
 
-    fn add_ship(&mut self, ctx: &mut Context, ship_type: ShipType, name: String, spawn: V2, respawn: bool)
-        -> tetra::Result<Rcc<Ship>> {
+    fn add_ship(&mut self, ctx: &mut Context, ship_type: ShipType, name: String, spawn: V2,
+        respawn: bool) -> tetra::Result<Rcc<Ship>> {
         let ship = match ship_type {
             ShipType::Caravel => Ship::caravel(ctx, self.game.clone(),
                 name, spawn, respawn),
@@ -104,14 +120,24 @@ impl World {
         Ok(ship_ref)
     }
 
-    fn handle_intersections(&self) -> tetra::Result {
+    fn handle_intersections(&mut self) -> tetra::Result {
         let intersections = self.game.borrow().physics.get_intersections();
         for intersection in intersections.iter() {
-            if !intersection.intersecting {
-                continue
+            let game_ref = self.game.borrow();
+            let coll1 = game_ref.physics.get_coll(intersection.collider1);
+            let coll1_type = EntityType::to_entity_type(coll1.user_data);
+            let coll2 = game_ref.physics.get_coll(intersection.collider2);
+            let coll2_type = EntityType::to_entity_type(coll2.user_data);
+            std::mem::drop(game_ref);
+            
+            // It seems, if any, the harbour will always be the second collider in
+            // the intersection event (as the moving collider that caused the intersection
+            // is always the ship).
+            if coll1_type == EntityType::Ship && coll2_type == EntityType::Harbour {
+                if let Some(ship) = self.get_ship(intersection.collider1.0) {
+                    ship.borrow_mut().is_in_harbour = intersection.intersecting;
+                }
             }
-
-            println!("{:?} and {:?} intersect!", intersection.collider1, intersection.collider2);
         }
         Ok(())
     }

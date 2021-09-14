@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 use tetra::{Context, Event, State, input::Key};
-use crate::{BbError, BbErrorType, BbResult, Controller, Entity, GC, GameState, ID, Player, Rcc, ShipType, TransformResult, V2, button::{Button, DefaultButton}, chat::Chat, grid::{Grid, UIAlignment, UILayout}, label::Label, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ui_element::{DefaultUIReactor, UIElement}, world::World};
+use crate::{BbError, BbErrorType, BbResult, Controller, GC, ID, Player, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, entity::{Entity, GameState}, grid::{Grid, UIAlignment, UILayout}, harbour::Harbour, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ship::ShipType, ui_element::{DefaultUIReactor, UIElement}, world::World};
 use super::scenes::{Scene, SceneType};
 
 pub const MAX_INPUT_STEP_BLOCK_DURATION: u64 = 15;
@@ -36,6 +36,7 @@ impl WorldScene {
         world_scene.world.add_island(ctx, V2::new(-900.0, 200.0), 0.0, 3).convert()?;
         world_scene.world.add_island(ctx, V2::new(1200.0, -500.0), 0.0, 3).convert()?;
         world_scene.world.add_island(ctx, V2::new(-600.0, -300.0), 1.0, 2).convert()?;
+        world_scene.world.add_harbour(ctx, "Port Elisabeth", V2::new(1050.0, -530.0), 1.0).convert()?;
 
         Ok(world_scene)
     }
@@ -80,10 +81,41 @@ impl WorldScene {
         }
     }
 
+    fn update_harbour_ui(&mut self) -> BbResult {
+        if !self.controller.local_player.as_ref().unwrap().borrow()
+            .possessed_ship.borrow().is_in_harbour {
+            return Ok(())
+        }
+        
+        if self.ui.harbour_ui.repair_ship_button.borrow().is_pressed() {
+            // Set next input state
+        }
+        if self.ui.harbour_ui.buy_ammo_upgrade_button.borrow().is_pressed() {
+            // Set next input state
+        }
+        Ok(())
+    }
+
     fn event_menu_ui(&mut self, event: Event) {
+        let is_in_harbour = self.controller.local_player.as_ref().unwrap().borrow()
+                            .possessed_ship.borrow().is_in_harbour;
+        if !is_in_harbour {
+            self.ui.harbour_ui.set_visibility(false);
+        }
         match event {
-            Event::KeyPressed { key } if key == Key::Escape =>
-                self.ui.toggle_menu_visibility(),
+            Event::KeyPressed { key } => {
+                match key {
+                    // Put into UI structs
+                    Key::Escape => self.ui.toggle_menu_visibility(),
+                    Key::T => {
+                        if is_in_harbour {
+                            let invisible = self.ui.harbour_ui.grid.borrow().is_invisible();
+                            self.ui.harbour_ui.set_visibility(invisible);
+                        }
+                    },
+                    _ => ()
+                };
+            },
             _ => ()
         }
     }
@@ -116,6 +148,7 @@ impl State for WorldScene {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
         self.ui.update(ctx)?;
         self.update_menu_ui().convert()?;
+        self.update_harbour_ui().convert()?;
         // Don't react to input if player is writing in chat
         self.controller.catch_input = !self.ui.is_chat_focused();
 
@@ -217,6 +250,7 @@ struct WorldSceneUI {
     players_grid: Rcc<Grid>,
     health_label: Rcc<Label>,
     escudos_label: Rcc<Label>,
+    harbour_ui: HarbourUI,
     local_player: Option<Rcc<Player>>,
     game: GC
 }
@@ -233,8 +267,9 @@ impl WorldSceneUI {
         let leave_button = menu_grid.add_element(Button::new(ctx, "Leave Match",
             V2::new(120.0, 35.0), 1.0, DefaultUIReactor::new(), game.clone())?);
         let match_info_label = menu_grid.add_element(Label::new(ctx, "Connected to Server",
-            false, 2.0, game.clone())?);
-        menu_grid.add_element(Label::new(ctx, "Connected Players", false, 2.0, game.clone())?);
+            FontSize::Small, 2.0, game.clone())?);
+        menu_grid.add_element(Label::new(ctx, "Connected Players", FontSize::Normal,
+            2.0, game.clone())?);
         let players_grid = menu_grid.add_element(Grid::default(ctx, UIAlignment::Vertical,
             V2::zero(), V2::new(120.0, 300.0), 2.0)?);
         let menu_grid = grid.add_element(menu_grid);
@@ -242,15 +277,17 @@ impl WorldSceneUI {
         let mut player_info_grid = Grid::new(ctx, UIAlignment::Horizontal,
             UILayout::TopRight, V2::new(330.0, 35.0), 0.0)?;
         let health_label = player_info_grid.add_element(Label::new(ctx,
-            "1000/1000 Health", false, 1.0, game.clone())?);
+            "1000/1000 Health", FontSize::Normal, 1.0, game.clone())?);
         let escudos_label = player_info_grid.add_element(Label::new(ctx,
-            "1000 Escudos", false, 1.0, game.clone())?);
+            "1000 Escudos", FontSize::Normal, 1.0, game.clone())?);
         grid.add_element(player_info_grid);
 
         let chat = Chat::new(ctx, UILayout::BottomLeft, grid, game.clone())?;
+        let harbour_ui = HarbourUI::new(ctx, grid, game.clone())?;
+
         Ok(WorldSceneUI {
             chat, menu_button, menu_grid, leave_button, match_info_label, players_grid,
-            health_label, escudos_label, local_player: None, game
+            health_label, escudos_label, harbour_ui, local_player: None, game
         })
     }
 
@@ -272,11 +309,11 @@ impl WorldSceneUI {
         let mut players_grid_ref = self.players_grid.borrow_mut();
         players_grid_ref.clear_elements();
         for player in players.into_iter() {
-            players_grid_ref.add_element(Label::new(ctx, format!("{:?} {}", player,
+            players_grid_ref.add_element(Label::new(ctx, format!(" {:?} {}", player,
                 match player.n {
                     0 => "(Host)",
                     _ => ""
-                }).as_str(), false, 2.0, self.game.clone())?);
+                }).as_str(), FontSize::Normal, 2.0, self.game.clone())?);
         }
         Ok(())
     }
@@ -312,15 +349,46 @@ impl WorldSceneUI {
             game_ref.world.flush_events().into_iter()
         };
         for event in events {
-            match event {
-                crate::WorldEvent::PlayerSunkByCannon(a, b) =>
-                    self.chat.add_line(ctx, &format!("{} sunk {} with a cannon shot!", a, b)),
-                crate::WorldEvent::PlayerSunkByRamming(a, b) =>
-                    self.chat.add_line(ctx, &format!("{} sunk {} by ramming!", a, b)),
-                crate::WorldEvent::PlayerSunkByAccident(a) =>
-                    self.chat.add_line(ctx, &format!("{} sunk their own ship by accident!", a))
-            }?;
+            self.chat.add_line(ctx, &match event {
+                WorldEvent::PlayerSunkByCannon(a, b) =>
+                    format!("{} sunk {} with a cannon shot!", a, b),
+                WorldEvent::PlayerSunkByRamming(a, b) =>
+                    format!("{} sunk {} by ramming!", a, b),
+                WorldEvent::PlayerSunkByAccident(a) =>
+                    format!("{} sunk their own ship by accident!", a)
+            })?;
         }
         Ok(())
+    }
+}
+
+struct HarbourUI {
+    grid: Rcc<Grid>,
+    repair_ship_button: Rcc<DefaultButton>,
+    buy_ammo_upgrade_button: Rcc<DefaultButton>
+}
+
+impl HarbourUI {
+    pub fn new(ctx: &mut Context, grid: &mut Grid, game: GC) -> tetra::Result<HarbourUI> {
+        let mut harbour_grid = Grid::new_bg(ctx, UIAlignment::Vertical,
+            UILayout::Centre, V2::new(150.0, 350.0), 0.0,
+            Some("UI/Background.png".to_owned()), Some(game.clone()))?;
+        harbour_grid.set_visibility(false);
+        harbour_grid.add_element(Label::new(ctx, "Harbour", FontSize::Header, 2.0,
+            game.clone())?);
+        let repair_ship_button = harbour_grid.add_element(Button::new(ctx,
+            "Repair Ship (35)", V2::new(120.0, 35.0), 2.0, DefaultUIReactor::new(),
+            game.clone())?);
+        let buy_ammo_upgrade_button = harbour_grid.add_element(Button::new(ctx,
+            "Ammo Upgrade (100)", V2::new(150.0, 35.0), 2.0, DefaultUIReactor::new(),
+            game.clone())?);
+        let harbour_grid = grid.add_element(harbour_grid);
+        Ok(HarbourUI {
+            grid: harbour_grid, repair_ship_button, buy_ammo_upgrade_button
+        })
+    }
+
+    pub fn set_visibility(&mut self, state: bool) {
+        self.grid.borrow_mut().set_visibility(state);
     }
 }

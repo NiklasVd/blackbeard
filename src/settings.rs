@@ -15,10 +15,11 @@ impl Settings {
     }
 
     pub fn set_name(&mut self, name: String) -> bool {
-        if name.len() > 4 || name.len() < 21 {
+        if name.len() >= 4 && name.len() <= 21 && !name.contains(' ') {
             self.name = name;
             true
         } else {
+            println!("Invalid name. Must be between 4 and 21 characters, contain only letters and no spaces.");
             false
         }
     }
