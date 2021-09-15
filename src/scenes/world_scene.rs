@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 use tetra::{Context, Event, State, input::Key};
-use crate::{BbError, BbErrorType, BbResult, Controller, GC, ID, Player, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, entity::{Entity, GameState}, grid::{Grid, UIAlignment, UILayout}, harbour::Harbour, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ship::ShipType, ui_element::{DefaultUIReactor, UIElement}, world::World};
+use crate::{BbError, BbErrorType, BbResult, Controller, GC, ID, Player, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, entity::{Entity, GameState}, grid::{Grid, UIAlignment, UILayout}, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ship::ShipType, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, ui_element::{DefaultUIReactor, UIElement}, world::World};
 use super::scenes::{Scene, SceneType};
 
 pub const MAX_INPUT_STEP_BLOCK_DURATION: u64 = 15;
@@ -26,9 +26,6 @@ impl WorldScene {
             world: World::new(ctx, game.clone()),
             grid, ui, back_to_menu: false, game: game.clone()
         };
-        world_scene.init_players(ctx, players)?;
-        world_scene.ui.set_local_player(
-            world_scene.controller.local_player.as_ref().unwrap().clone());
         
         world_scene.world.add_island(ctx, V2::new(800.0, 500.0), 0.6, 1).convert()?;
         world_scene.world.add_island(ctx, V2::new(150.0, 1000.0), 4.0, 2).convert()?;
@@ -38,6 +35,9 @@ impl WorldScene {
         world_scene.world.add_island(ctx, V2::new(-600.0, -300.0), 1.0, 2).convert()?;
         world_scene.world.add_harbour(ctx, "Port Elisabeth", V2::new(1050.0, -530.0), 1.0).convert()?;
 
+        world_scene.init_players(ctx, players)?;
+        world_scene.ui.set_local_player(
+            world_scene.controller.local_player.as_ref().unwrap().clone());
         Ok(world_scene)
     }
 
@@ -88,36 +88,12 @@ impl WorldScene {
         }
         
         if self.ui.harbour_ui.repair_ship_button.borrow().is_pressed() {
-            // Set next input state
+            self.controller.buy_ship_mod(ShipModType::Repair)
         }
         if self.ui.harbour_ui.buy_ammo_upgrade_button.borrow().is_pressed() {
-            // Set next input state
+            self.controller.buy_ship_mod(ShipModType::AmmoUpgrade);
         }
         Ok(())
-    }
-
-    fn event_menu_ui(&mut self, event: Event) {
-        let is_in_harbour = self.controller.local_player.as_ref().unwrap().borrow()
-                            .possessed_ship.borrow().is_in_harbour;
-        if !is_in_harbour {
-            self.ui.harbour_ui.set_visibility(false);
-        }
-        match event {
-            Event::KeyPressed { key } => {
-                match key {
-                    // Put into UI structs
-                    Key::Escape => self.ui.toggle_menu_visibility(),
-                    Key::T => {
-                        if is_in_harbour {
-                            let invisible = self.ui.harbour_ui.grid.borrow().is_invisible();
-                            self.ui.harbour_ui.set_visibility(invisible);
-                        }
-                    },
-                    _ => ()
-                };
-            },
-            _ => ()
-        }
     }
 }
 
@@ -148,6 +124,7 @@ impl State for WorldScene {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
         self.ui.update(ctx)?;
         self.update_menu_ui().convert()?;
+        self.ui.update(ctx)?;
         self.update_harbour_ui().convert()?;
         // Don't react to input if player is writing in chat
         self.controller.catch_input = !self.ui.is_chat_focused();
@@ -166,8 +143,7 @@ impl State for WorldScene {
         -> tetra::Result {
         self.controller.event(ctx, event.clone(), &mut self.world)?;
         self.world.event(ctx, event.clone())?;
-        self.event_menu_ui(event.clone());
-        Ok(())
+        self.ui.event(ctx, event)
     }
 }
 
@@ -190,11 +166,11 @@ impl NetController for WorldScene {
                 }
 
                 std::thread::sleep(Duration::from_millis(1));
-                let elapsed_secs = time.elapsed().as_secs();
-                if elapsed_secs % 3 == 0 {
+                let elapsed_time = time.elapsed();
+                if elapsed_time.as_millis() % 1500 == 0 {
                     println!("Blocking until next input step arrives from server...");
                 }
-                if elapsed_secs >= MAX_INPUT_STEP_BLOCK_DURATION {
+                if elapsed_time.as_secs() >= MAX_INPUT_STEP_BLOCK_DURATION {
                     println!("Failed to procure next input step in time. Terminating connection to server...");
                     self.leave_match()?;
                     return Ok(None)
@@ -322,7 +298,27 @@ impl WorldSceneUI {
         self.chat.is_focused()
     }
 
-    pub fn update(&mut self, ctx: &mut Context) -> tetra::Result {
+    fn update_world_events(&mut self, ctx: &mut Context) -> tetra::Result {
+        let events = {
+            let mut game_ref = self.game.borrow_mut();
+            game_ref.world.flush_events().into_iter()
+        };
+        for event in events {
+            self.chat.add_line(ctx, &match event {
+                WorldEvent::PlayerSunkByCannon(a, b) =>
+                    format!("{} sunk {} with a cannon shot!", a, b),
+                WorldEvent::PlayerSunkByRamming(a, b) =>
+                    format!("{} sunk {} by ramming!", a, b),
+                WorldEvent::PlayerSunkByAccident(a) =>
+                    format!("{} sunk their own ship by accident!", a)
+            })?;
+        }
+        Ok(())
+    }
+}
+
+impl State for WorldSceneUI {
+    fn update(&mut self, ctx: &mut Context) -> tetra::Result {
         if self.menu_button.borrow().is_pressed() {
             self.toggle_menu_visibility();
         }
@@ -343,20 +339,26 @@ impl WorldSceneUI {
         self.update_world_events(ctx)
     }
 
-    fn update_world_events(&mut self, ctx: &mut Context) -> tetra::Result {
-        let events = {
-            let mut game_ref = self.game.borrow_mut();
-            game_ref.world.flush_events().into_iter()
-        };
-        for event in events {
-            self.chat.add_line(ctx, &match event {
-                WorldEvent::PlayerSunkByCannon(a, b) =>
-                    format!("{} sunk {} with a cannon shot!", a, b),
-                WorldEvent::PlayerSunkByRamming(a, b) =>
-                    format!("{} sunk {} by ramming!", a, b),
-                WorldEvent::PlayerSunkByAccident(a) =>
-                    format!("{} sunk their own ship by accident!", a)
-            })?;
+    fn event(&mut self, ctx: &mut Context, event: Event) -> tetra::Result {
+        let is_in_harbour = self.local_player.as_ref().unwrap().borrow()
+            .possessed_ship.borrow().is_in_harbour;
+        if !is_in_harbour {
+            self.harbour_ui.set_visibility(false);
+        }
+        match event {
+            Event::KeyPressed { key } => {
+                match key {
+                    Key::Escape => self.toggle_menu_visibility(),
+                    Key::T => {
+                        if is_in_harbour {
+                            let invisible = self.harbour_ui.grid.borrow().is_invisible();
+                            self.harbour_ui.set_visibility(invisible);
+                        }
+                    },
+                    _ => ()
+                };
+            },
+            _ => ()
         }
         Ok(())
     }
@@ -371,16 +373,19 @@ struct HarbourUI {
 impl HarbourUI {
     pub fn new(ctx: &mut Context, grid: &mut Grid, game: GC) -> tetra::Result<HarbourUI> {
         let mut harbour_grid = Grid::new_bg(ctx, UIAlignment::Vertical,
-            UILayout::Centre, V2::new(150.0, 350.0), 0.0,
+            UILayout::Centre, V2::new(225.0, 385.0), 0.0,
             Some("UI/Background.png".to_owned()), Some(game.clone()))?;
         harbour_grid.set_visibility(false);
         harbour_grid.add_element(Label::new(ctx, "Harbour", FontSize::Header, 2.0,
             game.clone())?);
         let repair_ship_button = harbour_grid.add_element(Button::new(ctx,
-            "Repair Ship (35)", V2::new(120.0, 35.0), 2.0, DefaultUIReactor::new(),
+            &format!("Repair Ship ({})", HARBOUR_REPAIR_COST), V2::new(140.0, 35.0),
+            2.0, DefaultUIReactor::new(),
             game.clone())?);
+        harbour_grid.add_element(Label::new(ctx,
+            "Ammo Upgrade: Increases cannon ball damage +5.", FontSize::Small, 2.0, game.clone())?);
         let buy_ammo_upgrade_button = harbour_grid.add_element(Button::new(ctx,
-            "Ammo Upgrade (100)", V2::new(150.0, 35.0), 2.0, DefaultUIReactor::new(),
+            "Ammo Upgrade (100)", V2::new(180.0, 35.0), 2.0, DefaultUIReactor::new(),
             game.clone())?);
         let harbour_grid = grid.add_element(harbour_grid);
         Ok(HarbourUI {

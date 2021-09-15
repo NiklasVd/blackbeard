@@ -1,5 +1,6 @@
 use std::ops::{Add, AddAssign, DivAssign, MulAssign, SubAssign};
 
+use binary_stream::{BinaryStream, Serializable};
 use tetra::{Context, graphics::Texture};
 use crate::{BbResult, GC, Rcc, entity::GameState, ship::Ship};
 
@@ -34,10 +35,33 @@ impl<T: Clone + Copy + PartialEq + PartialOrd + Add<Output = T> + AddAssign + Su
     }
 }
 
+pub const HARBOUR_REPAIR_COST: u32 = 25;
+pub const AMMO_UPGRADE_MOD_COST: u32 = 100;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ShipModType {
+    Repair,
     AmmoUpgrade,
     CannonUpgrade
+}
+
+impl Serializable for ShipModType {
+    fn to_stream(&self, stream: &mut BinaryStream) {
+        stream.write_buffer_single(match self {
+            ShipModType::Repair => 0,
+            ShipModType::AmmoUpgrade => 1,
+            ShipModType::CannonUpgrade => 2,
+        }).unwrap();
+    }
+
+    fn from_stream(stream: &mut BinaryStream) -> Self {
+        match stream.read_buffer_single().unwrap() {
+            0 => ShipModType::Repair,
+            1 => ShipModType::AmmoUpgrade,
+            2 => ShipModType::CannonUpgrade,
+            n @ _ => panic!("Index {} not assigned to any ship mod type", n)
+        }
+    }
 }
 
 pub trait ShipMod : GameState {

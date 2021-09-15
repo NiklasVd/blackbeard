@@ -187,6 +187,10 @@ impl Ship {
         Ok(None)
     }
 
+    pub fn repair(&mut self) {
+        self.curr_health = self.attr.health;
+    }
+
     pub fn stun(&mut self) {
         self.stun.reset();
     }
@@ -421,6 +425,14 @@ impl Entity for Ship {
 
     fn collide_with_neutral(&mut self, ctx: &mut Context)
         -> tetra::Result {
+        Ok(())
+    }
+
+    fn intersect_with_entity(&mut self, ctx: &mut Context, state: bool,
+        other: Rcc<dyn Entity>) -> tetra::Result {
+        if other.borrow().get_type() == EntityType::Harbour {
+            self.is_in_harbour = state;
+        }
         Ok(())
     }
 }

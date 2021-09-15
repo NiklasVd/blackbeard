@@ -120,24 +120,42 @@ impl World {
         Ok(ship_ref)
     }
 
-    fn handle_intersections(&mut self) -> tetra::Result {
+    fn handle_intersections(&mut self, ctx: &mut Context) -> tetra::Result {
         let intersections = self.game.borrow().physics.get_intersections();
         for intersection in intersections.iter() {
-            let game_ref = self.game.borrow();
-            let coll1 = game_ref.physics.get_coll(intersection.collider1);
-            let coll1_type = EntityType::to_entity_type(coll1.user_data);
-            let coll2 = game_ref.physics.get_coll(intersection.collider2);
-            let coll2_type = EntityType::to_entity_type(coll2.user_data);
-            std::mem::drop(game_ref);
+            let coll1_sensor = self.game.borrow().physics
+                    .get_coll(intersection.collider1).is_sensor();
             
-            // It seems, if any, the harbour will always be the second collider in
-            // the intersection event (as the moving collider that caused the intersection
-            // is always the ship).
-            if coll1_type == EntityType::Ship && coll2_type == EntityType::Harbour {
-                if let Some(ship) = self.get_ship(intersection.collider1.0) {
-                    ship.borrow_mut().is_in_harbour = intersection.intersecting;
+            let (entity1, entity2) = {
+                if coll1_sensor { // Only one of the two colliders ever is a sensor
+                    if let Some(entity1) = self.sensors.get(&intersection.collider1.0) {
+                        let entity1 = entity1.clone();
+                        if let Some(entity2) = self.get_entity(intersection.collider2.0) {
+                            (entity1, entity2)
+                        } else {
+                            continue
+                        }
+                    } else {
+                        continue
+                    }
+                } else { // If the first isn't, then the second collider will be the sensor
+                    if let Some(entity2) = self.sensors.get(&intersection.collider2.0) {
+                        let entity2 = entity2.clone();
+                        if let Some(entity1) = self.get_entity(intersection.collider1.0) {
+                            (entity1, entity2)
+                        } else {
+                            continue
+                        }
+                    } else {
+                        continue
+                    }
                 }
-            }
+            };
+
+            entity1.borrow_mut().intersect_with_entity(ctx,
+                intersection.intersecting, entity2.clone())?;
+            entity2.borrow_mut().intersect_with_entity(ctx,
+                intersection.intersecting, entity1)?;
         }
         Ok(())
     }
@@ -189,7 +207,7 @@ impl World {
 
 impl State for World {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
-        self.handle_intersections()?;
+        self.handle_intersections(ctx)?;
         self.handle_contacts(ctx)?;
 
         let entities = &mut self.entities.clone(); // Performance?

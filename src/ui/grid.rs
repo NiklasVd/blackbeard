@@ -1,4 +1,4 @@
-use tetra::{Context, Event, graphics::Texture, window::{get_height, get_width}};
+use tetra::{Context, Event, window::{get_height, get_width}};
 use crate::{GC, Rcc, V2, image::Image, ui_element::{DefaultUIReactor, UIElement, UIReactor}, ui_transform::UITransform, wrap_rcc};
 
 pub type UIRcc = Rcc<dyn UIElement>;

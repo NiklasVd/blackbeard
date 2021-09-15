@@ -81,8 +81,8 @@ pub use entities::*;
 use tetra::ContextBuilder;
 use std::io::{Read, stdin};
 
-pub const WINDOW_WIDTH: f32 = 1000.0;
-pub const WINDOW_HEIGHT: f32 = 600.0;
+pub const WINDOW_WIDTH: f32 = 1050.0;
+pub const WINDOW_HEIGHT: f32 = 625.0;
 
 pub const PRIMARY_VERSION: u32 = 0;
 pub const SECONDARY_VERSION: u32 = 1;

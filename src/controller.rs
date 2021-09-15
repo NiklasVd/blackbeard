@@ -1,6 +1,6 @@
 use std::{collections::HashMap};
 use tetra::{Context, Event, State, input::{Key, MouseButton}};
-use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, packet::{InputState, InputStep}, playback_buffer::PlaybackBuffer, world::World, wrap_rcc};
+use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, packet::{InputState, InputStep}, playback_buffer::PlaybackBuffer, ship_mod::{AMMO_UPGRADE_MOD_COST, AmmoUpgradeMod, HARBOUR_REPAIR_COST, ShipModType}, world::World, wrap_rcc};
 
 pub struct Controller {
     pub players: HashMap<u16, Rcc<Player>>,
@@ -44,6 +44,12 @@ impl Controller {
         self.local_player = Some(local_player)
     }
 
+    pub fn buy_ship_mod(&mut self, mod_type: ShipModType) {
+        println!("Attempting to buy {:?} mod", &mod_type);
+        self.curr_input_state.buy_mod = true;
+        self.curr_input_state.mod_type = Some(mod_type);
+    }
+
     pub fn add_step(&mut self, step: InputStep) {
         self.input_buffer.add_step(step);
     }
@@ -74,6 +80,46 @@ impl Controller {
         -> tetra::Result {
         if let Some(player) = self.players.get(&sender) {
             let player_ref = player.borrow();
+            // Handle buy_mod before borrowing ship ref
+            if state.buy_mod && player_ref.possessed_ship.borrow().is_in_harbour {
+                println!("Player {:?} is purchasing a mod at the harbour.",
+                    player_ref.id);
+                if let Some(mod_type) = state.mod_type {
+                    let ship_mod = match &mod_type {
+                        ShipModType::Repair => {
+                            let mut ship_ref = player_ref.possessed_ship.borrow_mut();
+                            if ship_ref.escudos < HARBOUR_REPAIR_COST {
+                                println!("Not enough escudos to repair ship!");
+                            } else {
+                                ship_ref.repair();
+                                ship_ref.escudos -= HARBOUR_REPAIR_COST;
+                                println!("Player {:?} repaired their ship.", player_ref.id);
+                            }
+                            None
+                        },
+                        ShipModType::AmmoUpgrade => {
+                            let mut ship_ref = player_ref.possessed_ship.borrow_mut();
+                            if ship_ref.escudos < AMMO_UPGRADE_MOD_COST {
+                                println!("Not enough escudos to buy ammo upgrade!");
+                                None
+                            } else {
+                                ship_ref.escudos -= AMMO_UPGRADE_MOD_COST;
+                                std::mem::drop(ship_ref);
+                                let ship_mod = AmmoUpgradeMod::new(ctx,
+                                player_ref.possessed_ship.clone(), self.game.clone())?;
+                                Some(ship_mod)
+                            }
+                        },
+                        ShipModType::CannonUpgrade => todo!(),
+                    };
+                    if let Some(ship_mod) = ship_mod {
+                        player_ref.possessed_ship.borrow_mut().apply_mod(ship_mod);
+                        println!("Player {:?} purchased and applied {:?} mod at harbour.",
+                            player_ref.id, mod_type);
+                    }
+                }
+            }
+
             let mut ship_ref = player_ref.possessed_ship.borrow_mut();
             if state.q {
                 ship_ref.shoot_cannons_on_side(ctx, CannonSide::Bowside, world)?;

@@ -70,6 +70,11 @@ pub trait Entity : GameState {
         Ok(())
     }
 
+    fn intersect_with_entity(&mut self, ctx: &mut Context, state: bool,
+        other: Rcc<dyn Entity>) -> tetra::Result {
+        Ok(())
+    }
+
     fn get_index(&self) -> Index {
         self.get_transform().get_index()
     }
