@@ -78,11 +78,8 @@ pub use diagnostics::*;
 pub use world::*;
 pub use entities::*;
 
-use tetra::ContextBuilder;
+use tetra::{ContextBuilder};
 use std::io::{Read, stdin};
-
-pub const WINDOW_WIDTH: f32 = 1050.0;
-pub const WINDOW_HEIGHT: f32 = 625.0;
 
 pub const PRIMARY_VERSION: u32 = 0;
 pub const SECONDARY_VERSION: u32 = 1;
@@ -93,7 +90,9 @@ fn get_version() -> String {
 
 fn main() -> tetra::Result {
     println!("Blackbeard {} - (c) 2021, Niklas Vaudt", get_version());
-    if let Err(e) = ContextBuilder::new("Blackbeard", WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32)
+    let args: Vec<String> = std::env::args().collect();
+    println!("Startup params: {:?}", args);
+    if let Err(e) = ContextBuilder::new("Blackbeard", 1200, 650)
         .debug_info(true)
         .high_dpi(true)
         .show_mouse(true)

@@ -107,7 +107,11 @@ impl Server {
                 } else {
                     self.on_start_game();
                 }
-            }
+            },
+            Packet::Handshake { .. } => {
+                // ?!
+                return Ok(())
+            },
             _ => ()
         }
         // If not returned before, echo back the packet to all clients

@@ -1,5 +1,5 @@
-use tetra::{Context, State, graphics::Camera, input::{Key, is_key_down, is_mouse_scrolled_down, is_mouse_scrolled_up}, math::Clamp};
-use crate::{V2, WINDOW_HEIGHT, WINDOW_WIDTH, get_dt};
+use tetra::{Context, State, graphics::Camera, input::{Key, is_key_down, is_mouse_scrolled_down, is_mouse_scrolled_up}, math::Clamp, window::{get_height, get_width}};
+use crate::{V2, get_dt};
 
 pub const CAM_ZOOM_RATE: f32 = 2.0;
 
@@ -9,9 +9,9 @@ pub struct Cam {
 }
 
 impl Cam {
-    pub fn setup(movement_speed: f32) -> Cam {
+    pub fn setup(ctx: &mut Context, movement_speed: f32) -> Cam {
         Cam {
-            instance: Camera::new(WINDOW_WIDTH, WINDOW_HEIGHT),
+            instance: Camera::new(get_width(ctx) as f32, get_height(ctx) as f32),
             movement_speed
         }
     }

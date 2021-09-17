@@ -1,4 +1,4 @@
-use std::{collections::HashMap, net::SocketAddr, thread, time::Duration};
+use std::{collections::HashMap, net::{SocketAddr}, thread, time::Duration};
 use crate::{BbResult, ID, packet::{Packet, deserialize_packet, serialize_packet_unsigned}, peer::{DisconnectReason, Peer, is_auth_client}};
 
 pub struct Client {
@@ -17,9 +17,8 @@ impl Client {
             connections: HashMap::new(), local_id: None, connected: false, name: name.to_owned()
         };
         client.send_packet(Packet::Handshake {
-            name
+            name: name.clone()
         })?;
-        println!("Sending handshake to {}", server_addr);
         Ok(client)
     }
 

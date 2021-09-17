@@ -87,6 +87,7 @@ impl State for LobbyScene {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
         self.ui.update(ctx).convert()?;
         self.update_ship_selection().convert()?;
+        
         self.handle_received_packets(ctx).convert()
     }
 }
@@ -110,7 +111,7 @@ impl NetController for LobbyScene {
 
     fn on_connection_lost(&mut self, ctx: &mut Context, reason: DisconnectReason) -> BbResult {
         self.disconnected = true;
-        println!("Host shut down server. Reason: {:?}. Returning to menu...", reason);
+        println!("Connection to server was lost. Reason: {:?}. Returning to menu...", reason);
         Ok(())
     }
 

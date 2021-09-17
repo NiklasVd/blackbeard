@@ -9,7 +9,10 @@ pub trait NetController {
                 self.handle_packets(ctx, (packet, sender))
             },
             Ok(None) => Ok(()),
-            Err(e) => Err(e)
+            Err(e) => {
+                println!("Client poll returned error: {:?}. Shutting down peer...", e);
+                self.on_connection_lost(ctx, DisconnectReason::Timeout /* Add more specific reasons */)
+            }
         }
     }
 

@@ -1,7 +1,7 @@
 use tetra::{Context};
 use crate::{GC, Rcc, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment, UILayout}, label::{FontSize, Label}, textbox::Textbox, ui_element::{DefaultUIReactor}};
 
-const MAX_CHAT_MESSAGES_COUNT: usize = 13;
+const MAX_CHAT_MESSAGES_COUNT: usize = 12;
 
 pub struct Chat {
     grid: Rcc<Grid>,
@@ -15,9 +15,9 @@ impl Chat {
     pub fn new(ctx: &mut Context, layout: UILayout, grid: &mut Grid, game: GC)
         -> tetra::Result<Chat> {
         let mut chat_grid = Grid::new(ctx, UIAlignment::Vertical, layout,
-            V2::new(300.0, 285.0), 1.0)?;
+            V2::new(300.0, 222.5), 1.0)?;
         let messages_grid = chat_grid.add_element(Grid::default(ctx, UIAlignment::Vertical,
-            V2::zero(), V2::new(300.0, 200.0), 1.0)?);
+            V2::zero(), V2::new(300.0, 187.5), 1.0)?);
         
         let mut text_grid = Grid::default(ctx, UIAlignment::Horizontal,
             V2::zero(), V2::new(300.0, 35.0), 1.0)?;

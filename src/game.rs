@@ -57,7 +57,7 @@ impl Game {
             physics: Physics::setup(),
             settings: Settings::new(),
             world: WorldSettings::new(),
-            cam: Cam::setup(550.0),
+            cam: Cam::setup(ctx, 550.0),
             network: None
         });
         let watermark = Text::new(format!("Blackbeard Alpha {}", get_version()),

@@ -1,4 +1,4 @@
-use tetra::{Context, graphics::{Color, DrawParams, Texture, text::Text}, input::{self, Key, is_key_pressed}};
+use tetra::{Context, graphics::{Color, DrawParams, Texture, text::Text}, input::{self, Key, get_clipboard_text, is_key_down, is_key_pressed, set_clipboard_text}};
 use crate::{GC, V2, ui_element::{DefaultUIReactor, UIElement, UIReactor, UIState}, ui_transform::UITransform};
 
 pub struct Textbox {
@@ -67,12 +67,22 @@ impl UIElement for Textbox {
             return Ok(())
         }
 
-        if is_key_pressed(ctx, Key::Backspace) {
-            self.text.pop();
-        }
         if let Some(input) = input::get_text_input(ctx) {
             self.text.push_str(input);
         }
+
+        // Move to event method?
+        if is_key_pressed(ctx, Key::Backspace) {
+            self.text.pop();
+        }
+        if is_key_down(ctx, Key::LeftCtrl) {
+            if is_key_pressed(ctx, Key::V) {
+                self.text.push_str(get_clipboard_text(ctx)?.as_str());
+            } else if is_key_pressed(ctx, Key::C) {
+                set_clipboard_text(ctx, self.get_text())?;
+            }
+        }
+
         Ok(())
     }
 

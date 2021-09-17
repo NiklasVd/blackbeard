@@ -10,6 +10,11 @@ impl Image {
     pub fn new(ctx: &mut Context, size: V2, padding: f32,
         image_path: String, cache: bool, game: GC) -> tetra::Result<Image> {
         let image = game.borrow_mut().assets.load_texture(ctx, image_path, cache)?;
+        Self::from(ctx, size, padding, image)
+    }
+
+    pub fn from(ctx: &mut Context, size: V2, padding: f32, image: Texture)
+        -> tetra::Result<Image>  {
         Ok(Image {
             transform: UITransform::default(ctx, size,
                 V2::new(image.width() as f32, image.height() as f32), padding)?,

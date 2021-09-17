@@ -1,21 +1,22 @@
 use std::collections::HashMap;
+use indexmap::IndexMap;
 use rapier2d::{data::Index, prelude::ContactEvent};
 use tetra::{Context, Event, State};
 use crate::{CannonBall, GC, ID, Rcc, V2, entity::{Entity, EntityType}, harbour::Harbour, object::Object, ship::{Ship, ShipType}, wrap_rcc};
 
-pub type Entities<T = dyn Entity + 'static> = HashMap<Index, Rcc<T>>;
+pub type EntityMap<T = dyn Entity + 'static> = HashMap<Index, Rcc<T>>;
 
 pub struct World {
-    entities: Entities,
-    sensors: Entities,
-    ships: Entities<Ship>,
+    entities: IndexMap<Index, Rcc<dyn Entity>>,
+    sensors: EntityMap,
+    ships: EntityMap<Ship>,
     game: GC
 }
 
 impl World {
     pub fn new(ctx: &mut Context, game: GC) -> World  {
         World {
-            entities: HashMap::new(), sensors: HashMap::new(),
+            entities: IndexMap::new(), sensors: HashMap::new(),
             ships: HashMap::new(), game
         }
     }

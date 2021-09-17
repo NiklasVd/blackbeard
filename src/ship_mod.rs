@@ -70,6 +70,7 @@ pub trait ShipMod : GameState {
     fn get_type(&self) -> ShipModType;
     fn get_icon(&self) -> Texture;
     fn get_applied_ship(&self) -> Rcc<Ship>;
+    // TODO: Separate apply method
     fn on_remove(&mut self) -> BbResult;
 }
 
@@ -79,7 +80,7 @@ pub struct AmmoUpgradeMod {
 }
 
 impl AmmoUpgradeMod {
-    pub fn new(ctx: &mut Context, ship: Rcc<Ship>, game: GC)
+    pub fn new(ctx: &mut Context, ship: Rcc<Ship>, game: GC) // Separate apply method
         -> tetra::Result<AmmoUpgradeMod> {
         let icon = game.borrow_mut().assets.load_texture(ctx,
             "UI/Ammo Upgrade Mod.png".to_owned(), true)?;

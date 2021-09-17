@@ -12,4 +12,6 @@ crossbeam-channel = "0.5.1"
 rand = "0.8.4"
 binary_stream = { path = "../binary_stream" }
 laminar = "0.5.0"
+#laminar = { path = "../laminar" }
 nalgebra = "0.29"
+indexmap = "1.7.0"

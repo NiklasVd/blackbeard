@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 use tetra::{Context, Event, State, input::Key};
-use crate::{BbError, BbErrorType, BbResult, Controller, GC, ID, Player, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, entity::{Entity, GameState}, grid::{Grid, UIAlignment, UILayout}, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ship::ShipType, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, ui_element::{DefaultUIReactor, UIElement}, world::World};
+use crate::{BbError, BbErrorType, BbResult, Controller, GC, ID, Player, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, entity::{Entity, GameState}, grid::{Grid, UIAlignment, UILayout}, image::Image, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ship::ShipType, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, ui_element::{DefaultUIReactor, UIElement}, world::World};
 use super::scenes::{Scene, SceneType};
 
 pub const MAX_INPUT_STEP_BLOCK_DURATION: u64 = 15;
@@ -33,7 +33,8 @@ impl WorldScene {
         world_scene.world.add_island(ctx, V2::new(-900.0, 200.0), 0.0, 3).convert()?;
         world_scene.world.add_island(ctx, V2::new(1200.0, -500.0), 0.0, 3).convert()?;
         world_scene.world.add_island(ctx, V2::new(-600.0, -300.0), 1.0, 2).convert()?;
-        world_scene.world.add_harbour(ctx, "Port Elisabeth", V2::new(1050.0, -530.0), 1.0).convert()?;
+        world_scene.world.add_harbour(ctx, "Port Elisabeth",
+            V2::new(740.0, 690.0), 0.75).convert()?;
 
         world_scene.init_players(ctx, players)?;
         world_scene.ui.set_local_player(
@@ -124,7 +125,6 @@ impl State for WorldScene {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
         self.ui.update(ctx)?;
         self.update_menu_ui().convert()?;
-        self.ui.update(ctx)?;
         self.update_harbour_ui().convert()?;
         // Don't react to input if player is writing in chat
         self.controller.catch_input = !self.ui.is_chat_focused();
@@ -227,6 +227,7 @@ struct WorldSceneUI {
     health_label: Rcc<Label>,
     escudos_label: Rcc<Label>,
     harbour_ui: HarbourUI,
+    ship_stats_panel: Rcc<Grid>,
     local_player: Option<Rcc<Player>>,
     game: GC
 }
@@ -243,9 +244,9 @@ impl WorldSceneUI {
         let leave_button = menu_grid.add_element(Button::new(ctx, "Leave Match",
             V2::new(120.0, 35.0), 1.0, DefaultUIReactor::new(), game.clone())?);
         let match_info_label = menu_grid.add_element(Label::new(ctx, "Connected to Server",
-            FontSize::Small, 2.0, game.clone())?);
+            FontSize::Small, 4.0, game.clone())?);
         menu_grid.add_element(Label::new(ctx, "Connected Players", FontSize::Normal,
-            2.0, game.clone())?);
+            4.0, game.clone())?);
         let players_grid = menu_grid.add_element(Grid::default(ctx, UIAlignment::Vertical,
             V2::zero(), V2::new(120.0, 300.0), 2.0)?);
         let menu_grid = grid.add_element(menu_grid);
@@ -261,9 +262,13 @@ impl WorldSceneUI {
         let chat = Chat::new(ctx, UILayout::BottomLeft, grid, game.clone())?;
         let harbour_ui = HarbourUI::new(ctx, grid, game.clone())?;
 
+        let ship_stats_grid = grid.add_element(Grid::new(ctx, UIAlignment::Horizontal,
+            UILayout::BottomRight, V2::new(350.0, 80.0), 0.0)?);
+
         Ok(WorldSceneUI {
             chat, menu_button, menu_grid, leave_button, match_info_label, players_grid,
-            health_label, escudos_label, harbour_ui, local_player: None, game
+            health_label, escudos_label, harbour_ui, ship_stats_panel: ship_stats_grid,
+            local_player: None, game
         })
     }
 
@@ -315,6 +320,20 @@ impl WorldSceneUI {
         }
         Ok(())
     }
+
+    fn update_ship_stats_panel(&mut self, ctx: &mut Context) -> tetra::Result {
+        let player_ref = self.local_player.as_ref().unwrap().borrow();
+        let ship_ref = player_ref.possessed_ship.borrow();
+        let mut panel_ref = self.ship_stats_panel.borrow_mut();
+        if ship_ref.mods.len() != panel_ref.elements.len() {
+            panel_ref.clear_elements();
+            for ship_mod in ship_ref.mods.iter() {
+                panel_ref.add_element(Image::from(ctx, V2::new(50.0, 50.0), 5.0,
+                    ship_mod.get_icon())?);
+            }
+        }
+        Ok(())
+    }
 }
 
 impl State for WorldSceneUI {
@@ -336,7 +355,8 @@ impl State for WorldSceneUI {
                 &format!("{} Escudos", ship_ref.escudos));
         }
 
-        self.update_world_events(ctx)
+        self.update_world_events(ctx)?;
+        self.update_ship_stats_panel(ctx)
     }
 
     fn event(&mut self, ctx: &mut Context, event: Event) -> tetra::Result {

@@ -2,7 +2,7 @@ use tetra::{Context, State};
 use crate::{BbResult, GC, Rcc, TransformResult, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment}, label::{FontSize, Label}, lobby_scene::LobbyScene, menu_scene::MenuScene, net_settings::NetSettings, textbox::Textbox, ui_element::{DefaultUIReactor}};
 use super::scenes::{Scene, SceneType};
 
-const DEFAULT_HOST_PORT: u16 = 8080;
+const DEFAULT_HOST_PORT: u16 = 22081;
 
 pub struct ConnectionScene {
     pub grid: Grid,

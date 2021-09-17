@@ -27,7 +27,7 @@ impl Peer {
         };
         let mut socket = match port {
             Some(port) => Socket::bind_with_config(format!("0.0.0.0:{}", port), config),
-            None => Socket::bind_any_with_config(config)
+            None => Socket::bind_with_config("0.0.0.0:0", config)
         }.or_else(|err| Err(BbError::Laminar(err)))?;
         let sender = socket.get_packet_sender();
         let receiver = socket.get_event_receiver();
@@ -60,7 +60,14 @@ impl Peer {
 
         let event = match self.receiver.try_recv() {
             Ok(event) => Ok(Some(event)),
-            Err(e) => Ok(None)
+            Err(e) => {
+                match e {
+                    crossbeam_channel::TryRecvError::Disconnected =>
+                        println!("Poll loop error: {}", e),
+                    _ => ()
+                }                
+                Ok(None)
+            }
         }?;
         if let Some(event) = event {
             match event {
