@@ -1,4 +1,3 @@
-use std::time::{Duration, Instant};
 use tetra::{Context, Event, State, input::Key};
 use crate::{BbError, BbErrorType, BbResult, Controller, GC, ID, Player, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, entity::{Entity, GameState}, grid::{Grid, UIAlignment, UILayout}, image::Image, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ship::ShipType, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, ui_element::{DefaultUIReactor, UIElement}, world::World};
 use super::scenes::{Scene, SceneType};
@@ -83,7 +82,7 @@ impl WorldScene {
         if is_next_step_ready {
             self.controller.update(ctx, &mut self.world)?;
             self.world.update(ctx)
-        } else if self.controller.wait_next_step() {
+        } else if self.controller.is_block_timed_out() {
             println!("Failed to procure next input step in time. Leaving match...");
             self.leave_match().convert()
         } else {

@@ -24,7 +24,7 @@ impl PlaybackBuffer {
         self.startup_time = Instant::now();
     }
 
-    pub fn get_buffered_step_count(&self) -> usize {
+    pub fn get_buffer_size(&self) -> usize {
         self.steps.len()
     }
 

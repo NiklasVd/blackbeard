@@ -1,8 +1,10 @@
-use std::{collections::HashMap};
-use tetra::{Context, Event, State, input::{Key, MouseButton}};
+use std::{collections::HashMap, time::Instant};
+use tetra::{Context, Event, State, input::{Key, MouseButton}, time::{Timestep, set_timestep}};
 use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, packet::{InputState, InputStep}, playback_buffer::PlaybackBuffer, ship_mod::{AMMO_UPGRADE_MOD_COST, AmmoUpgradeMod, HARBOUR_REPAIR_COST, ShipModType}, world::World, wrap_rcc};
 
-pub const MAX_INPUT_STEP_BLOCK_FRAMES: u32 = 60 * 15;
+pub const MAX_INPUT_STEP_BLOCK_TIME: f32 = 15.0;
+pub const DEFAULT_SIMULATION_TIMESTEP: f64 = 60.0;
+pub const ACCELERATED_SIMULATION_TIMESTEP: f64 = DEFAULT_SIMULATION_TIMESTEP * 4.0;
 
 pub struct Controller {
     pub players: HashMap<u16, Rcc<Player>>,
@@ -11,7 +13,7 @@ pub struct Controller {
     input_buffer: PlaybackBuffer,
     curr_input_state: InputState,
     curr_gen: u64,
-    wait_time_frames: u32,
+    blocking_time: Instant,
     target_x: Sprite,
     curr_target_pos: Option<V2>,
     game: GC
@@ -25,7 +27,7 @@ impl Controller {
             players: HashMap::new(), local_player: None, catch_input: true,
             input_buffer: PlaybackBuffer::new(),
             curr_input_state: InputState::default(),
-            curr_gen: 0, wait_time_frames: 0,
+            curr_gen: 0, blocking_time: Instant::now(),
             target_x: Sprite::new(target_x, SpriteOrigin::Centre, None),
             curr_target_pos: None, game
         };
@@ -60,19 +62,34 @@ impl Controller {
 
     pub fn is_next_step_ready(&self) -> bool {
         !(self.input_buffer.is_phase_over() &&
-            (self.input_buffer.get_buffered_step_count() == 0))
+            (self.input_buffer.get_buffer_size() == 0))
     }
 
-    pub fn wait_next_step(&mut self) -> bool {
-        self.wait_time_frames += 1;
-        if self.wait_time_frames % 90 == 0 {
+    pub fn is_block_timed_out(&mut self) -> bool {
+        let elapsed_time = self.blocking_time.elapsed();
+        if elapsed_time.as_millis() % 2000 <= 10 {
             println!("Blocking simulation until next input step arrives...")
         }
-        self.wait_time_frames > MAX_INPUT_STEP_BLOCK_FRAMES
+        elapsed_time.as_secs_f32() >= MAX_INPUT_STEP_BLOCK_TIME
+    }
+
+    fn adjust_simulation(&mut self, ctx: &mut Context) {
+        let buffered_steps = self.input_buffer.get_buffer_size();
+        let timestep = {
+            if buffered_steps > 1 {
+                println!("Input feedback delay by {} steps. Accelerate simulation to {} frames/s",
+                    buffered_steps - 1, ACCELERATED_SIMULATION_TIMESTEP);
+                Timestep::Fixed(ACCELERATED_SIMULATION_TIMESTEP)
+            } else {
+                Timestep::Fixed(DEFAULT_SIMULATION_TIMESTEP)
+            }
+        };
+        set_timestep(ctx, timestep);
     }
 
     fn update_step(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
         if self.input_buffer.is_phase_over() {
+            self.adjust_simulation(ctx);
             if let Some(next_step) = self.input_buffer.get_next_step() {
                 self.apply_step(ctx, next_step, world)?;
                 self.send_curr_state().convert()?;
@@ -83,8 +100,9 @@ impl Controller {
 
     fn apply_step(&mut self, ctx: &mut Context, step: InputStep, world: &mut World) -> tetra::Result {
         self.curr_gen += 1;
-        self.wait_time_frames = 0;
-        if self.curr_gen % 200 == 0 {
+        self.blocking_time = Instant::now();
+        // Debug
+        if self.curr_gen % 200 == 0 { 
             self.input_buffer.print_stats();
         }
 
