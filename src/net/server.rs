@@ -1,10 +1,10 @@
-use std::{collections::{HashMap, HashSet}, iter::FromIterator, net::SocketAddr, thread, time::Duration};
+use std::{collections::{HashMap, HashSet}, iter::FromIterator, net::SocketAddr, thread, time::{Duration, Instant}};
 use tetra::State;
 
 use crate::{BbError, BbErrorType, BbResult, ID, TransformResult, net_settings::NetSettings, packet::{InputState, InputStep, Packet, deserialize_packet_unsigned, serialize_packet}, peer::{DisconnectReason, Peer, is_auth_client}};
 
 pub const STEP_PHASE_FRAME_LENGTH: u32 = 10;
-pub const MAX_CLIENT_STATE_SEND_DELAY: u32 = STEP_PHASE_FRAME_LENGTH * 10;
+pub const MAX_CLIENT_STATE_SEND_DELAY: u32 = STEP_PHASE_FRAME_LENGTH * 6 * 5; // 5 secs
 
 // Auth Client: First player to connect to the server
 pub struct Server {
@@ -81,7 +81,7 @@ impl Server {
                 | Err(BbError::Bb(BbErrorType::NetTimeout(addr)))  => {
                 if let Some(id) = self.get_connection_by_addr(addr) {
                     let id = id.to_owned();
-                    self.on_receive_disconnect(id.n, DisconnectReason::Timeout)
+                    self.disconnect_player(id.n, DisconnectReason::Timeout)
                 } else {
                     println!("Received packet from unknown peer {}. Dropping...", addr);
                     Ok(())
@@ -92,12 +92,11 @@ impl Server {
     }
 
     fn handle_internal_packet(&mut self, packet: Packet, sender: ID) -> BbResult {
-        //println!("Server: Received packet {:?} from {:?}", &packet, sender);
         match &packet {
             Packet::PlayerDisconnect { reason } =>
-                return self.on_receive_disconnect(sender.n, *reason),
+                return self.disconnect_player(sender.n, *reason),
             Packet::Input { state } => {
-                self.on_receive_input(sender.n, state.clone());
+                self.on_receive_input(sender.n, state.clone())?;
                 return Ok(())
             },
             Packet::Game { phase } => {
@@ -162,7 +161,7 @@ impl Server {
         Ok(())
     }
 
-    fn on_receive_disconnect(&mut self, sender: u16, reason: DisconnectReason) -> BbResult {
+    fn disconnect_player(&mut self, sender: u16, reason: DisconnectReason) -> BbResult {
         if let Some(conn) = self.connections.remove(&sender) {
             println!("Server: {:?} disconnected. Reason: {:?}", conn.0, reason);
             if let Some(pool) = self.input_pool.as_mut() {
@@ -174,38 +173,51 @@ impl Server {
                 reason
             }, sender)
         } else {
-            Err(BbError::Bb(BbErrorType::InvalidPlayerID(sender)))
+            println!("Server: Player with ID {} already disconnected.", sender);
+            Ok(())
         }
     }
 
     fn on_start_game(&mut self) {
-        self.input_pool = Some(InputPool::new(self.connections.keys().map(|id| *id).collect()));
+        self.input_pool = Some(InputPool::new(
+            self.connections.keys().map(|id| *id).collect()));
     }
 
-    fn on_receive_input(&mut self, sender: u16, state: InputState) {
-        if let Some(pool) = self.input_pool.as_mut() {
+    fn on_receive_input(&mut self, sender: u16, state: InputState) -> BbResult {
+        if let Some(pool) = self.input_pool.as_mut() {            
             pool.add_state(sender, state);
+            self.check_input_pool()
         } else {
             println!("Server: Dropping received input state of player {}. Game hasn't started yet.", sender);
+            Ok(())
         }
     }
 
     fn update_input_pool(&mut self) -> BbResult {
         if let Some(pool) = self.input_pool.as_mut() {
             pool.update_states();
+            self.check_input_pool()
+        } else {
+            Ok(())
+        }
+    }
+
+    fn check_input_pool(&mut self) -> BbResult {
+        if let Some(pool) = self.input_pool.as_mut() {
             if pool.is_step_phase_over() { // By now clients should have sent all states, so server can bundle and send them back to all
                 let delayed_players = pool.check_delayed_players();
                 // In the first generation every player has to send their state, to signal they're ready
                 if pool.curr_gen > 0 || delayed_players.len() == 0 {
-                    // for delayed_player in delayed_players.into_iter() {
-                    //     println!("Server: Player {} failed to send input packet in time. Ignoring...", delayed_player);
-                    // }
-
                     let step = pool.flush_states();
-                    std::mem::drop(pool);
                     self.send_multicast(Packet::InputStep {
                             step
                     }, 0)?;
+                } else if pool.curr_gen == 0 && delayed_players.len() > 0
+                    && pool.is_max_delay_exceeded() {
+                    for id in delayed_players.iter() {
+                        println!("Player with ID {} failed to send first input state in time. Terminating connection...", id);
+                        self.disconnect_player(*id, DisconnectReason::Timeout)?;
+                    }
                 }
             }
         }
@@ -220,20 +232,19 @@ impl State for Server {
 }
 
 struct InputPool {
+    pub curr_gen: u64,
+    pub curr_frame_index: u32,
     players: HashSet<u16>,
     player_states: HashSet<u16>,
-    input_states: HashMap<u16, InputState>,
-    pub curr_gen: u64,
-    pub curr_frame_index: u32
+    input_states: HashMap<u16, InputState>
 }
 
 impl InputPool {
     fn new(players: Vec<u16>) -> Self {
         Self {
+            curr_gen: 0, curr_frame_index: 0,
             players: HashSet::from_iter(players.into_iter()),
-            player_states: HashSet::new(),
-            input_states: HashMap::new(),
-            curr_gen: 0, curr_frame_index: 0
+            player_states: HashSet::new(), input_states: HashMap::new()
         }
     }
 
@@ -252,7 +263,7 @@ impl InputPool {
         self.curr_frame_index >= STEP_PHASE_FRAME_LENGTH
     }
 
-    pub fn is_max_delay_over(&self) -> bool {
+    pub fn is_max_delay_exceeded(&self) -> bool {
         self.curr_frame_index >= MAX_CLIENT_STATE_SEND_DELAY
     }
 

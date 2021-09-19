@@ -55,6 +55,7 @@ mod net {
 mod err;
 mod diagnostics;
 mod world;
+mod economy;
 
 pub use game::*;
 pub use physics::*;
@@ -81,6 +82,9 @@ pub use entities::*;
 use tetra::{ContextBuilder};
 use std::io::{Read, stdin};
 
+pub const DEFAULT_WINDOW_SIZE_WIDTH: i32 = 1200;
+pub const DEFAULT_WINDOW_SIZE_HEIGHT: i32 = 640;
+
 pub const PRIMARY_VERSION: u32 = 0;
 pub const SECONDARY_VERSION: u32 = 1;
 
@@ -90,9 +94,9 @@ fn get_version() -> String {
 
 fn main() -> tetra::Result {
     println!("Blackbeard {} - (c) 2021, Niklas Vaudt", get_version());
-    let args: Vec<String> = std::env::args().collect();
-    println!("Startup params: {:?}", args);
-    if let Err(e) = ContextBuilder::new("Blackbeard", 1200, 650)
+    let startup_params = process_params();
+
+    if let Err(e) = ContextBuilder::new("Blackbeard", startup_params.1, startup_params.2)
         .debug_info(true)
         .high_dpi(true)
         .show_mouse(true)
@@ -104,4 +108,26 @@ fn main() -> tetra::Result {
         return Err(e)
     }
     Ok(())
+}
+
+struct StartupParams(String, i32, i32);
+
+fn process_params() -> StartupParams {
+    let mut args: Vec<String> = std::env::args().collect();
+    let startup_path = args[0].to_owned();
+    if args.len() >= 3 {
+        let window_size_params = args.drain(1..3);
+        let mut x: i32 = DEFAULT_WINDOW_SIZE_WIDTH;
+        let mut y: i32 = DEFAULT_WINDOW_SIZE_HEIGHT;
+        for (i, n) in window_size_params.map(|s| s.parse::<i32>().unwrap()).enumerate() {
+            if i == 0 {
+                x = n;
+            } else {
+                y = n;
+            }
+        }
+        StartupParams(startup_path, x, y)
+    } else {
+        StartupParams(startup_path, DEFAULT_WINDOW_SIZE_WIDTH, DEFAULT_WINDOW_SIZE_HEIGHT)
+    }
 }

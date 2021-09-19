@@ -92,6 +92,9 @@ impl Client {
                         println!("Host disconnected - connection terminated.");
                         self.connected = false;
                         // Host migration?
+                    } else if player.n == self.local_id.as_ref().unwrap().n {
+                        println!("Server terminated this connection, potentially due to latency issues.");
+                        self.connected = false;
                     }
                 }
             },

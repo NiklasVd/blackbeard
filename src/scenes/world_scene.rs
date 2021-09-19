@@ -3,8 +3,6 @@ use tetra::{Context, Event, State, input::Key};
 use crate::{BbError, BbErrorType, BbResult, Controller, GC, ID, Player, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, entity::{Entity, GameState}, grid::{Grid, UIAlignment, UILayout}, image::Image, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ship::ShipType, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, ui_element::{DefaultUIReactor, UIElement}, world::World};
 use super::scenes::{Scene, SceneType};
 
-pub const MAX_INPUT_STEP_BLOCK_DURATION: u64 = 15;
-
 pub struct WorldScene {
     pub controller: Controller,
     pub world: World,
@@ -33,8 +31,12 @@ impl WorldScene {
         world_scene.world.add_island(ctx, V2::new(-900.0, 200.0), 0.0, 3).convert()?;
         world_scene.world.add_island(ctx, V2::new(1200.0, -500.0), 0.0, 3).convert()?;
         world_scene.world.add_island(ctx, V2::new(-600.0, -300.0), 1.0, 2).convert()?;
+        world_scene.world.add_island(ctx, V2::new(2000.0, 0.0), 2.0, 1).convert()?;
+        world_scene.world.add_island(ctx, V2::new(2300.0, 850.0), 3.5, 2).convert()?;
+        world_scene.world.add_island(ctx, V2::new(1800.0, 1200.0), 0.0, 3).convert()?;
+
         world_scene.world.add_harbour(ctx, "Port Elisabeth",
-            V2::new(740.0, 690.0), 0.75).convert()?;
+            V2::new(1200.0, 780.0), 5.0).convert()?;
 
         world_scene.init_players(ctx, players)?;
         world_scene.ui.set_local_player(
@@ -72,6 +74,30 @@ impl WorldScene {
             self.controller.set_local_player(player_instance);
         }
         Ok(())
+    }
+
+    fn update_world(&mut self, ctx: &mut Context) -> tetra::Result {
+        let is_next_step_ready = self.controller.is_next_step_ready();
+        self.game.borrow_mut().simulation_state = is_next_step_ready;
+        
+        if is_next_step_ready {
+            self.controller.update(ctx, &mut self.world)?;
+            self.world.update(ctx)
+        } else if self.controller.wait_next_step() {
+            println!("Failed to procure next input step in time. Leaving match...");
+            self.leave_match().convert()
+        } else {
+            Ok(())
+        }
+    }
+
+    fn event_world(&mut self, ctx: &mut Context, event: Event) -> tetra::Result {
+        if self.controller.is_next_step_ready() {
+            self.controller.event(ctx, event.clone(), &mut self.world)?;
+            self.world.event(ctx, event.clone())
+        } else {
+            Ok(())
+        }
     }
 
     fn update_menu_ui(&mut self) -> BbResult {
@@ -128,10 +154,8 @@ impl State for WorldScene {
         self.update_harbour_ui().convert()?;
         // Don't react to input if player is writing in chat
         self.controller.catch_input = !self.ui.is_chat_focused();
-
         self.handle_received_packets(ctx).convert()?;
-        self.controller.update(ctx, &mut self.world)?;
-        self.world.update(ctx)
+        self.update_world(ctx)
     }
 
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
@@ -141,45 +165,50 @@ impl State for WorldScene {
 
     fn event(&mut self, ctx: &mut Context, event: Event)
         -> tetra::Result {
-        self.controller.event(ctx, event.clone(), &mut self.world)?;
-        self.world.event(ctx, event.clone())?;
+        self.event_world(ctx, event.clone())?;
         self.ui.event(ctx, event)
     }
 }
 
 impl NetController for WorldScene {
     fn poll_received_packets(&mut self, ctx: &mut Context) -> BbResult<Option<(Packet, u16)>> {
-        let time = Instant::now();
-        loop {
-            let packet = {
-                self.game.borrow_mut().network.as_mut().unwrap().poll_received_packets()?
-            };
-            if self.controller.wait_next_step() {
-                match packet {
-                    Some((packet, sender)) => {
-                        match &packet {
-                                &Packet::InputStep { .. } => return Ok(Some((packet, sender))),
-                            _ => self.handle_packets(ctx, (packet, sender))?
-                        }
-                    },
-                    None => ()
-                }
+        self.game.borrow_mut().network.as_mut().unwrap().poll_received_packets()
+        // let time = Instant::now();
+        // loop {
+        //     if self.back_to_menu {
+        //         return Ok(None)
+        //     }
 
-                std::thread::sleep(Duration::from_millis(1));
-                let elapsed_time = time.elapsed();
-                if elapsed_time.as_millis() % 1500 == 0 {
-                    println!("Blocking until next input step arrives from server...");
-                }
-                if elapsed_time.as_secs() >= MAX_INPUT_STEP_BLOCK_DURATION {
-                    println!("Failed to procure next input step in time. Terminating connection to server...");
-                    self.leave_match()?;
-                    return Ok(None)
-                }
-                continue
-            } else {
-                return Ok(packet)
-            }
-        }
+        //     let packet = {
+        //         self.game.borrow_mut().network.as_mut().unwrap().poll_received_packets()?
+        //     };
+        //     if self.controller.wait_next_step() {
+        //         match packet {
+        //             Some((packet, sender)) => {
+        //                 match &packet {
+        //                     // This is what the clients waited for
+        //                     &Packet::InputStep { .. } => return Ok(Some((packet, sender))),
+        //                     _ => self.handle_packets(ctx, (packet, sender))?
+        //                 }
+        //             },
+        //             None => ()
+        //         }
+
+        //         std::thread::sleep(Duration::from_millis(1));
+        //         let elapsed_time = time.elapsed();
+        //         if elapsed_time.as_millis() % 1000 == 0 {
+        //             println!("Blocking until next input step arrives from server...");
+        //         }
+        //         if elapsed_time.as_secs() >= MAX_INPUT_STEP_BLOCK_DURATION {
+        //             println!("Failed to procure next input step in time. Terminating connection to server...");
+        //             self.leave_match()?;
+        //             return Ok(None)
+        //         }
+        //         continue
+        //     } else {
+        //         return Ok(packet)
+        //     }
+        // }
     }
 
     fn on_connection_lost(&mut self, ctx: &mut Context, reason: DisconnectReason) -> BbResult {
@@ -352,7 +381,7 @@ impl State for WorldSceneUI {
             self.health_label.borrow_mut().set_text(
                 &format!("{}/{} Health", ship_ref.curr_health, ship_ref.attr.health));
             self.escudos_label.borrow_mut().set_text(
-                &format!("{} Escudos", ship_ref.escudos));
+                &format!("{} Escudos", ship_ref.treasury.balance));
         }
 
         self.update_world_events(ctx)?;

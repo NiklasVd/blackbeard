@@ -2,6 +2,8 @@ use std::{collections::HashMap};
 use tetra::{Context, Event, State, input::{Key, MouseButton}};
 use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, packet::{InputState, InputStep}, playback_buffer::PlaybackBuffer, ship_mod::{AMMO_UPGRADE_MOD_COST, AmmoUpgradeMod, HARBOUR_REPAIR_COST, ShipModType}, world::World, wrap_rcc};
 
+pub const MAX_INPUT_STEP_BLOCK_FRAMES: u32 = 60 * 15;
+
 pub struct Controller {
     pub players: HashMap<u16, Rcc<Player>>,
     pub local_player: Option<Rcc<Player>>,
@@ -9,6 +11,7 @@ pub struct Controller {
     input_buffer: PlaybackBuffer,
     curr_input_state: InputState,
     curr_gen: u64,
+    wait_time_frames: u32,
     target_x: Sprite,
     curr_target_pos: Option<V2>,
     game: GC
@@ -22,7 +25,8 @@ impl Controller {
             players: HashMap::new(), local_player: None, catch_input: true,
             input_buffer: PlaybackBuffer::new(),
             curr_input_state: InputState::default(),
-            curr_gen: 0, target_x: Sprite::new(target_x, SpriteOrigin::Centre, None),
+            curr_gen: 0, wait_time_frames: 0,
+            target_x: Sprite::new(target_x, SpriteOrigin::Centre, None),
             curr_target_pos: None, game
         };
         controller.send_curr_state().convert()?; // Notify server we are finished loading
@@ -54,8 +58,17 @@ impl Controller {
         self.input_buffer.add_step(step);
     }
 
-    pub fn wait_next_step(&self) -> bool {
-        self.input_buffer.is_phase_over() & (self.input_buffer.get_buffered_step_count() == 0)
+    pub fn is_next_step_ready(&self) -> bool {
+        !(self.input_buffer.is_phase_over() &&
+            (self.input_buffer.get_buffered_step_count() == 0))
+    }
+
+    pub fn wait_next_step(&mut self) -> bool {
+        self.wait_time_frames += 1;
+        if self.wait_time_frames % 90 == 0 {
+            println!("Blocking simulation until next input step arrives...")
+        }
+        self.wait_time_frames > MAX_INPUT_STEP_BLOCK_FRAMES
     }
 
     fn update_step(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
@@ -70,6 +83,11 @@ impl Controller {
 
     fn apply_step(&mut self, ctx: &mut Context, step: InputStep, world: &mut World) -> tetra::Result {
         self.curr_gen += 1;
+        self.wait_time_frames = 0;
+        if self.curr_gen % 200 == 0 {
+            self.input_buffer.print_stats();
+        }
+
         for (sender, state) in step.states.into_iter() {
             self.apply_state(ctx, sender, state, world)?;
         }
@@ -88,25 +106,25 @@ impl Controller {
                     let ship_mod = match &mod_type {
                         ShipModType::Repair => {
                             let mut ship_ref = player_ref.possessed_ship.borrow_mut();
-                            if ship_ref.escudos < HARBOUR_REPAIR_COST {
+                            if ship_ref.treasury.balance < HARBOUR_REPAIR_COST {
                                 println!("Not enough escudos to repair ship!");
                             } else {
                                 ship_ref.repair();
-                                ship_ref.escudos -= HARBOUR_REPAIR_COST;
+                                ship_ref.treasury.spend(HARBOUR_REPAIR_COST);
                                 println!("Player {:?} repaired their ship.", player_ref.id);
                             }
                             None
                         },
                         ShipModType::AmmoUpgrade => {
                             let mut ship_ref = player_ref.possessed_ship.borrow_mut();
-                            if ship_ref.escudos < AMMO_UPGRADE_MOD_COST {
+                            if ship_ref.treasury.balance < AMMO_UPGRADE_MOD_COST {
                                 println!("Not enough escudos to buy ammo upgrade!");
                                 None
                             } else {
-                                ship_ref.escudos -= AMMO_UPGRADE_MOD_COST;
+                                ship_ref.treasury.spend(AMMO_UPGRADE_MOD_COST);
                                 std::mem::drop(ship_ref);
                                 let ship_mod = AmmoUpgradeMod::new(ctx,
-                                player_ref.possessed_ship.clone(), self.game.clone())?;
+                                    player_ref.possessed_ship.clone(), self.game.clone())?;
                                 Some(ship_mod)
                             }
                         },

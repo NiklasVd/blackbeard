@@ -2,17 +2,18 @@ use std::{f32::consts::PI};
 use binary_stream::{BinaryStream, Serializable};
 use rapier2d::{data::Index};
 use tetra::{Context, State, graphics::{text::Text}, math::Clamp};
-use crate::{BbResult, Cannon, CannonSide, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, WorldEvent, conv_vec, disassemble_iso, entity::{Entity, EntityType, GameState}, get_angle, pi_to_pi2_range, polar_to_cartesian, ship_mod::{ShipMod, ShipModType}, world::World};
+use crate::{BbResult, Cannon, CannonSide, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, WorldEvent, conv_vec, disassemble_iso, economy::{Deposit}, entity::{Entity, EntityType, GameState}, get_angle, pi_to_pi2_range, polar_to_cartesian, ship_mod::{ShipMod, ShipModType}, world::World};
 
 const BASE_STUN_LENGTH: f32 = 2.0;
-const BASE_OBJECT_COLLISION_DAMAGE: u16 = 20;
+const BASE_OBJECT_COLLISION_DAMAGE: u16 = 10;
 const MAX_SHIP_DEFENSE: u16 = 100;
 const BASE_MOVEMENT_FORCE: f32 = 10.0 * MASS_FORCE_SCALE;
 const BASE_TORQUE_FORCE: f32 = 1000.0 * MASS_FORCE_SCALE;
 const TARGET_POS_DIST_MARGIN: f32 = 75.0;
 const TARGET_ROT_MARGIN: f32 = PI / 45.0;
-const ESCUTO_RAM_STEAL_PERCENTAGE: f32 = 0.4;
-const ESCUTO_SHOOT_STEAL_PERCENTAGE: f32 = 0.3;
+
+const ESCUTO_RAM_STEAL_PERCENTAGE: f32 = 0.25;
+const ESCUTO_SHOOT_STEAL_PERCENTAGE: f32 = 0.2;
 const ESCUTO_ACCIDENT_LOSS_PERCENTAGE: f32 = 0.2;
 
 #[derive(Debug, Clone, Copy)]
@@ -96,7 +97,7 @@ pub struct Ship {
     pub attr: ShipAttributes,
     pub cannons: Vec<Cannon>,
     pub transform: Transform,
-    pub escudos: u32,
+    pub treasury: Deposit,
     pub mods: Vec<Box<dyn ShipMod>>,
     pub is_in_harbour: bool,
     sprite: Sprite,
@@ -135,6 +136,7 @@ impl Ship {
         let label = Text::new("", game_ref.assets.font.clone());
         let attr = ShipAttributes::caravel();
         let stun_length = attr.get_stun_length();
+        game_ref.economy.add_deposit();
         std::mem::drop(game_ref);
 
         let mut transform = Transform::new(handle, game.clone());
@@ -161,12 +163,13 @@ impl Ship {
             port_pos -= V2::new(45.0, 0.0);
         }
 
+        
         Ok(Ship {
             stype: ShipType::Caravel, curr_health: attr.health, name,
             target_pos: None, attr, cannons,
-            transform, escudos: 100, mods: Vec::new(), is_in_harbour: false,
-            stun: Timer::new(stun_length), sprite, label, spawn,
-            destroy: false, game
+            transform, treasury: Deposit::default(), mods: Vec::new(),
+            is_in_harbour: false, stun: Timer::new(stun_length),
+            sprite, label, spawn, destroy: false, game
         })
     }
 
@@ -259,9 +262,12 @@ impl Ship {
             self.get_name(), shooter_ref.get_name(), dmg);
         match self.take_damage(ctx, dmg, world) {
             Ok(true) => {
-                let forfeited_escudos = (self.escudos as f32 * ESCUTO_SHOOT_STEAL_PERCENTAGE) as u32;
-                shooter_ref.escudos += forfeited_escudos;
-                self.escudos -= forfeited_escudos;
+                let forfeited_escudos = (self.treasury.balance as f32 * ESCUTO_SHOOT_STEAL_PERCENTAGE) as u32;
+                let generated_payout =  self.game.borrow_mut()
+                    .economy.total_payout(self.treasury.networth);
+                shooter_ref.treasury.add(forfeited_escudos + generated_payout);
+                self.treasury.lose(forfeited_escudos);
+
                 // println!("{} sunk {}'s ship with a cannon shot and stole {} escudos!",
                 //     shooter_ref.get_name(), self.get_name(), forfeited_escudos);
                 self.game.borrow_mut().world.add_event(
@@ -376,9 +382,12 @@ impl Entity for Ship {
         other_ref.stun();
         match other_ref.take_damage(ctx, self.attr.ram_damage, world) {
             Ok(true) => {
-                let forfeited_escudos = (other_ref.escudos as f32 * ESCUTO_RAM_STEAL_PERCENTAGE) as u32;
-                other_ref.escudos -= forfeited_escudos;
-                self.escudos += forfeited_escudos;
+                let forfeited_escudos = (other_ref.treasury.balance as f32 *
+                    ESCUTO_RAM_STEAL_PERCENTAGE) as u32;
+                let generated_payout = self.game.borrow_mut()
+                    .economy.total_payout(other_ref.treasury.networth);
+                other_ref.treasury.lose(forfeited_escudos);
+                self.treasury.add(forfeited_escudos + generated_payout);
                 // println!("{} sunk {}'s ship via ramming and stole {} escudos!",
                 //     self.get_name(), other_ref.get_name(), forfeited_escudos);
                 self.game.borrow_mut().world.add_event(
@@ -410,8 +419,9 @@ impl Entity for Ship {
         self.stun();
         match self.take_damage(ctx, damage, world) {
             Ok(true) => {
-                let forfeited_escudos = (self.escudos as f32 * ESCUTO_ACCIDENT_LOSS_PERCENTAGE) as u32;
-                self.escudos -= forfeited_escudos;
+                let forfeited_escudos = (self.treasury.balance as f32 * ESCUTO_ACCIDENT_LOSS_PERCENTAGE) as u32;
+                self.game.borrow_mut().economy.remove(forfeited_escudos); // Lost to the sea...
+                self.treasury.lose(forfeited_escudos);
                 // println!("{} lost {} escudos after sinking their ship in an accident!",
                 //     self.get_name(), forfeited_escudos);
                 self.game.borrow_mut().world.add_event(

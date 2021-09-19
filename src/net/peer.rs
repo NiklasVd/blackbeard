@@ -98,7 +98,7 @@ impl Peer {
             poll_thread.join().or_else(
                 |e| Err(BbError::Bb(BbErrorType::NetShutdownFailure(e))))
         } else {
-            Err(BbError::Bb(BbErrorType::NetNotConnected))
+            Ok(())
         }
     }
 }
