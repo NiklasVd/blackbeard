@@ -1,6 +1,6 @@
 use crossbeam_channel::{Receiver};
 use rapier2d::{math::Real, na::{Isometry2}, prelude::{ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, Collider, ColliderBuilder, ColliderHandle, ColliderSet, ContactEvent, Cuboid, IntegrationParameters, InteractionGroups, IntersectionEvent, IslandManager, JointSet, NarrowPhase, PhysicsPipeline, QueryPipeline, Ray, RigidBody, RigidBodyBuilder, RigidBodyHandle, RigidBodySet}};
-use tetra::{State, graphics::{Color, DrawParams}, math::{Vec2}};
+use tetra::{State, graphics::{Color, DrawParams}, math::{Vec2}, time::{Timestep, get_timestep}};
 use crate::{conv_vec, conv_vec_point, entity::EntityType};
 
 pub const MASS_FORCE_SCALE: f32 = 1000.0;
@@ -14,7 +14,7 @@ pub struct Physics {
     pub rb_set: RigidBodySet,
     pub coll_set: ColliderSet,
     pub wind: V2,
-    integration_params: IntegrationParameters,
+    pub integration_params: IntegrationParameters,
     island_manager: IslandManager,
     broad_phase: BroadPhase,
     narrow_phase: NarrowPhase,
@@ -64,7 +64,7 @@ impl Physics {
             .user_data(EntityType::Ship.to_num()).build();
         let coll_handle = self.coll_set.insert_with_parent(coll, rb_handle,
             &mut self.rb_set);
-            
+        
         PhysicsHandle(rb_handle, coll_handle)
     }
 
@@ -221,7 +221,11 @@ impl Physics {
 }
 
 impl State for Physics {
-    fn update(&mut self, _ctx: &mut tetra::Context) -> tetra::Result {
+    fn update(&mut self, ctx: &mut tetra::Context) -> tetra::Result {
+        // self.integration_params.dt = 1.0 / match get_timestep(ctx) {
+        //     Timestep::Fixed(timestep) => timestep as f32,
+        //     _ => 60.0
+        // };
         self.physics_pipeline.step(&conv_vec(self.wind), &self.integration_params,
             &mut self.island_manager, &mut self.broad_phase, &mut self.narrow_phase,
             &mut self.rb_set, &mut self.coll_set, &mut self.joint_set,

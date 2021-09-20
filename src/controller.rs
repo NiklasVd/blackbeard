@@ -1,16 +1,16 @@
 use std::{collections::HashMap, time::Instant};
 use tetra::{Context, Event, State, input::{Key, MouseButton}, time::{Timestep, set_timestep}};
-use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, packet::{InputState, InputStep}, playback_buffer::PlaybackBuffer, ship_mod::{AMMO_UPGRADE_MOD_COST, AmmoUpgradeMod, HARBOUR_REPAIR_COST, ShipModType}, world::World, wrap_rcc};
+use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, packet::{InputState, InputStep}, playback_buffer::PlaybackBuffer, server::STEP_PHASE_TIME_SECS, ship_mod::{AMMO_UPGRADE_MOD_COST, AmmoUpgradeMod, HARBOUR_REPAIR_COST, ShipModType}, world::World, wrap_rcc};
 
 pub const MAX_INPUT_STEP_BLOCK_TIME: f32 = 15.0;
 pub const DEFAULT_SIMULATION_TIMESTEP: f64 = 60.0;
-pub const ACCELERATED_SIMULATION_TIMESTEP: f64 = DEFAULT_SIMULATION_TIMESTEP * 4.0;
+pub const ACCELERATED_SIMULATION_TIMESTEP: f64 = DEFAULT_SIMULATION_TIMESTEP * 5.0;
 
 pub struct Controller {
     pub players: HashMap<u16, Rcc<Player>>,
     pub local_player: Option<Rcc<Player>>,
     pub catch_input: bool,
-    input_buffer: PlaybackBuffer,
+    pub input_buffer: PlaybackBuffer,
     curr_input_state: InputState,
     curr_gen: u64,
     blocking_time: Instant,
@@ -73,12 +73,32 @@ impl Controller {
         elapsed_time.as_secs_f32() >= MAX_INPUT_STEP_BLOCK_TIME
     }
 
+    pub fn calc_input_feedback_latency(&self) -> f32 {
+        (self.input_buffer.get_buffer_size() + 1) as f32 * STEP_PHASE_TIME_SECS
+    }
+
+    pub fn get_curr_gen(&self) -> u64 {
+        self.curr_gen
+    }
+
     fn adjust_simulation(&mut self, ctx: &mut Context) {
         let buffered_steps = self.input_buffer.get_buffer_size();
         let timestep = {
             if buffered_steps > 1 {
-                println!("Input feedback delay by {} steps. Accelerate simulation to {} frames/s",
+                println!("Input feedback delayed by {} steps. Accelerate simulation to {} frames/s",
                     buffered_steps - 1, ACCELERATED_SIMULATION_TIMESTEP);
+                // Critical point. Originally thought this puts the simulation out of sync.
+                // However, as long as the delay isn't too long, there seems to be no
+                // (visible) issue. Reason for longer delay issues likely is the receive
+                // event buffer limitation of the UDP socket. At some point, it will drop
+                // further incoming packets, leaving the client with an incomplete input
+                // buffer.
+
+                // Consequently, this may be the reason why (after long forced delays)
+                // the catch-up of the simulation does not proceed to the very end, i.e.,
+                // stopping before having reached the same state as the original.
+                // Simple solution: increase receive event buffer.
+                // Is it really that simple, though?
                 Timestep::Fixed(ACCELERATED_SIMULATION_TIMESTEP)
             } else {
                 Timestep::Fixed(DEFAULT_SIMULATION_TIMESTEP)
@@ -101,11 +121,6 @@ impl Controller {
     fn apply_step(&mut self, ctx: &mut Context, step: InputStep, world: &mut World) -> tetra::Result {
         self.curr_gen += 1;
         self.blocking_time = Instant::now();
-        // Debug
-        if self.curr_gen % 200 == 0 { 
-            self.input_buffer.print_stats();
-        }
-
         for (sender, state) in step.states.into_iter() {
             self.apply_state(ctx, sender, state, world)?;
         }

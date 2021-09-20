@@ -4,7 +4,7 @@ use rapier2d::{data::Index};
 use tetra::{Context, State, graphics::{text::Text}, math::Clamp};
 use crate::{BbResult, Cannon, CannonSide, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, WorldEvent, conv_vec, disassemble_iso, economy::{Deposit}, entity::{Entity, EntityType, GameState}, get_angle, pi_to_pi2_range, polar_to_cartesian, ship_mod::{ShipMod, ShipModType}, world::World};
 
-const BASE_STUN_LENGTH: f32 = 2.0;
+const BASE_STUN_LENGTH: f32 = 1.0;
 const BASE_OBJECT_COLLISION_DAMAGE: u16 = 10;
 const MAX_SHIP_DEFENSE: u16 = 100;
 const BASE_MOVEMENT_FORCE: f32 = 10.0 * MASS_FORCE_SCALE;

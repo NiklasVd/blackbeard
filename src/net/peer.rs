@@ -23,6 +23,7 @@ impl Peer {
         let config = Config {
             idle_connection_timeout: Duration::from_secs_f32(IDLE_TIMEOUT_DURATION),
             heartbeat_interval: Some(Duration::from_secs_f32(HEARTBEAT_INTERVAL)),
+            socket_event_buffer_size: 1024 * 50,
             ..Default::default()
         };
         let mut socket = match port {

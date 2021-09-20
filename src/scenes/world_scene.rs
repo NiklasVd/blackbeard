@@ -100,6 +100,16 @@ impl WorldScene {
     }
 
     fn update_menu_ui(&mut self) -> BbResult {
+        let curr_gen = self.controller.get_curr_gen();
+        if curr_gen % 25 == 0 && curr_gen != self.ui.last_info_update_gen {
+            let (_, _, avg) = self.controller.input_buffer.calc_latency();
+            // FIX: Feedback latency is calculated right after latest step is applied, leading to zero
+            let feedback_lat = self.controller.calc_input_feedback_latency();
+            self.ui.update_match_info(&format!("Latency: Step ~ {:.2}s, Feedback ~ {:.2}s",
+                avg, feedback_lat));
+            self.ui.last_info_update_gen = curr_gen;
+        }
+
         if self.ui.leave_button.borrow().is_pressed() {
             self.leave_match()
         } else {
@@ -172,42 +182,6 @@ impl State for WorldScene {
 impl NetController for WorldScene {
     fn poll_received_packets(&mut self, ctx: &mut Context) -> BbResult<Option<(Packet, u16)>> {
         self.game.borrow_mut().network.as_mut().unwrap().poll_received_packets()
-        // let time = Instant::now();
-        // loop {
-        //     if self.back_to_menu {
-        //         return Ok(None)
-        //     }
-
-        //     let packet = {
-        //         self.game.borrow_mut().network.as_mut().unwrap().poll_received_packets()?
-        //     };
-        //     if self.controller.wait_next_step() {
-        //         match packet {
-        //             Some((packet, sender)) => {
-        //                 match &packet {
-        //                     // This is what the clients waited for
-        //                     &Packet::InputStep { .. } => return Ok(Some((packet, sender))),
-        //                     _ => self.handle_packets(ctx, (packet, sender))?
-        //                 }
-        //             },
-        //             None => ()
-        //         }
-
-        //         std::thread::sleep(Duration::from_millis(1));
-        //         let elapsed_time = time.elapsed();
-        //         if elapsed_time.as_millis() % 1000 == 0 {
-        //             println!("Blocking until next input step arrives from server...");
-        //         }
-        //         if elapsed_time.as_secs() >= MAX_INPUT_STEP_BLOCK_DURATION {
-        //             println!("Failed to procure next input step in time. Terminating connection to server...");
-        //             self.leave_match()?;
-        //             return Ok(None)
-        //         }
-        //         continue
-        //     } else {
-        //         return Ok(packet)
-        //     }
-        // }
     }
 
     fn on_connection_lost(&mut self, ctx: &mut Context, reason: DisconnectReason) -> BbResult {
@@ -251,6 +225,7 @@ struct WorldSceneUI {
     menu_grid: Rcc<Grid>,
     leave_button: Rcc<DefaultButton>,
     match_info_label: Rcc<Label>,
+    last_info_update_gen: u64,
     players_grid: Rcc<Grid>,
     health_label: Rcc<Label>,
     escudos_label: Rcc<Label>,
@@ -271,7 +246,7 @@ impl WorldSceneUI {
         menu_grid.set_visibility(false);
         let leave_button = menu_grid.add_element(Button::new(ctx, "Leave Match",
             V2::new(120.0, 35.0), 1.0, DefaultUIReactor::new(), game.clone())?);
-        let match_info_label = menu_grid.add_element(Label::new(ctx, "Connected to Server",
+        let match_info_label = menu_grid.add_element(Label::new(ctx, "Latency: Step ~ 0.00s, Feedback ~ 0.00s",
             FontSize::Small, 4.0, game.clone())?);
         menu_grid.add_element(Label::new(ctx, "Connected Players", FontSize::Normal,
             4.0, game.clone())?);
@@ -294,7 +269,8 @@ impl WorldSceneUI {
             UILayout::BottomRight, V2::new(350.0, 80.0), 0.0)?);
 
         Ok(WorldSceneUI {
-            chat, menu_button, menu_grid, leave_button, match_info_label, players_grid,
+            chat, menu_button, menu_grid, leave_button, match_info_label,
+            last_info_update_gen: 0, players_grid,
             health_label, escudos_label, harbour_ui, ship_stats_panel: ship_stats_grid,
             local_player: None, game
         })

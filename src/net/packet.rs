@@ -28,6 +28,7 @@ pub enum Packet {
     Game {
         phase: GamePhase
     }
+    // TODO: Sync check
 }
 
 impl Packet {

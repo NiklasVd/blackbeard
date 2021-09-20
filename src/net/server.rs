@@ -4,6 +4,7 @@ use tetra::State;
 use crate::{BbError, BbErrorType, BbResult, ID, TransformResult, net_settings::NetSettings, packet::{InputState, InputStep, Packet, deserialize_packet_unsigned, serialize_packet}, peer::{DisconnectReason, Peer, is_auth_client}};
 
 pub const STEP_PHASE_FRAME_LENGTH: u32 = 10;
+pub const STEP_PHASE_TIME_SECS: f32 = STEP_PHASE_FRAME_LENGTH as f32 / 60.0;
 pub const MAX_CLIENT_STATE_SEND_DELAY: u32 = STEP_PHASE_FRAME_LENGTH * 6 * 5; // 5 secs
 
 // Auth Client: First player to connect to the server

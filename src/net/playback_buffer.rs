@@ -41,13 +41,15 @@ impl PlaybackBuffer {
         }
     }
 
-    pub fn print_stats(&mut self) {
-        let sum: f32 = self.timestamps.iter().sum();
+    pub fn calc_latency(&mut self) -> (f32, f32, f32) {
+        if self.timestamps.len() == 0 {
+            return (0.0, 0.0, 0.0)
+        }
         let min = self.timestamps.iter().map(|t| *t).reduce(f32::min).unwrap();
         let max = self.timestamps.iter().map(|t| *t).reduce(f32::max).unwrap();
-        println!("Input Step Latency: Min = {}, Max = {}, Avg = {}",
-            min, max, sum / self.timestamps.len() as f32);
+        let avg: f32 = self.timestamps.iter().sum::<f32>() / self.timestamps.len() as f32;
         self.timestamps.clear();
+        (min, max, avg)
     }
 }
 
