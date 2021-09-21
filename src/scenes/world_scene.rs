@@ -30,9 +30,9 @@ impl WorldScene {
         world_scene.world.add_island(ctx, V2::new(-900.0, 200.0), 0.0, 3).convert()?;
         world_scene.world.add_island(ctx, V2::new(1200.0, -500.0), 0.0, 3).convert()?;
         world_scene.world.add_island(ctx, V2::new(-600.0, -300.0), 1.0, 2).convert()?;
-        world_scene.world.add_island(ctx, V2::new(2000.0, 0.0), 2.0, 1).convert()?;
-        world_scene.world.add_island(ctx, V2::new(2300.0, 850.0), 3.5, 2).convert()?;
-        world_scene.world.add_island(ctx, V2::new(1800.0, 1200.0), 0.0, 3).convert()?;
+        world_scene.world.add_island(ctx, V2::new(2000.0, -900.0), 0.2, 1).convert()?;
+        world_scene.world.add_island(ctx, V2::new(2300.0, -200.0), 3.5, 2).convert()?;
+        world_scene.world.add_island(ctx, V2::new(1600.0, 1700.0), 0.0, 3).convert()?;
 
         world_scene.world.add_harbour(ctx, "Port Elisabeth",
             V2::new(1200.0, 780.0), 5.0).convert()?;

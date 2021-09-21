@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, time::Instant};
 use tetra::{Context, State};
-use crate::{packet::{InputStep}, server::STEP_PHASE_FRAME_LENGTH};
+use crate::{input_pool::STEP_PHASE_FRAME_LENGTH, packet::{InputStep}};
 
 pub struct PlaybackBuffer {
     steps: VecDeque<InputStep>,

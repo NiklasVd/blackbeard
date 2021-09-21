@@ -1,10 +1,10 @@
 use std::{collections::HashMap, time::Instant};
 use tetra::{Context, Event, State, input::{Key, MouseButton}, time::{Timestep, set_timestep}};
-use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, packet::{InputState, InputStep}, playback_buffer::PlaybackBuffer, server::STEP_PHASE_TIME_SECS, ship_mod::{AMMO_UPGRADE_MOD_COST, AmmoUpgradeMod, HARBOUR_REPAIR_COST, ShipModType}, world::World, wrap_rcc};
+use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, input_pool::STEP_PHASE_TIME_SECS, packet::{InputState, InputStep, Packet}, playback_buffer::PlaybackBuffer, ship_mod::{AMMO_UPGRADE_MOD_COST, AmmoUpgradeMod, HARBOUR_REPAIR_COST, ShipModType}, sync_checker::{SYNC_STATE_GEN_INTERVAL, SyncState}, world::World, wrap_rcc};
 
 pub const MAX_INPUT_STEP_BLOCK_TIME: f32 = 15.0;
 pub const DEFAULT_SIMULATION_TIMESTEP: f64 = 60.0;
-pub const ACCELERATED_SIMULATION_TIMESTEP: f64 = DEFAULT_SIMULATION_TIMESTEP * 5.0;
+pub const ACCELERATED_SIMULATION_TIMESTEP: f64 = DEFAULT_SIMULATION_TIMESTEP * 2.0;
 
 pub struct Controller {
     pub players: HashMap<u16, Rcc<Player>>,
@@ -67,7 +67,7 @@ impl Controller {
 
     pub fn is_block_timed_out(&mut self) -> bool {
         let elapsed_time = self.blocking_time.elapsed();
-        if elapsed_time.as_millis() % 2000 <= 10 {
+        if elapsed_time.as_millis() % 2000 <= 25 {
             println!("Blocking simulation until next input step arrives...")
         }
         elapsed_time.as_secs_f32() >= MAX_INPUT_STEP_BLOCK_TIME
@@ -87,18 +87,17 @@ impl Controller {
             if buffered_steps > 1 {
                 println!("Input feedback delayed by {} steps. Accelerate simulation to {} frames/s",
                     buffered_steps - 1, ACCELERATED_SIMULATION_TIMESTEP);
-                // Critical point. Originally thought this puts the simulation out of sync.
-                // However, as long as the delay isn't too long, there seems to be no
-                // (visible) issue. Reason for longer delay issues likely is the receive
+                // Critical point:
+                // As long as the delay isn't too long, there seems to be no
+                // (visible) issue. Reason for issues with longer delays likely is the receive
                 // event buffer limitation of the UDP socket. At some point, it will drop
                 // further incoming packets, leaving the client with an incomplete input
                 // buffer.
-
-                // Consequently, this may be the reason why (after long forced delays)
-                // the catch-up of the simulation does not proceed to the very end, i.e.,
-                // stopping before having reached the same state as the original.
-                // Simple solution: increase receive event buffer.
-                // Is it really that simple, though?
+                // Short interruptions dont seem to desync, yet longer delays make the
+                // harmony fragile. Next to buffer limitations, the physics engine may not
+                // handle simulation acceleration well (as it runs on 1/60 steps per second).
+                // Other causes, such as inaccurate spacing of input steps, or imprecise
+                // timer lengths (such as ship stuns) have been considered, too.
                 Timestep::Fixed(ACCELERATED_SIMULATION_TIMESTEP)
             } else {
                 Timestep::Fixed(DEFAULT_SIMULATION_TIMESTEP)
@@ -120,6 +119,8 @@ impl Controller {
 
     fn apply_step(&mut self, ctx: &mut Context, step: InputStep, world: &mut World) -> tetra::Result {
         self.curr_gen += 1;
+        self.check_sync_state().convert()?;
+
         self.blocking_time = Instant::now();
         for (sender, state) in step.states.into_iter() {
             self.apply_state(ctx, sender, state, world)?;
@@ -193,6 +194,36 @@ impl Controller {
             self.curr_input_state.clone())?;
         self.curr_input_state = InputState::default();
         Ok(())
+    }
+
+    fn check_sync_state(&mut self) -> BbResult {
+        if self.curr_gen > 0 && self.curr_gen % SYNC_STATE_GEN_INTERVAL == 0 {
+            let mut player_ships = self.players.values().collect::<Vec<_>>();
+            player_ships.sort_unstable_by(|a, b| a.borrow().id.n.cmp(&b.borrow().id.n));
+            let player_ships = player_ships.into_iter()
+                .map(|p| {
+                    let p_ref = p.borrow();
+                    let possessed_ship = p_ref.possessed_ship.clone();
+                    let mut buffer = Vec::new();
+                    SyncState::serialize_ship(&mut buffer, possessed_ship.clone());
+                    let hash = seahash::hash(&buffer);
+                    {
+                        let ship_ref = p_ref.possessed_ship.borrow();
+                        let translation = ship_ref.transform.get_translation();
+                        println!("Player {} Ship: Pos = {}, Rot = {}, Curr Health = {}, Hash = {}", p_ref.id.n,
+                            translation.0.round(), translation.1.round(), ship_ref.curr_health, hash);
+                            
+                    }
+                    possessed_ship
+                }).collect();
+            let state = SyncState::gen_from_ships(self.curr_gen, player_ships);
+            println!("Generated sync state. Hash = {}", state.hash);
+            self.game.borrow_mut().network.as_mut().unwrap().send_packet(Packet::Sync {
+                state
+            })
+        } else {
+            Ok(())
+        }
     }
 }
 

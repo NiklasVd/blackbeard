@@ -1,19 +1,15 @@
-use std::{collections::{HashMap, HashSet}, iter::FromIterator, net::SocketAddr, thread, time::{Duration, Instant}};
+use std::{collections::{HashMap}, net::SocketAddr, thread, time::{Duration}};
 use tetra::State;
+use crate::{BbError, BbErrorType, BbResult, ID, TransformResult, input_pool::InputPool, net_settings::NetSettings, packet::{InputState, Packet, deserialize_packet_unsigned, serialize_packet}, peer::{DisconnectReason, Peer, is_auth_client}, sync_checker::{SyncChecker, SyncState}};
 
-use crate::{BbError, BbErrorType, BbResult, ID, TransformResult, net_settings::NetSettings, packet::{InputState, InputStep, Packet, deserialize_packet_unsigned, serialize_packet}, peer::{DisconnectReason, Peer, is_auth_client}};
-
-pub const STEP_PHASE_FRAME_LENGTH: u32 = 10;
-pub const STEP_PHASE_TIME_SECS: f32 = STEP_PHASE_FRAME_LENGTH as f32 / 60.0;
-pub const MAX_CLIENT_STATE_SEND_DELAY: u32 = STEP_PHASE_FRAME_LENGTH * 6 * 5; // 5 secs
-
-// Auth Client: First player to connect to the server
+// Auth Client: First player to connect to the server, i.e., with ID of zero
 pub struct Server {
     settings: NetSettings,
     peer: Peer,
     connections: HashMap<u16, (ID, SocketAddr)>,
     curr_id: u16,
-    input_pool: Option<InputPool>
+    input_pool: Option<InputPool>,
+    sync_checker: Option<SyncChecker>
 }
 
 impl Server {
@@ -21,7 +17,7 @@ impl Server {
         println!("Hosting server at {}.", port);
         Ok(Server {
             settings, peer: Peer::setup(Some(port))?, connections: HashMap::new(),
-            curr_id: 0, input_pool: None
+            curr_id: 0, input_pool: None, sync_checker: None
         })
     }
 
@@ -96,10 +92,8 @@ impl Server {
         match &packet {
             Packet::PlayerDisconnect { reason } =>
                 return self.disconnect_player(sender.n, *reason),
-            Packet::Input { state } => {
-                self.on_receive_input(sender.n, state.clone())?;
-                return Ok(())
-            },
+            Packet::Input { state } =>
+                return self.on_receive_input(sender.n, state.clone()),
             Packet::Game { phase } => {
                 if !is_auth_client(sender.n) {
                     println!("Server: {:?} tried and failed to set the game phase: insufficient authority.", sender);
@@ -108,6 +102,7 @@ impl Server {
                     self.on_start_game();
                 }
             },
+            Packet::Sync { state } => return self.on_receive_sync(sender.n, *state),
             Packet::Handshake { .. } => {
                 // ?!
                 return Ok(())
@@ -182,6 +177,24 @@ impl Server {
     fn on_start_game(&mut self) {
         self.input_pool = Some(InputPool::new(
             self.connections.keys().map(|id| *id).collect()));
+        self.sync_checker = Some(SyncChecker::new());
+    }
+
+    fn on_receive_sync(&mut self, sender: u16, state: SyncState) -> BbResult {
+        if let Some(sync_checker) = self.sync_checker.as_mut() {
+            println!("Received sync state of {}: {:?}", sender, state);
+            let state_gen = state.gen;
+            sync_checker.add_state(sender, state);
+            if let Some(desynced_ids) = sync_checker.check_states(state_gen) {
+                for id in desynced_ids.into_iter() {
+                    println!("Player with ID {} is out of sync! Terminating connection...", sender);
+                    //self.disconnect_player(sender, DisconnectReason::Desync)?;
+                }
+            }
+        } else {
+            println!("Server: Dropping received sync state of player {}. Game hasn't started yet.", sender);
+        }
+        Ok(())
     }
 
     fn on_receive_input(&mut self, sender: u16, state: InputState) -> BbResult {
@@ -232,56 +245,3 @@ impl State for Server {
     }
 }
 
-struct InputPool {
-    pub curr_gen: u64,
-    pub curr_frame_index: u32,
-    players: HashSet<u16>,
-    player_states: HashSet<u16>,
-    input_states: HashMap<u16, InputState>
-}
-
-impl InputPool {
-    fn new(players: Vec<u16>) -> Self {
-        Self {
-            curr_gen: 0, curr_frame_index: 0,
-            players: HashSet::from_iter(players.into_iter()),
-            player_states: HashSet::new(), input_states: HashMap::new()
-        }
-    }
-
-    pub fn add_state(&mut self, sender: u16, state: InputState) {
-        self.player_states.insert(sender);
-        self.input_states.insert(sender, state); // If client sends state more than once during step, overwrite
-    }
-
-    pub fn remove_player(&mut self, id: u16) {
-        self.players.remove(&id);
-        self.player_states.remove(&id);
-        self.input_states.remove(&id);
-    }
-
-    pub fn is_step_phase_over(&self) -> bool {
-        self.curr_frame_index >= STEP_PHASE_FRAME_LENGTH
-    }
-
-    pub fn is_max_delay_exceeded(&self) -> bool {
-        self.curr_frame_index >= MAX_CLIENT_STATE_SEND_DELAY
-    }
-
-    pub fn check_delayed_players(&mut self) -> Vec<u16> {
-        self.players.iter().filter(|id| !self.player_states.contains(id)).map(|id| *id).collect()
-    }
-
-    pub fn update_states(&mut self) {
-        self.curr_frame_index += 1;
-    }
-
-    pub fn flush_states(&mut self) -> InputStep {
-        self.player_states.clear();
-        self.curr_frame_index = 0;
-        self.curr_gen += 1;
-
-        let states = self.input_states.drain().collect::<Vec<_>>();
-        InputStep::new(states, self.curr_gen)
-    }
-}

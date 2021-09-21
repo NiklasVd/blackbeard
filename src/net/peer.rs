@@ -108,7 +108,8 @@ impl Peer {
 pub enum DisconnectReason {
     Manual,
     Timeout,
-    HostShutdown
+    HostShutdown,
+    Desync
 }
 
 impl Serializable for DisconnectReason {
@@ -116,7 +117,8 @@ impl Serializable for DisconnectReason {
         stream.write_buffer_single(match self {
             DisconnectReason::Manual => 0,
             DisconnectReason::Timeout => 1,
-            DisconnectReason::HostShutdown => 2
+            DisconnectReason::HostShutdown => 2,
+            DisconnectReason::Desync => 3
         }).unwrap();
     }
 
@@ -125,6 +127,7 @@ impl Serializable for DisconnectReason {
             0 => DisconnectReason::Manual,
             1 => DisconnectReason::Timeout,
             2 => DisconnectReason::HostShutdown,
+            3 => DisconnectReason::Desync,
             n @ _ => panic!("Index {} not assigned to any disconnect reason", n)
         }
     }

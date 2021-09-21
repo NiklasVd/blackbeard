@@ -51,6 +51,8 @@ mod net {
     pub mod playback_buffer;
     pub mod net_controller;
     pub mod net_settings;
+    pub mod input_pool;
+    pub mod sync_checker;
 }
 mod err;
 mod diagnostics;

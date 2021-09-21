@@ -230,9 +230,15 @@ impl Ship {
         world.add_ship_wreck(ctx, pos, rot)?;
 
         if let Some(spawn) = self.spawn { // Respawn
+            // When to ships collide, the contact parts may be interchanged.
+            // E.g. (ID: 0, ID: 1) and (ID: 1, ID: 0) locally.
+            // Consequently, the spawn order and positions of the ships may turn out to be
+            // swapped and not in sync anymore.
+            // FIX: Search for free spawn position on y-, not x-axis.
+            // Then respawning ships do not block each other's spawn positions anymore.
             self.reset();
             let free_spawn = self.game.borrow().physics.check_for_space(
-                spawn, self.sprite.get_size() * 1.5, V2::right());
+                spawn, self.sprite.get_size() * 1.5, V2::down() /* = Up in Tetra space */);
             self.transform.set_pos(free_spawn, 0.0);
         }
         else {

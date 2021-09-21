@@ -1,6 +1,6 @@
 use binary_stream::{BinaryStream, Serializable};
 use tetra::{Context, input::{Key, MouseButton, get_mouse_position, is_key_down, is_mouse_button_down}};
-use crate::{GC, ID, V2, deserialize_v2, peer::DisconnectReason, serialize_v2, ship_mod::ShipModType};
+use crate::{GC, ID, V2, deserialize_v2, peer::DisconnectReason, serialize_v2, ship_mod::ShipModType, sync_checker::SyncState};
 use std::fmt;
 
 pub enum Packet {
@@ -27,8 +27,10 @@ pub enum Packet {
     },
     Game {
         phase: GamePhase
+    },
+    Sync {
+        state: SyncState
     }
-    // TODO: Sync check
 }
 
 impl Packet {
@@ -41,7 +43,8 @@ impl Packet {
             Packet::ChatMessage { .. } => 4,
             Packet::Input { .. } => 5,
             Packet::InputStep { .. } => 6,
-            Packet::Game { .. } => 7
+            Packet::Game { .. } => 7,
+            Packet::Sync { .. } => 8
         }
     }
 }
@@ -59,7 +62,8 @@ impl fmt::Debug for Packet {
                 message),
             Packet::Input { state } => write!(f, "Input State Packet ({:?})", state),
             Packet::InputStep { step } => write!(f, "Input Step Packet (states: {:?}, gen: {})", step.states, step.gen),
-            Packet::Game { phase } => write!(f, "Game Packet (phase: {:?})", phase)
+            Packet::Game { phase } => write!(f, "Game Packet (phase: {:?})", phase),
+            Packet::Sync { state } => write!(f, "Sync Packet (state: {:?})", state)
         }
     }
 }
@@ -91,6 +95,9 @@ impl Serializable for Packet {
             },
             Packet::Game { phase } => {
                 phase.to_stream(stream);
+            },
+            Packet::Sync { state } => {
+                state.to_stream(stream);
             }
         };
     }
@@ -134,6 +141,11 @@ impl Serializable for Packet {
             7 => {
                 Packet::Game {
                     phase: GamePhase::from_stream(stream)
+                }
+            },
+            8 => {
+                Packet::Sync {
+                    state: SyncState::from_stream(stream)
                 }
             }
             n @ _ => panic!("Index {} not assigned to any packet type", n)
