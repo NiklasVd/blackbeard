@@ -1,6 +1,6 @@
 use crossbeam_channel::{Receiver};
 use rapier2d::{math::Real, na::{Isometry2}, prelude::{ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, Collider, ColliderBuilder, ColliderHandle, ColliderSet, ContactEvent, Cuboid, IntegrationParameters, InteractionGroups, IntersectionEvent, IslandManager, JointSet, NarrowPhase, PhysicsPipeline, QueryPipeline, Ray, RigidBody, RigidBodyBuilder, RigidBodyHandle, RigidBodySet}};
-use tetra::{State, graphics::{Color, DrawParams}, math::{Vec2}, time::{Timestep, get_timestep}};
+use tetra::{State, graphics::{Color, DrawParams}, math::{Vec2}};
 use crate::{conv_vec, conv_vec_point, entity::EntityType};
 
 pub const MASS_FORCE_SCALE: f32 = 1000.0;

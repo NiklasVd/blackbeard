@@ -4,7 +4,7 @@ use nalgebra::{ComplexField, RealField};
 use rand::Rng;
 use rapier2d::{math::{Isometry, Real, Vector}, na::{Point2}};
 use tetra::{Context, time::get_delta_time};
-use crate::{DEFAULT_SIMULATION_TIMESTEP, V2};
+use crate::{V2};
 
 pub fn get_dt(ctx: &mut Context) -> f32 {
     get_delta_time(ctx).as_secs_f32()

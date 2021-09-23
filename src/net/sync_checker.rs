@@ -4,8 +4,9 @@ use binary_stream::{BinaryStream, Serializable};
 use crate::{Rcc, round_to_multiple, ship::Ship};
 
 pub const SYNC_STATE_GEN_INTERVAL: u64 = 50;
+pub const SYNC_STATE_GEN_MARGIN_OF_ERROR: f32 = 10.0;
 // First desync might be small inaccuracy. Second will mean it has spiralled out of control.
-pub const MAX_DESYNC_INTERVAL: u16 = 3;
+pub const MAX_DESYNC_INTERVAL: u16 = 4;
 
 #[derive(Clone, Copy)]
 pub struct SyncState {
@@ -34,9 +35,18 @@ impl SyncState {
         let ship_ref = ship.borrow();
         buffer.extend(ship_ref.curr_health.to_le_bytes());
         let translation = ship_ref.transform.get_translation();
-        buffer.extend(round_to_multiple(translation.0.x, 2.0).to_le_bytes());
-        buffer.extend(round_to_multiple(translation.0.y, 2.0).to_le_bytes());
-        buffer.extend(round_to_multiple(translation.1, 2.0).to_le_bytes());
+        let x_state = round_to_multiple(translation.0.x, SYNC_STATE_GEN_MARGIN_OF_ERROR);
+        let y_state = round_to_multiple(translation.0.y, SYNC_STATE_GEN_MARGIN_OF_ERROR);
+        let rot_state = round_to_multiple(translation.1, SYNC_STATE_GEN_MARGIN_OF_ERROR / 50.0);
+        println!("{} Ship: Pos = ({:.2}, {:.2}/{}, {}), Rot = {:.2}, Curr Health = {}",
+            ship_ref.name, translation.0.x, translation.0.y,
+            round_to_multiple(translation.0.x, SYNC_STATE_GEN_MARGIN_OF_ERROR),
+            round_to_multiple(translation.0.y, SYNC_STATE_GEN_MARGIN_OF_ERROR),
+            translation.1, ship_ref.curr_health);
+        
+        buffer.extend(x_state.to_le_bytes());
+        buffer.extend(y_state.to_le_bytes());
+        buffer.extend(rot_state.to_le_bytes());
     }
 }
 
@@ -92,7 +102,7 @@ impl SyncChecker {
 
     pub fn get_desynced_players(&mut self) -> Vec<u16> {
         let players: Vec<_> = self.desync_counter.iter()
-            .filter(|(id, &counter)| counter > MAX_DESYNC_INTERVAL)
+            .filter(|(id, &counter)| counter >= MAX_DESYNC_INTERVAL)
             .map(|(id, _)| *id).collect();
         players.iter()
             .for_each(|id| {
@@ -114,9 +124,6 @@ impl SyncChecker {
                 // Increment desync counter of all selected players
                 let desync_counter = &mut self.desync_counter;
                 desynced_players.into_iter().for_each(|(&id, _)| {
-                    if id == 0 {
-                        println!("Error: Auth client is among desynced players")
-                    }
                     if let Some(counter) = desync_counter.get_mut(&id) {
                         *counter += 1;
                         println!("Player with ID {} is out of sync for {}. time.",

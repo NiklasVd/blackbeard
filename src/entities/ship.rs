@@ -94,6 +94,7 @@ pub struct Ship {
     pub stun: Timer,
     pub name: String,
     pub target_pos: Option<V2>,
+    pub rotate_only: bool,
     pub attr: ShipAttributes,
     pub cannons: Vec<Cannon>,
     pub transform: Transform,
@@ -111,23 +112,23 @@ impl Ship {
     pub fn caravel(ctx: &mut Context, game: GC, name: String, spawn: V2,
         respawn: bool) -> tetra::Result<Ship> {
         Self::new(ctx, name, "Caravel.png", ShipAttributes::caravel(), spawn, respawn,
-            3, 1.0, game)
+            4, V2::zero(), 1.0, game)
     }
 
     pub fn galleon(ctx: &mut Context, game: GC, name: String, spawn: V2, respawn: bool)
         -> tetra::Result<Ship> {
         Self::new(ctx, name, "Galleon.png", ShipAttributes::galleon(), spawn, respawn,
-            4, 1.0, game)
+            5, V2::zero(), 1.0, game)
     }
 
     pub fn schooner(ctx: &mut Context, game: GC, name: String, spawn: V2, respawn: bool)
         -> tetra::Result<Ship> {
         Self::new(ctx, name, "Schooner.png", ShipAttributes::schooner(), spawn, respawn,
-            2, 1.5 /* Small collider size warrants greater density as a balance */, game)
+            3, V2::new(0.0, 15.0), 1.25, game)
     }
 
     fn new(ctx: &mut Context, name: String, ship_texture: &str, attributes: ShipAttributes, spawn: V2,
-        respawn: bool, cannons_per_side: u32, mass: f32, game: GC) -> tetra::Result<Ship> {
+        respawn: bool, cannons_per_side: u32, cannon_pos: V2, mass: f32, game: GC) -> tetra::Result<Ship> {
         let mut game_ref = game.borrow_mut();
         let sprite = Sprite::new(game_ref.assets.load_texture(
             ctx, ship_texture.to_owned(), true)?, SpriteOrigin::Centre, None);
@@ -148,14 +149,14 @@ impl Ship {
 
         let index = transform.get_index();
         let mut cannons = Vec::new();
-        let mut bow_pos = V2::new(48.0, -50.0);
+        let mut bow_pos = V2::new(48.0, -50.0) + cannon_pos;
         let bow_rot = PI * 1.5;
         for _ in 0..cannons_per_side {
             cannons.push(Cannon::new(ctx, bow_pos, bow_rot, attr.cannon_damage,
                 CannonSide::Bowside, attr.cannon_reload_time, index, game.clone())?);
             bow_pos -= V2::new(45.0, 0.0);
         }
-        let mut port_pos = V2::new(48.0, 50.0);
+        let mut port_pos = V2::new(48.0, 50.0) + V2::new(cannon_pos.x, -cannon_pos.y);
         let port_rot = PI / 2.0;
         for _ in 0..cannons_per_side {
             cannons.push(Cannon::new(ctx, port_pos, port_rot, attr.cannon_damage,
@@ -166,7 +167,7 @@ impl Ship {
         
         Ok(Ship {
             stype: ShipType::Caravel, curr_health: attr.health, name,
-            target_pos: None, attr, cannons,
+            target_pos: None, rotate_only: false, attr, cannons,
             transform, treasury: Deposit::default(), mods: Vec::new(),
             is_in_harbour: false, stun: Timer::new(stun_length),
             sprite, label, spawn, destroy: false, game
@@ -303,8 +304,9 @@ impl Ship {
         Ok(())
     }
 
-    pub fn set_target_pos(&mut self, pos: V2) {
+    pub fn set_target_pos(&mut self, pos: V2, rotate_only: bool) {
         self.target_pos = Some(pos);
+        self.rotate_only = rotate_only;
     }
 
     pub fn reset_target_pos(&mut self) {
@@ -322,11 +324,14 @@ impl Ship {
             let (pos, rot) = disassemble_iso(rb.position());
             if vec_distance(pos, target_pos) <= TARGET_POS_DIST_MARGIN {
                 self.target_pos = None;
+                return;
             }
 
-            let mut facing_dir = polar_to_cartesian(1.0, rot);
-            facing_dir *= BASE_MOVEMENT_FORCE * self.attr.movement_speed;
-            rb.apply_impulse(conv_vec(facing_dir), true);
+            if !self.rotate_only {
+                let mut facing_dir = polar_to_cartesian(1.0, rot);
+                facing_dir *= BASE_MOVEMENT_FORCE * self.attr.movement_speed;
+                rb.apply_impulse(conv_vec(facing_dir), true);
+            }
 
             let target_dir = target_pos - pos;
             let target_rot = pi_to_pi2_range(get_angle(target_dir));

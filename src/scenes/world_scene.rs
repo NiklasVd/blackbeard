@@ -101,7 +101,7 @@ impl WorldScene {
 
     fn update_menu_ui(&mut self) -> BbResult {
         let curr_gen = self.controller.get_curr_gen();
-        if curr_gen % 25 == 0 && curr_gen != self.ui.last_info_update_gen {
+        if curr_gen % 10 == 0 && curr_gen != self.ui.last_info_update_gen {
             let (_, _, avg) = self.controller.input_buffer.calc_latency();
             // FIX: Feedback latency is calculated right after latest step is applied, leading to zero
             let feedback_lat = self.controller.calc_input_feedback_latency();

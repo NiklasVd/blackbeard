@@ -182,10 +182,8 @@ impl Controller {
                 ship_ref.shoot_cannons_on_side(ctx, CannonSide::Portside, world)?;
             }
 
-            if state.rmb {
-                if let Some(mouse_pos) = state.mouse_pos {
-                    ship_ref.set_target_pos(mouse_pos);
-                }
+            if let Some(mouse_pos) = state.mouse_pos {
+                ship_ref.set_target_pos(mouse_pos, state.r);
             }
         }
         Ok(())
@@ -203,21 +201,7 @@ impl Controller {
             let mut player_ships = self.players.values().collect::<Vec<_>>();
             player_ships.sort_unstable_by(|a, b| a.borrow().id.n.cmp(&b.borrow().id.n));
             let player_ships = player_ships.into_iter()
-                .map(|p| {
-                    let p_ref = p.borrow();
-                    let possessed_ship = p_ref.possessed_ship.clone();
-                    let mut buffer = Vec::new();
-                    SyncState::serialize_ship(&mut buffer, possessed_ship.clone());
-                    let hash = seahash::hash(&buffer);
-                    {
-                        let ship_ref = p_ref.possessed_ship.borrow();
-                        let translation = ship_ref.transform.get_translation();
-                        println!("Player {} Ship: Pos = {}, Rot = {}, Curr Health = {}, Hash = {}", p_ref.id.n,
-                            translation.0.round(), translation.1.round(), ship_ref.curr_health, hash);
-                            
-                    }
-                    possessed_ship
-                }).collect();
+                .map(|p| p.borrow().possessed_ship.clone()).collect();
             let state = SyncState::gen_from_ships(self.curr_gen, player_ships);
             println!("Generated sync state. Hash = {}", state.hash);
             self.game.borrow_mut().network.as_mut().unwrap().send_packet(Packet::Sync {
@@ -258,9 +242,20 @@ impl GameState for Controller {
                     self.curr_target_pos = mouse_pos.clone();
                     self.curr_input_state.mouse_pos = mouse_pos;
                     self.curr_input_state.rmb = true;
+                    self.curr_input_state.r = false;
                 },
                 Event::KeyPressed { key } => {
                     match key {
+                        Key::R => {
+                            let mouse_pos = Some({
+                                let game_ref = self.game.borrow();
+                                game_ref.cam.get_mouse_pos(ctx)
+                            });
+                            self.curr_target_pos = mouse_pos.clone();
+                            self.curr_input_state.mouse_pos = mouse_pos;
+                            self.curr_input_state.r = true;
+                            self.curr_input_state.rmb = false;
+                        },
                         Key::Space => {
                             self.curr_input_state.q = true;
                             self.curr_input_state.e = true;

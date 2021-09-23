@@ -188,6 +188,7 @@ pub fn deserialize_packet_unsigned(packet_bytes: Vec<u8>) -> Packet {
 #[derive(Clone)]
 pub struct InputState {
     pub rmb: bool,
+    pub r: bool,
     pub q: bool,
     pub e: bool,
     pub buy_mod: bool,
@@ -196,35 +197,37 @@ pub struct InputState {
 }
 
 impl InputState {
-    pub fn new(rmb: bool, q: bool, e: bool, buy_mod: bool, mod_type: Option<ShipModType>,
+    pub fn new(rmb: bool, r: bool, q: bool, e: bool, buy_mod: bool, mod_type: Option<ShipModType>,
         mouse_pos: Option<V2>) -> InputState {
         InputState {
-            rmb, q, e, buy_mod, mod_type, mouse_pos
+            rmb, r, q, e, buy_mod, mod_type, mouse_pos
         }
     }
 
     pub fn discover(ctx: &mut Context, game: GC) -> InputState {
         let rmb = is_mouse_button_down(ctx, MouseButton::Right);
+        let r = is_key_down(ctx, Key::R);
         let q = is_key_down(ctx, Key::Q); // is_key_down: Returns true if the specified key is currently down. is_key_pressed: Returns true if the specified key was pressed since the last update.
         let e = is_key_down(ctx, Key::E);
-        let mouse_pos = match rmb {
+        let mouse_pos = match rmb || r {
             true => Some(get_mouse_position(ctx)),
             false => None
         };
-        InputState::new(rmb, q, e, false, None, mouse_pos)
+        InputState::new(rmb, r, q, e, false, None, mouse_pos)
     }
 
     pub fn default() -> InputState {
-        InputState::new(false, false, false, false, None, None)
+        InputState::new(false, false, false, false, false, None, None)
     }
 }
 
 impl Serializable for InputState {
     fn to_stream(&self, stream: &mut BinaryStream) {
         let mut input_bits = self.rmb as u8;
-        input_bits |= (self.q as u8) << 1;
-        input_bits |= (self.e as u8) << 2;
-        input_bits |= (self.buy_mod as u8) << 3;
+        input_bits |= (self.r as u8) << 1;
+        input_bits |= (self.q as u8) << 2;
+        input_bits |= (self.e as u8) << 3;
+        input_bits |= (self.buy_mod as u8) << 4;
         stream.write_buffer_single(input_bits).unwrap();
 
         if self.buy_mod {
@@ -232,7 +235,7 @@ impl Serializable for InputState {
                 mod_type.to_stream(stream);
             }
         }
-        if self.rmb {
+        if self.rmb || self.r {
             if let Some(mouse_pos) = self.mouse_pos.as_ref() {
                 serialize_v2(stream, mouse_pos.clone()).unwrap();
             }
@@ -242,28 +245,29 @@ impl Serializable for InputState {
     fn from_stream(stream: &mut BinaryStream) -> Self {
         let input_bits = stream.read_buffer_single().unwrap();
         // 0b00000_0_0_0
-        //         e q rmb
+        //       e q r rmb
         let rmb = (input_bits & 0b1) != 0;
-        let q = (input_bits & (0b1 << 1u8)) != 0;
-        let e = (input_bits & (0b1 << 2u8)) != 0;
-        let buy_mod = (input_bits & (0b1 << 3u8)) != 0;
+        let r = (input_bits & (0b1 << 1u8)) != 0;
+        let q = (input_bits & (0b1 << 2u8)) != 0;
+        let e = (input_bits & (0b1 << 3u8)) != 0;
+        let buy_mod = (input_bits & (0b1 << 4u8)) != 0;
 
         let mod_type = match buy_mod {
             true => Some(ShipModType::from_stream(stream)),
             false => None
         };
-        let mouse_pos = match rmb {
+        let mouse_pos = match rmb || r {
             true => Some(deserialize_v2(stream)),
             false => None
         };
-        InputState::new(rmb, q, e, buy_mod, mod_type, mouse_pos)
+        InputState::new(rmb, r, q, e, buy_mod, mod_type, mouse_pos)
     }
 }
 
 impl fmt::Debug for InputState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Rmb: {}, Q: {}, E: {}, Buy Mod: {}, Mod Type: {:?}, Mouse Pos.: {:?}",
-            self.rmb, self.q, self.e, self.buy_mod, self.mod_type, self.mouse_pos)
+        writeln!(f, "Rmb: {}, R: {}, Q: {}, E: {}, Buy Mod: {}, Mod Type: {:?}, Mouse Pos.: {:?}",
+            self.rmb, self.r, self.q, self.e, self.buy_mod, self.mod_type, self.mouse_pos)
     }
 }
 
