@@ -4,7 +4,7 @@ use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, Transfo
 
 pub const MAX_INPUT_STEP_BLOCK_TIME: f32 = 15.0;
 pub const DEFAULT_SIMULATION_TIMESTEP: f64 = 60.0;
-pub const ACCELERATED_SIMULATION_TIMESTEP: f64 = DEFAULT_SIMULATION_TIMESTEP * 2.0;
+pub const ACCELERATED_SIMULATION_TIMESTEP: f64 = DEFAULT_SIMULATION_TIMESTEP * 3.0;
 
 pub struct Controller {
     pub players: HashMap<u16, Rcc<Player>>,
@@ -82,28 +82,30 @@ impl Controller {
     }
 
     fn adjust_simulation(&mut self, ctx: &mut Context) {
+        // After multiple tests, it seems that the simulation does not experience desync
+        // when ships are simply travelling forward. Yet as soon as they collide,
+        // the local positions quickly drift apart. There could be one solution:
+        // The timers used for ship stuns ignore timestep changes.
+        // A timer with duration 3s will take the same time to complete on 60
+        // or 180 FPS. While the frame rate rises, the delta time falls, balancing out
+        // the increment on the curr. timer duration. That will obviously
+        // throw the synchronisation into chaos.
+        // This, combined with the physics engine delta time adjustment, may yet
+        // prevent desyncs from occuring.
         let buffered_steps = self.input_buffer.get_buffer_size();
         let timestep = {
             if buffered_steps > 1 {
                 println!("Input feedback delayed by {} steps. Accelerate simulation to {} frames/s",
                     buffered_steps - 1, ACCELERATED_SIMULATION_TIMESTEP);
-                // Critical point:
-                // As long as the delay isn't too long, there seems to be no
-                // (visible) issue. Reason for issues with longer delays likely is the receive
-                // event buffer limitation of the UDP socket. At some point, it will drop
-                // further incoming packets, leaving the client with an incomplete input
-                // buffer.
-                // Short interruptions dont seem to desync, yet longer delays make the
-                // harmony fragile. Next to buffer limitations, the physics engine may not
-                // handle simulation acceleration well (as it runs on 1/60 steps per second).
-                // Other causes, such as inaccurate spacing of input steps, or imprecise
-                // timer lengths (such as ship stuns) have been considered, too.
-                Timestep::Fixed(ACCELERATED_SIMULATION_TIMESTEP)
+                ACCELERATED_SIMULATION_TIMESTEP
             } else {
-                Timestep::Fixed(DEFAULT_SIMULATION_TIMESTEP)
+                DEFAULT_SIMULATION_TIMESTEP
             }
         };
-        set_timestep(ctx, timestep);
+        // Physics engine needs no adjustment. This would lead to same effect as for timers.
+        // When adjusting physics integration params delta time to the accelerated value,
+        // the simulation would run at the exact same speed, merely with higher frame rate.
+        set_timestep(ctx, Timestep::Fixed(timestep));
     }
 
     fn update_step(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {

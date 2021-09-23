@@ -4,7 +4,7 @@ use nalgebra::{ComplexField, RealField};
 use rand::Rng;
 use rapier2d::{math::{Isometry, Real, Vector}, na::{Point2}};
 use tetra::{Context, time::get_delta_time};
-use crate::V2;
+use crate::{DEFAULT_SIMULATION_TIMESTEP, V2};
 
 pub fn get_dt(ctx: &mut Context) -> f32 {
     get_delta_time(ctx).as_secs_f32()
@@ -54,6 +54,19 @@ pub fn polar_to_cartesian(dist: f32, angle: f32) -> V2 {
     V2::new(dist * ComplexField::cos(angle), dist * ComplexField::sin(angle))
 }
 
+pub fn vec_magnitude(vec: V2) -> f32 {
+    let squared_sum = ComplexField::powf(vec.x, 2.0) + ComplexField::powf(vec.y, 2.0);
+    ComplexField::sqrt(squared_sum)
+}
+
+pub fn vec_distance(a: V2, b: V2) -> f32 {
+    vec_magnitude(a - b)
+}
+
+pub fn round_to_multiple(n: f32, multiple: f32) -> f32 {
+    ComplexField::round(n / multiple) * multiple
+}
+
 pub fn rand_u32(min: u32, max: u32) -> u32 {
     rand::thread_rng().gen_range(min..=max)
 }
@@ -88,7 +101,11 @@ impl Timer {
     }
 
     pub fn update(&mut self, ctx: &mut Context) {
-        self.curr_time += get_dt(ctx);
+        // Timer needs to increment using const timesteps, as otherwise it
+        // will not respond to frame rate acceleration (due to simulation catch-ups
+        // of the lockstep model).
+        // Using delta time, the duration of a timer will be the same on 60 or 180 FPS alike.
+        self.curr_time += 1.0 / 60.0;
     }
 
     pub fn is_running(&self) -> bool {

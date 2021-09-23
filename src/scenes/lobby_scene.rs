@@ -116,8 +116,8 @@ impl NetController for LobbyScene {
     }
 
     fn on_player_connect(&mut self, ctx: &mut Context, id: ID) -> BbResult {
-        self.players.insert(id.n, (id.clone(), ShipType::Schooner));
-        self.ui.add_player(ctx, id.clone(), ShipType::Schooner)?;
+        self.players.insert(id.n, (id.clone(), ShipType::Caravel));
+        self.ui.add_player(ctx, id.clone(), ShipType::Caravel)?;
         self.ui.chat.add_line(ctx, &format!("{:?} connected to the game!", id)).convert()
     }
 

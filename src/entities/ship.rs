@@ -2,7 +2,7 @@ use std::{f32::consts::PI};
 use binary_stream::{BinaryStream, Serializable};
 use rapier2d::{data::Index};
 use tetra::{Context, State, graphics::{text::Text}, math::Clamp};
-use crate::{BbResult, Cannon, CannonSide, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, WorldEvent, conv_vec, disassemble_iso, economy::{Deposit}, entity::{Entity, EntityType, GameState}, get_angle, pi_to_pi2_range, polar_to_cartesian, ship_mod::{ShipMod, ShipModType}, world::World};
+use crate::{BbResult, Cannon, CannonSide, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, WorldEvent, conv_vec, disassemble_iso, economy::{Deposit}, entity::{Entity, EntityType, GameState}, get_angle, pi_to_pi2_range, polar_to_cartesian, ship_mod::{ShipMod, ShipModType}, vec_distance, world::World};
 
 const BASE_STUN_LENGTH: f32 = 1.0;
 const BASE_OBJECT_COLLISION_DAMAGE: u16 = 10;
@@ -57,7 +57,7 @@ impl ShipAttributes {
         ShipAttributes {
             health: 140,
             defense: 60,
-            movement_speed: 8.5, turn_rate: 5.0,
+            movement_speed: 9.0, turn_rate: 5.0,
             cannon_damage: 20, cannon_reload_time: 5.0,
             ram_damage: 20
         }
@@ -320,7 +320,7 @@ impl Ship {
             let mut game_ref = self.game.borrow_mut();
             let rb = game_ref.physics.get_rb_mut(self.transform.handle.0);
             let (pos, rot) = disassemble_iso(rb.position());
-            if pos.distance(target_pos) <= TARGET_POS_DIST_MARGIN {
+            if vec_distance(pos, target_pos) <= TARGET_POS_DIST_MARGIN {
                 self.target_pos = None;
             }
 

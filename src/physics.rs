@@ -1,6 +1,6 @@
 use crossbeam_channel::{Receiver};
 use rapier2d::{math::Real, na::{Isometry2}, prelude::{ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, Collider, ColliderBuilder, ColliderHandle, ColliderSet, ContactEvent, Cuboid, IntegrationParameters, InteractionGroups, IntersectionEvent, IslandManager, JointSet, NarrowPhase, PhysicsPipeline, QueryPipeline, Ray, RigidBody, RigidBodyBuilder, RigidBodyHandle, RigidBodySet}};
-use tetra::{State, graphics::{Color, DrawParams}, math::{Vec2}};
+use tetra::{State, graphics::{Color, DrawParams}, math::{Vec2}, time::{Timestep, get_timestep}};
 use crate::{conv_vec, conv_vec_point, entity::EntityType};
 
 pub const MASS_FORCE_SCALE: f32 = 1000.0;
@@ -118,8 +118,19 @@ impl Physics {
     }
 
     pub fn remove_collider(&mut self, handle: PhysicsHandle) {
-        self.rb_set.remove(handle.0, &mut self.island_manager, &mut self.coll_set,
+        self.remove_collider_by_rb(handle.0)
+    }
+
+    pub fn remove_collider_by_rb(&mut self, handle: RigidBodyHandle) {
+        self.rb_set.remove(handle, &mut self.island_manager, &mut self.coll_set,
             &mut self.joint_set);
+    }
+
+    pub fn clear_colliders(&mut self) {
+        let rbs: Vec<_> = self.rb_set.iter().map(|(handle, _)| handle.clone()).collect();
+        for rb in rbs {
+            self.remove_collider_by_rb(rb);
+        }
     }
 
     pub fn get_coll(&self, coll_handle: ColliderHandle) -> &Collider {
@@ -222,11 +233,6 @@ impl Physics {
 
 impl State for Physics {
     fn update(&mut self, ctx: &mut tetra::Context) -> tetra::Result {
-        // self.integration_params.set_inv_dt(match get_timestep(ctx) {
-        //     Timestep::Fixed(timestep) => timestep as f32,
-        //     _ => panic!("Variable timestep incompatible for lockstep")
-        // });
-        //self.integration_params.dt = get_dt(ctx);
         self.physics_pipeline.step(&conv_vec(self.wind), &self.integration_params,
             &mut self.island_manager, &mut self.broad_phase, &mut self.narrow_phase,
             &mut self.rb_set, &mut self.coll_set, &mut self.joint_set,

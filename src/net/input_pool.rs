@@ -1,7 +1,7 @@
 use std::{collections::{HashMap, HashSet}, iter::FromIterator};
 use crate::packet::{InputState, InputStep};
 
-pub const STEP_PHASE_FRAME_LENGTH: u32 = 10;
+pub const STEP_PHASE_FRAME_LENGTH: u32 = 15;
 pub const STEP_PHASE_TIME_SECS: f32 = STEP_PHASE_FRAME_LENGTH as f32 / 60.0;
 pub const MAX_CLIENT_STATE_SEND_DELAY: u32 = 60 * 5; // 5 secs
 

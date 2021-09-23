@@ -182,14 +182,11 @@ impl Server {
 
     fn on_receive_sync(&mut self, sender: u16, state: SyncState) -> BbResult {
         if let Some(sync_checker) = self.sync_checker.as_mut() {
-            println!("Received sync state of {}: {:?}", sender, state);
             let state_gen = state.gen;
             sync_checker.add_state(sender, state);
-            if let Some(desynced_ids) = sync_checker.check_states(state_gen) {
-                for id in desynced_ids.into_iter() {
-                    println!("Player with ID {} is out of sync! Terminating connection...", sender);
-                    //self.disconnect_player(sender, DisconnectReason::Desync)?;
-                }
+            for id in sync_checker.get_desynced_players() {
+                println!("Player with ID {} is out of sync. Terminating connection...", id);
+                self.disconnect_player(id, DisconnectReason::Desync)?;
             }
         } else {
             println!("Server: Dropping received sync state of player {}. Game hasn't started yet.", sender);

@@ -144,6 +144,8 @@ impl Scene for WorldScene {
 
     fn poll(&self, ctx: &mut Context) -> BbResult<Option<Box<dyn Scene>>> {
         Ok(if self.back_to_menu {
+            // Clean up
+            self.game.borrow_mut().physics.clear_colliders();
             Some(Box::new(MenuScene::new(ctx, self.game.clone()).convert()?))
         }
         else {

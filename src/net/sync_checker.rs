@@ -1,10 +1,11 @@
 use core::fmt;
 use std::{collections::HashMap, iter::FromIterator};
 use binary_stream::{BinaryStream, Serializable};
-use nalgebra::{ComplexField};
-use crate::{Rcc, ship::Ship};
+use crate::{Rcc, round_to_multiple, ship::Ship};
 
-pub const SYNC_STATE_GEN_INTERVAL: u64 = 100;
+pub const SYNC_STATE_GEN_INTERVAL: u64 = 50;
+// First desync might be small inaccuracy. Second will mean it has spiralled out of control.
+pub const MAX_DESYNC_INTERVAL: u16 = 3;
 
 #[derive(Clone, Copy)]
 pub struct SyncState {
@@ -33,9 +34,9 @@ impl SyncState {
         let ship_ref = ship.borrow();
         buffer.extend(ship_ref.curr_health.to_le_bytes());
         let translation = ship_ref.transform.get_translation();
-        buffer.extend(ComplexField::round(translation.0.x).to_le_bytes());
-        buffer.extend(ComplexField::round(translation.0.y).to_le_bytes());
-        buffer.extend(ComplexField::round(translation.1).to_le_bytes());
+        buffer.extend(round_to_multiple(translation.0.x, 2.0).to_le_bytes());
+        buffer.extend(round_to_multiple(translation.0.y, 2.0).to_le_bytes());
+        buffer.extend(round_to_multiple(translation.1, 2.0).to_le_bytes());
     }
 }
 
@@ -66,38 +67,75 @@ impl fmt::Debug for SyncState {
 
 pub struct SyncChecker {
     cache: HashMap<u64, HashMap<u16, SyncState>>,
+    pub desync_counter: HashMap<u16, u16>
 }
 
 impl SyncChecker {
     pub fn new() -> SyncChecker {
         SyncChecker {
-            cache: HashMap::new()
+            cache: HashMap::new(), desync_counter: HashMap::new()
         }
     }
 
     pub fn add_state(&mut self, sender: u16, state: SyncState) {
+        let gen = state.gen;
         if let Some(gen_states) = self.cache.get_mut(&state.gen) {
             gen_states.insert(sender, state);
+            self.record_desyncs(gen);
+
         } else {
-            self.cache.insert(state.gen, HashMap::from_iter([(sender, state); 1]));
+            self.cache.insert(state.gen,
+                HashMap::from_iter([(sender, state); 1]));
+            self.record_desyncs(gen);
         }
     }
 
-    pub fn check_states(&mut self, gen: u64) -> Option<Vec<u16>> {
-        // Check if auth client (ID == 0) already sent their sync state
-        // If so, check states of all other clients, else wait.
+    pub fn get_desynced_players(&mut self) -> Vec<u16> {
+        let players: Vec<_> = self.desync_counter.iter()
+            .filter(|(id, &counter)| counter > MAX_DESYNC_INTERVAL)
+            .map(|(id, _)| *id).collect();
+        players.iter()
+            .for_each(|id| {
+                self.desync_counter.remove(id);
+            });
+        players
+    }
+
+    fn record_desyncs(&mut self, gen: u64) {
         if let Some(gen_states) = self.cache.get_mut(&gen) {
+            // Check if auth client (ID == 0) already sent their sync state
             if let Some((_, auth_client_state)) = gen_states.iter_mut()
                 .find(|(&id, _)| id == 0) {
                 let auth_client_state = *auth_client_state;
-                Some(gen_states.iter()
-                    .filter(|(&id, &state)| id != 0 && state != auth_client_state)
-                    .map(|(id, state)| *id).collect())
-            } else {
-                None // Auth client has not sent their state, from which all other states will be judged
+
+                // If so, check states of all other clients
+                let (desynced_players, synced_players): (Vec<_>, Vec<_>) = gen_states.iter()
+                    .partition(|(&id, &state)| id != 0 && state != auth_client_state);
+                // Increment desync counter of all selected players
+                let desync_counter = &mut self.desync_counter;
+                desynced_players.into_iter().for_each(|(&id, _)| {
+                    if id == 0 {
+                        println!("Error: Auth client is among desynced players")
+                    }
+                    if let Some(counter) = desync_counter.get_mut(&id) {
+                        *counter += 1;
+                        println!("Player with ID {} is out of sync for {}. time.",
+                            id, counter)
+                    } else {
+                        desync_counter.insert(id, 1);
+                        println!("Player with ID {} is out of sync for 1. time.", id)
+                    }
+                });
+                // Reset desync counter for all filtered players
+                synced_players.into_iter().for_each(|(&id, _)| {
+                    if let Some(counter) = desync_counter.get_mut(&id) {
+                        if *counter > 0 {
+                            println!("Player with ID {} is not out of sync anymore!", id);
+                        }
+                        *counter = 0;
+                    }
+                })
             }
-        } else {
-            None // No state for this generation exists yet
         }
     }
 }
