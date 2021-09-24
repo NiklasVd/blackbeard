@@ -19,6 +19,8 @@ pub struct Cannon {
     pub dmg: Attribute<u16>,
     pub side: CannonSide,
     pub reload: Timer,
+    pub reload_time: Attribute<f32>,
+    pub shooting_power: Attribute<f32>, // in %
     ship_translation: (V2, f32),
     ship_index: Index,
     cannon_sprite: Sprite,
@@ -30,7 +32,7 @@ pub struct Cannon {
 
 impl Cannon {
     pub fn new(ctx: &mut Context, relative_pos: V2, relative_rot: f32, dmg: u16,
-        side: CannonSide, reload_time: f32, ship_index: Index, game: GC) -> tetra::Result<Cannon> {
+        side: CannonSide, reload_time: f32, shooting_power: f32, ship_index: Index, game: GC) -> tetra::Result<Cannon> {
         let mut game_ref = game.borrow_mut();
         let cannon_tex = game_ref.assets.load_texture(ctx, "Cannon.png".to_owned(), true)?;
         let shoot_tex = game_ref.assets.load_texture(ctx, "Shoot Cannon.png".to_owned(), true)?;
@@ -44,7 +46,9 @@ impl Cannon {
         Ok(Cannon {
             translation: (relative_pos, get_angle(relative_pos)), relative_rot,
             dmg: Attribute::setup(dmg), side,
-            reload: Timer::new(reload_time), ship_translation: (V2::zero(), 0.0), ship_index,
+            reload: Timer::new(reload_time), reload_time: Attribute::setup(reload_time),
+            shooting_power: Attribute::setup(shooting_power),
+            ship_translation: (V2::zero(), 0.0), ship_index,
             cannon_sprite, shoot_effect, reload_label, shoot: false, game
         })
     }
@@ -59,9 +63,8 @@ impl Cannon {
 
         let curr_translation = self.get_world_translation();
         let facing_dir = polar_to_cartesian(1.0, curr_translation.1);
-        let cannon_ball = CannonBall::new(ctx,
-            self.dmg.total(), self.ship_index, curr_translation.0 + facing_dir, facing_dir,
-            self.game.clone())?;
+        let cannon_ball = CannonBall::new(ctx, self.dmg.total(), self.shooting_power.total(),
+            self.ship_index, curr_translation.0 + facing_dir, facing_dir, self.game.clone())?;
         let cannon_ball = world.add_cannon_ball(ctx, cannon_ball);
         // Shoot effect
         self.reload.reset();
@@ -70,6 +73,11 @@ impl Cannon {
 
     pub fn can_shoot(&self) -> bool {
         self.reload.is_over()
+    }
+
+    pub fn change_reload_time(&mut self, val: f32) {
+        self.reload_time.add(val);
+        self.reload.max = self.reload_time.total();
     }
 
     pub fn get_reload_time(&self) -> f32 {
@@ -124,14 +132,14 @@ pub struct CannonBall {
 }
 
 impl CannonBall {
-    pub fn new(ctx: &mut Context, dmg: u16, shooter_index: Index,
+    pub fn new(ctx: &mut Context, dmg: u16, shooting_power: f32, shooter_index: Index,
         starting_pos: V2, dir: V2, game: GC) -> tetra::Result<CannonBall> {
         let mut game_ref = game.borrow_mut();
         let sprite = Sprite::new(game_ref.assets.load_texture(ctx,
             "Cannon Ball.png".to_owned(), true)?, SpriteOrigin::Centre, None);
         
         let physics_handle = game_ref.physics.build_cannon_ball(
-            sprite.texture.width() as f32);
+            sprite.texture.width() as f32, 0.1);
         std::mem::drop(game_ref);
 
         let mut transform = Transform::new(physics_handle, game.clone());
@@ -139,7 +147,7 @@ impl CannonBall {
         let rb = {
             let mut game_ref = game.borrow_mut();
             let rb = game_ref.physics.get_rb_mut(physics_handle.0);
-            rb.apply_impulse(conv_vec(dir * POWER_FORCE_FACTOR), true);
+            rb.apply_impulse(conv_vec(dir * POWER_FORCE_FACTOR * shooting_power), true);
         };
 
         Ok(CannonBall {

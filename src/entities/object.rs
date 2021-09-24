@@ -26,6 +26,7 @@ impl Object {
             1 => "Island 1.png",
             2 => "Island 2.png",
             3 => "Island 3.png",
+            4 => "Island 4.png",
             n @ _ => panic!("Island type {} doesn't exist", n)
         };
         Self::build_object(ctx, ObjectType::Island, game, island_tex.to_owned(),

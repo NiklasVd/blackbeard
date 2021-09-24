@@ -30,12 +30,13 @@ impl WorldScene {
         world_scene.world.add_island(ctx, V2::new(-900.0, 200.0), 0.0, 3).convert()?;
         world_scene.world.add_island(ctx, V2::new(1200.0, -500.0), 0.0, 3).convert()?;
         world_scene.world.add_island(ctx, V2::new(-600.0, -300.0), 1.0, 2).convert()?;
-        world_scene.world.add_island(ctx, V2::new(2000.0, -900.0), 0.2, 1).convert()?;
-        world_scene.world.add_island(ctx, V2::new(2300.0, -200.0), 3.5, 2).convert()?;
+        world_scene.world.add_island(ctx, V2::new(2000.0, -1000.0), 0.2, 1).convert()?;
+        world_scene.world.add_island(ctx, V2::new(2300.0, -400.0), 3.5, 2).convert()?;
         world_scene.world.add_island(ctx, V2::new(1600.0, 1700.0), 0.0, 3).convert()?;
+        world_scene.world.add_island(ctx, V2::new(800.0, -1600.0), 0.2, 4).convert()?;
 
         world_scene.world.add_harbour(ctx, "Port Elisabeth",
-            V2::new(1200.0, 780.0), 5.0).convert()?;
+            V2::new(820.0, -1285.0), -0.5).convert()?;
 
         world_scene.init_players(ctx, players)?;
         world_scene.ui.set_local_player(
@@ -125,7 +126,13 @@ impl WorldScene {
             self.controller.buy_ship_mod(ShipModType::Repair)
         }
         if self.ui.harbour_ui.buy_ammo_upgrade_button.borrow().is_pressed() {
-            self.controller.buy_ship_mod(ShipModType::AmmoUpgrade);
+            self.controller.buy_ship_mod(ShipModType::CannonAmmoUpgrade);
+        }
+        if self.ui.harbour_ui.buy_cannon_reload_upgrade_button.borrow().is_pressed() {
+            self.controller.buy_ship_mod(ShipModType::CannonReloadUpgrade);
+        }
+        if self.ui.harbour_ui.buy_cannon_range_upgrade_button.borrow().is_pressed() {
+            self.controller.buy_ship_mod(ShipModType::CannonRangeUpgrade);
         }
         Ok(())
     }
@@ -391,29 +398,45 @@ impl State for WorldSceneUI {
 struct HarbourUI {
     grid: Rcc<Grid>,
     repair_ship_button: Rcc<DefaultButton>,
-    buy_ammo_upgrade_button: Rcc<DefaultButton>
+    buy_ammo_upgrade_button: Rcc<DefaultButton>,
+    buy_cannon_reload_upgrade_button: Rcc<DefaultButton>,
+    buy_cannon_range_upgrade_button: Rcc<DefaultButton>
 }
 
 impl HarbourUI {
     pub fn new(ctx: &mut Context, grid: &mut Grid, game: GC) -> tetra::Result<HarbourUI> {
         let mut harbour_grid = Grid::new_bg(ctx, UIAlignment::Vertical,
-            UILayout::Centre, V2::new(225.0, 385.0), 0.0,
+            UILayout::Centre, V2::new(225.0, 600.0), 0.0,
             Some("UI/Background.png".to_owned()), Some(game.clone()))?;
         harbour_grid.set_visibility(false);
         harbour_grid.add_element(Label::new(ctx, "Harbour", FontSize::Header, 2.0,
             game.clone())?);
+
         let repair_ship_button = harbour_grid.add_element(Button::new(ctx,
             &format!("Repair Ship ({})", HARBOUR_REPAIR_COST), V2::new(140.0, 35.0),
             2.0, DefaultUIReactor::new(),
             game.clone())?);
+
         harbour_grid.add_element(Label::new(ctx,
             "Ammo Upgrade: Increases cannon ball damage +5.", FontSize::Small, 2.0, game.clone())?);
         let buy_ammo_upgrade_button = harbour_grid.add_element(Button::new(ctx,
-            "Ammo Upgrade (100)", V2::new(180.0, 35.0), 2.0, DefaultUIReactor::new(),
+            "Ammo Upgrade (120)", V2::new(180.0, 35.0), 2.0, DefaultUIReactor::new(),
             game.clone())?);
+
+        harbour_grid.add_element(Label::new(ctx, "Cannon Upgrade: Decreases reload speed by 1.5s.",
+            FontSize::Small, 2.0, game.clone())?);
+        let buy_cannon_reload_upgrade_button = harbour_grid.add_element(Button::new(ctx,
+            "Reload Upgrade (110)", V2::new(180.0, 35.0), 2.0, DefaultUIReactor::new(), game.clone())?);
+
+        harbour_grid.add_element(Label::new(ctx,
+            "Cannon Upgrade: Increases shooting range by 40%.", FontSize::Small, 2.0, game.clone())?);
+        let buy_cannon_range_upgrade_button = harbour_grid.add_element(Button::new(ctx,
+            "Range Upgrade (100)", V2::new(180.0, 35.0), 2.0, DefaultUIReactor::new(), game.clone())?);
+        
         let harbour_grid = grid.add_element(harbour_grid);
         Ok(HarbourUI {
-            grid: harbour_grid, repair_ship_button, buy_ammo_upgrade_button
+            grid: harbour_grid, repair_ship_button, buy_ammo_upgrade_button,
+            buy_cannon_reload_upgrade_button, buy_cannon_range_upgrade_button
         })
     }
 

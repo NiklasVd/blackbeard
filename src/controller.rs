@@ -1,7 +1,7 @@
 use std::{time::Instant};
 use indexmap::IndexMap;
 use tetra::{Context, Event, State, input::{Key, MouseButton}, time::{Timestep, set_timestep}};
-use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, input_pool::STEP_PHASE_TIME_SECS, packet::{InputState, InputStep, Packet}, playback_buffer::PlaybackBuffer, ship_mod::{AMMO_UPGRADE_MOD_COST, AmmoUpgradeMod, HARBOUR_REPAIR_COST, ShipModType}, sync_checker::{SYNC_STATE_GEN_INTERVAL, SyncState}, world::World, wrap_rcc};
+use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, input_pool::STEP_PHASE_TIME_SECS, packet::{InputState, InputStep, Packet}, playback_buffer::PlaybackBuffer, ship_mod::{CannonAmmoUpgradeMod, CannonRangeUpgradeMod, CannonReloadUpgradeMod, ShipMod, ShipModType, get_ship_mod_cost}, sync_checker::{SYNC_STATE_GEN_INTERVAL, SyncState}, world::World, wrap_rcc};
 
 pub const MAX_INPUT_STEP_BLOCK_TIME: f32 = 15.0;
 pub const DEFAULT_SIMULATION_TIMESTEP: f64 = 60.0;
@@ -131,46 +131,6 @@ impl Controller {
         -> tetra::Result {
         if let Some(player) = self.players.get(&sender) {
             let player_ref = player.borrow();
-            // Handle buy_mod before borrowing ship ref
-            if state.buy_mod && player_ref.possessed_ship.borrow().is_in_harbour {
-                println!("Player {:?} is purchasing a mod at the harbour.",
-                    player_ref.id);
-                if let Some(mod_type) = state.mod_type {
-                    let ship_mod = match &mod_type {
-                        ShipModType::Repair => {
-                            let mut ship_ref = player_ref.possessed_ship.borrow_mut();
-                            if ship_ref.treasury.balance < HARBOUR_REPAIR_COST {
-                                println!("Not enough escudos to repair ship!");
-                            } else {
-                                ship_ref.repair();
-                                ship_ref.treasury.spend(HARBOUR_REPAIR_COST);
-                                println!("Player {:?} repaired their ship.", player_ref.id);
-                            }
-                            None
-                        },
-                        ShipModType::AmmoUpgrade => {
-                            let mut ship_ref = player_ref.possessed_ship.borrow_mut();
-                            if ship_ref.treasury.balance < AMMO_UPGRADE_MOD_COST {
-                                println!("Not enough escudos to buy ammo upgrade!");
-                                None
-                            } else {
-                                ship_ref.treasury.spend(AMMO_UPGRADE_MOD_COST);
-                                std::mem::drop(ship_ref);
-                                let ship_mod = AmmoUpgradeMod::new(ctx,
-                                    player_ref.possessed_ship.clone(), self.game.clone())?;
-                                Some(ship_mod)
-                            }
-                        },
-                        ShipModType::CannonUpgrade => todo!(),
-                    };
-                    if let Some(ship_mod) = ship_mod {
-                        player_ref.possessed_ship.borrow_mut().apply_mod(ship_mod);
-                        println!("Player {:?} purchased and applied {:?} mod at harbour.",
-                            player_ref.id, mod_type);
-                    }
-                }
-            }
-
             let mut ship_ref = player_ref.possessed_ship.borrow_mut();
             if state.q {
                 ship_ref.shoot_cannons_on_side(ctx, CannonSide::Bowside, world)?;
@@ -181,6 +141,45 @@ impl Controller {
 
             if let Some(mouse_pos) = state.mouse_pos {
                 ship_ref.set_target_pos(mouse_pos, state.r);
+            }
+
+            if state.buy_mod && ship_ref.is_in_harbour {
+                if let Some(mod_type) = state.mod_type {
+                    let cost = get_ship_mod_cost(mod_type);
+                    if ship_ref.treasury.balance < cost {
+                        println!("{:?} does not have enough escudos to buy {:?}",
+                            player_ref.id, mod_type);
+                    } else {
+                        ship_ref.treasury.spend(cost);
+                        std::mem::drop(ship_ref);
+
+                        match &mod_type {
+                            ShipModType::Repair => {
+                                player_ref.possessed_ship.borrow_mut().repair();
+                            },
+                            ShipModType::CannonAmmoUpgrade => {
+                                let mut ship_mod = CannonAmmoUpgradeMod::new(ctx,
+                                    player_ref.possessed_ship.clone(), self.game.clone())?;
+                                ship_mod.on_apply().convert()?;
+                                player_ref.possessed_ship.borrow_mut().apply_mod(ship_mod);
+                            },
+                            ShipModType::CannonReloadUpgrade => {
+                                let mut ship_mod = CannonReloadUpgradeMod::new(ctx,
+                                    player_ref.possessed_ship.clone(), self.game.clone())?;
+                                ship_mod.on_apply().convert()?;
+                                player_ref.possessed_ship.borrow_mut().apply_mod(ship_mod);
+                            },
+                            ShipModType::CannonRangeUpgrade => {
+                                let mut ship_mod = CannonRangeUpgradeMod::new(ctx, 
+                                    player_ref.possessed_ship.clone(), self.game.clone())?;
+                                ship_mod.on_apply().convert()?;
+                                player_ref.possessed_ship.borrow_mut().apply_mod(ship_mod);
+                            },
+                        };
+                        println!("Player {:?} purchased and applied {:?} mod at harbour.",
+                            player_ref.id, mod_type);
+                    }
+                }
             }
         }
         Ok(())

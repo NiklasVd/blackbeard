@@ -6,7 +6,7 @@ use crate::{Rcc, round_to_multiple, ship::Ship};
 pub const SYNC_STATE_GEN_INTERVAL: u64 = 50;
 pub const SYNC_STATE_GEN_MARGIN_OF_ERROR: f32 = 10.0;
 // First desync might be small inaccuracy. Second will mean it has spiralled out of control.
-pub const MAX_DESYNC_INTERVAL: u16 = 4;
+pub const MAX_DESYNC_INTERVAL: u16 = 5;
 
 #[derive(Clone, Copy)]
 pub struct SyncState {

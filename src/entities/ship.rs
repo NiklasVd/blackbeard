@@ -77,7 +77,7 @@ impl ShipAttributes {
         ShipAttributes {
             health: 115,
             defense: 35,
-            movement_speed: 10.0, turn_rate: 5.0,
+            movement_speed: 10.0, turn_rate: 4.5,
             cannon_damage: 20, cannon_reload_time: 5.0,
             ram_damage: 15
         }
@@ -112,29 +112,29 @@ impl Ship {
     pub fn caravel(ctx: &mut Context, game: GC, name: String, spawn: V2,
         respawn: bool) -> tetra::Result<Ship> {
         Self::new(ctx, name, "Caravel.png", ShipAttributes::caravel(), spawn, respawn,
-            4, V2::zero(), 1.0, game)
+            4, 1.0, V2::zero(), 1.0, game)
     }
 
     pub fn galleon(ctx: &mut Context, game: GC, name: String, spawn: V2, respawn: bool)
         -> tetra::Result<Ship> {
         Self::new(ctx, name, "Galleon.png", ShipAttributes::galleon(), spawn, respawn,
-            5, V2::zero(), 1.0, game)
+            5, 1.2, V2::zero(), 1.0, game)
     }
 
     pub fn schooner(ctx: &mut Context, game: GC, name: String, spawn: V2, respawn: bool)
         -> tetra::Result<Ship> {
         Self::new(ctx, name, "Schooner.png", ShipAttributes::schooner(), spawn, respawn,
-            3, V2::new(0.0, 15.0), 1.25, game)
+            3, 0.9, V2::new(0.0, 15.0), 1.25, game)
     }
 
     fn new(ctx: &mut Context, name: String, ship_texture: &str, attributes: ShipAttributes, spawn: V2,
-        respawn: bool, cannons_per_side: u32, cannon_pos: V2, mass: f32, game: GC) -> tetra::Result<Ship> {
+        respawn: bool, cannons_per_side: u32, cannon_power: f32, cannon_pos: V2, mass: f32, game: GC) -> tetra::Result<Ship> {
         let mut game_ref = game.borrow_mut();
         let sprite = Sprite::new(game_ref.assets.load_texture(
             ctx, ship_texture.to_owned(), true)?, SpriteOrigin::Centre, None);
         let handle = game_ref.physics.build_ship_collider(
             sprite.texture.width() as f32 * 0.5, sprite.texture.height() as f32 * 0.5, mass);
-        let label = Text::new("", game_ref.assets.font.clone());
+        let label = Text::new("", game_ref.assets.header_font.clone());
         let attr = ShipAttributes::caravel();
         let stun_length = attr.get_stun_length();
         game_ref.economy.add_deposit();
@@ -153,14 +153,16 @@ impl Ship {
         let bow_rot = PI * 1.5;
         for _ in 0..cannons_per_side {
             cannons.push(Cannon::new(ctx, bow_pos, bow_rot, attr.cannon_damage,
-                CannonSide::Bowside, attr.cannon_reload_time, index, game.clone())?);
+                CannonSide::Bowside, attr.cannon_reload_time, cannon_power, index,
+                game.clone())?);
             bow_pos -= V2::new(45.0, 0.0);
         }
         let mut port_pos = V2::new(48.0, 50.0) + V2::new(cannon_pos.x, -cannon_pos.y);
         let port_rot = PI / 2.0;
         for _ in 0..cannons_per_side {
             cannons.push(Cannon::new(ctx, port_pos, port_rot, attr.cannon_damage,
-                CannonSide::Portside, attr.cannon_reload_time, index, game.clone())?);
+                CannonSide::Portside, attr.cannon_reload_time, cannon_power, index,
+                game.clone())?);
             port_pos -= V2::new(45.0, 0.0);
         }
 

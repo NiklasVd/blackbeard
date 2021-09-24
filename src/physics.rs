@@ -104,7 +104,7 @@ impl Physics {
         coll_handle
     }
 
-    pub fn build_cannon_ball(&mut self, size: f32) -> PhysicsHandle {
+    pub fn build_cannon_ball(&mut self, size: f32, density: f32) -> PhysicsHandle {
         let rb = RigidBodyBuilder::new_dynamic().ccd_enabled(true)
             .linear_damping(5.0).angular_damping(5.0).build();
         let rb_handle = self.rb_set.insert(rb);
@@ -112,7 +112,7 @@ impl Physics {
             .user_data(EntityType::CannonBall.to_num())
             .collision_groups(InteractionGroups::new(
                 get_any_coll_group(), get_any_coll_group()))
-            .density(0.1).build();
+            .density(density).build();
         let coll_handle = self.coll_set.insert_with_parent(coll, rb_handle, &mut self.rb_set);
         PhysicsHandle(rb_handle, coll_handle)
     }
