@@ -38,11 +38,8 @@ impl SyncState {
         let x_state = round_to_multiple(translation.0.x, SYNC_STATE_GEN_MARGIN_OF_ERROR);
         let y_state = round_to_multiple(translation.0.y, SYNC_STATE_GEN_MARGIN_OF_ERROR);
         let rot_state = round_to_multiple(translation.1, SYNC_STATE_GEN_MARGIN_OF_ERROR / 50.0);
-        println!("{} Ship: Pos = ({:.2}, {:.2}/{}, {}), Rot = {:.2}, Curr Health = {}",
-            ship_ref.name, translation.0.x, translation.0.y,
-            round_to_multiple(translation.0.x, SYNC_STATE_GEN_MARGIN_OF_ERROR),
-            round_to_multiple(translation.0.y, SYNC_STATE_GEN_MARGIN_OF_ERROR),
-            translation.1, ship_ref.curr_health);
+        println!("{} Ship: Pos = ({:.2}, {:.2}/)",
+            ship_ref.name, translation.0.x, translation.0.y);
         
         buffer.extend(x_state.to_le_bytes());
         buffer.extend(y_state.to_le_bytes());

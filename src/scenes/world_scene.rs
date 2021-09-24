@@ -55,28 +55,26 @@ impl WorldScene {
         Ok(())
     }
 
-    fn init_players(&mut self, ctx: &mut Context, players: Vec<(ID, ShipType)>) -> BbResult {
+    fn init_players(&mut self, ctx: &mut Context, mut players: Vec<(ID, ShipType)>)
+        -> BbResult {
         let local_id = {
-            if let Some(network) = self.game.borrow().network.as_ref() {
-                network.client.get_local_id()
-            } else {
-                None
-            }
+            self.game.borrow().network.as_ref().unwrap().client
+                .get_local_id().expect("Client has no local ID assigned")
         };
+
+        players.sort_unstable_by(|a, b| a.0.n.cmp(&b.0.n));
         for (id, ship_type) in players.into_iter() {
             let player_instance = self.add_player(ctx, id.clone(), ship_type)?;
-            if let Some(local_id) = local_id.as_ref() {
-                if &id != local_id {
-                    continue
-                }
+            if id == local_id {
+                self.controller.set_local_player(player_instance);
             }
-            self.controller.set_local_player(player_instance);
         }
         Ok(())
     }
 
     fn update_world(&mut self, ctx: &mut Context) -> tetra::Result {
         let is_next_step_ready = self.controller.is_next_step_ready();
+        // For uppermost game loop to check if physics simulation should be advanced
         self.game.borrow_mut().simulation_state = is_next_step_ready;
         
         if is_next_step_ready {

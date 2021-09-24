@@ -1,4 +1,5 @@
-use std::{collections::HashMap, time::Instant};
+use std::{time::Instant};
+use indexmap::IndexMap;
 use tetra::{Context, Event, State, input::{Key, MouseButton}, time::{Timestep, set_timestep}};
 use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, input_pool::STEP_PHASE_TIME_SECS, packet::{InputState, InputStep, Packet}, playback_buffer::PlaybackBuffer, ship_mod::{AMMO_UPGRADE_MOD_COST, AmmoUpgradeMod, HARBOUR_REPAIR_COST, ShipModType}, sync_checker::{SYNC_STATE_GEN_INTERVAL, SyncState}, world::World, wrap_rcc};
 
@@ -7,7 +8,7 @@ pub const DEFAULT_SIMULATION_TIMESTEP: f64 = 60.0;
 pub const ACCELERATED_SIMULATION_TIMESTEP: f64 = DEFAULT_SIMULATION_TIMESTEP * 3.0;
 
 pub struct Controller {
-    pub players: HashMap<u16, Rcc<Player>>,
+    pub players: IndexMap<u16, Rcc<Player>>,
     pub local_player: Option<Rcc<Player>>,
     pub catch_input: bool,
     pub input_buffer: PlaybackBuffer,
@@ -24,7 +25,7 @@ impl Controller {
         let target_x = game.borrow_mut().assets.load_texture(
             ctx, "UI/X.png".to_owned(), false)?;
         let mut controller = Controller {
-            players: HashMap::new(), local_player: None, catch_input: true,
+            players: IndexMap::new(), local_player: None, catch_input: true,
             input_buffer: PlaybackBuffer::new(),
             curr_input_state: InputState::default(),
             curr_gen: 0, blocking_time: Instant::now(),
@@ -39,6 +40,7 @@ impl Controller {
         let player_idn = player.id.n;
         let player_ref = wrap_rcc(player);
         self.players.insert(player_idn, player_ref.clone());
+        // Sort by ID?
         player_ref
     }
 
@@ -90,8 +92,6 @@ impl Controller {
         // or 180 FPS. While the frame rate rises, the delta time falls, balancing out
         // the increment on the curr. timer duration. That will obviously
         // throw the synchronisation into chaos.
-        // This, combined with the physics engine delta time adjustment, may yet
-        // prevent desyncs from occuring.
         let buffered_steps = self.input_buffer.get_buffer_size();
         let timestep = {
             if buffered_steps > 1 {
@@ -102,9 +102,6 @@ impl Controller {
                 DEFAULT_SIMULATION_TIMESTEP
             }
         };
-        // Physics engine needs no adjustment. This would lead to same effect as for timers.
-        // When adjusting physics integration params delta time to the accelerated value,
-        // the simulation would run at the exact same speed, merely with higher frame rate.
         set_timestep(ctx, Timestep::Fixed(timestep));
     }
 
@@ -198,10 +195,10 @@ impl Controller {
 
     fn check_sync_state(&mut self) -> BbResult {
         if self.curr_gen > 0 && self.curr_gen % SYNC_STATE_GEN_INTERVAL == 0 {
-            let mut player_ships = self.players.values().collect::<Vec<_>>();
-            player_ships.sort_unstable_by(|a, b| a.borrow().id.n.cmp(&b.borrow().id.n));
-            let player_ships = player_ships.into_iter()
-                .map(|p| p.borrow().possessed_ship.clone()).collect();
+            let player_ships = self.players
+                .values()
+                .map(|p| p.borrow().possessed_ship.clone())
+                .collect::<Vec<_>>();
             let state = SyncState::gen_from_ships(self.curr_gen, player_ships);
             println!("Generated sync state. Hash = {}", state.hash);
             self.game.borrow_mut().network.as_mut().unwrap().send_packet(Packet::Sync {
