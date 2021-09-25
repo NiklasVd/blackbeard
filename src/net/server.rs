@@ -182,7 +182,6 @@ impl Server {
 
     fn on_receive_sync(&mut self, sender: u16, state: SyncState) -> BbResult {
         if let Some(sync_checker) = self.sync_checker.as_mut() {
-            let state_gen = state.gen;
             sync_checker.add_state(sender, state);
             for id in sync_checker.get_desynced_players() {
                 println!("Player with ID {} is out of sync. Terminating connection...", id);

@@ -3,38 +3,44 @@ use std::{collections::HashMap, iter::FromIterator};
 use binary_stream::{BinaryStream, Serializable};
 use crate::{Rcc, round_to_multiple, ship::Ship};
 
-pub const SYNC_STATE_GEN_INTERVAL: u64 = 20;
-pub const SYNC_STATE_GEN_MARGIN_OF_ERROR: f32 = 2.0;
+// pub const SYNC_STATE_GEN_INTERVAL: u64 = 20;
+pub const SYNC_STATE_FRAME_INTERVAL: u64 = 120;
+pub const SYNC_STATE_GEN_MARGIN_OF_ERROR: f32 = 1.0;
 // First desync might be small inaccuracy. Second will mean it has spiralled out of control.
-pub const MAX_DESYNC_INTERVAL: u16 = 5;
+pub const MAX_DESYNC_INTERVAL: u16 = 3;
 
 #[derive(Clone, Copy)]
 pub struct SyncState {
-    pub gen: u64,
+    pub t: u64,
     pub hash: u64
 }
 
 impl SyncState {
-    pub fn new(gen: u64, hash: u64) -> SyncState {
+    pub fn new(t: u64, hash: u64) -> SyncState {
         SyncState {
-            gen, hash
+            t, hash
         }
     }
 
-    pub fn gen(gen: u64, buffer: &[u8]) -> SyncState {
-        Self::new(gen, seahash::hash(buffer))
+    pub fn gen(t: u64, buffer: &[u8]) -> SyncState {
+        Self::new(t, seahash::hash(buffer))
     }
 
-    pub fn gen_from_ships(gen: u64, ships: Vec<Rcc<Ship>>) -> SyncState {
+    pub fn gen_from_ships(t: u64, ships: Vec<Rcc<Ship>>) -> SyncState {
         let mut buffer = Vec::new();
         ships.into_iter().for_each(|ship| Self::serialize_ship(&mut buffer, ship));
-        Self::gen(gen, &buffer)
+        Self::gen(t, &buffer)
     }
 
     pub fn serialize_ship(buffer: &mut Vec<u8>, ship: Rcc<Ship>) {
         let ship_ref = ship.borrow();
         buffer.extend(ship_ref.curr_health.to_le_bytes());
         let translation = ship_ref.transform.get_translation();
+        
+        // let x_state = translation.0.x;
+        // let y_state = translation.0.y;
+        // let rot_state = translation.1;
+
         let x_state = round_to_multiple(translation.0.x, SYNC_STATE_GEN_MARGIN_OF_ERROR);
         let y_state = round_to_multiple(translation.0.y, SYNC_STATE_GEN_MARGIN_OF_ERROR);
         let rot_state = round_to_multiple(translation.1, SYNC_STATE_GEN_MARGIN_OF_ERROR / 50.0);
@@ -49,7 +55,7 @@ impl SyncState {
 
 impl Serializable for SyncState {
     fn to_stream(&self, stream: &mut BinaryStream) {
-        stream.write_u64(self.gen).unwrap();
+        stream.write_u64(self.t).unwrap();
         stream.write_u64(self.hash).unwrap();
     }
 
@@ -68,7 +74,7 @@ impl PartialEq for SyncState {
 
 impl fmt::Debug for SyncState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Gen = {}, Hash = {}", self.gen, self.hash)
+        write!(f, "Gen = {}, Hash = {}", self.t, self.hash)
     }
 }
 
@@ -85,15 +91,15 @@ impl SyncChecker {
     }
 
     pub fn add_state(&mut self, sender: u16, state: SyncState) {
-        let gen = state.gen;
-        if let Some(gen_states) = self.cache.get_mut(&state.gen) {
+        let t = state.t;
+        if let Some(gen_states) = self.cache.get_mut(&t) {
             gen_states.insert(sender, state);
-            self.record_desyncs(gen);
+            self.record_desyncs(t);
 
         } else {
-            self.cache.insert(state.gen,
+            self.cache.insert(t,
                 HashMap::from_iter([(sender, state); 1]));
-            self.record_desyncs(gen);
+            self.record_desyncs(t);
         }
     }
 
@@ -108,8 +114,8 @@ impl SyncChecker {
         players
     }
 
-    fn record_desyncs(&mut self, gen: u64) {
-        if let Some(gen_states) = self.cache.get_mut(&gen) {
+    fn record_desyncs(&mut self, t: u64) {
+        if let Some(gen_states) = self.cache.get_mut(&t) {
             // Check if auth client (ID == 0) already sent their sync state
             if let Some((_, auth_client_state)) = gen_states.iter_mut()
                 .find(|(&id, _)| id == 0) {

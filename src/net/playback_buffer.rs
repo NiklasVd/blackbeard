@@ -4,6 +4,13 @@ use crate::{input_pool::STEP_PHASE_FRAME_LENGTH, packet::{InputStep}};
 
 const MAX_TIMESTAMPS_CACHED: usize = 500;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum StepPhase {
+    Running,
+    Imminent,
+    Over
+}
+
 pub struct PlaybackBuffer {
     steps: VecDeque<InputStep>,
     curr_frame_index: u32,
@@ -34,8 +41,18 @@ impl PlaybackBuffer {
         self.steps.len()
     }
 
-    pub fn is_phase_over(&self) -> bool {
-        self.curr_frame_index >= STEP_PHASE_FRAME_LENGTH
+    pub fn get_curr_phase(&self) -> StepPhase {
+        if self.curr_frame_index >= STEP_PHASE_FRAME_LENGTH {
+            StepPhase::Over
+        } else if self.curr_frame_index == STEP_PHASE_FRAME_LENGTH - 1 {
+            StepPhase::Imminent
+        } else {
+            StepPhase::Running
+        }
+    }
+
+    pub fn is_next_step_ready(&self) -> bool {
+        self.get_buffer_size() > 0
     }
 
     pub fn get_next_step(&mut self) -> Option<InputStep> {

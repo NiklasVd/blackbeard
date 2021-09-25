@@ -1,9 +1,9 @@
 use std::{time::Instant};
 use indexmap::IndexMap;
 use tetra::{Context, Event, State, input::{Key, MouseButton}, time::{Timestep, set_timestep}};
-use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, input_pool::STEP_PHASE_TIME_SECS, packet::{InputState, InputStep, Packet}, playback_buffer::PlaybackBuffer, ship_mod::{CannonAmmoUpgradeMod, CannonRangeUpgradeMod, CannonReloadUpgradeMod, ShipMod, ShipModType, get_ship_mod_cost}, sync_checker::{SYNC_STATE_GEN_INTERVAL, SyncState}, world::World, wrap_rcc};
+use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, input_pool::STEP_PHASE_TIME_SECS, packet::{InputState, InputStep, Packet}, playback_buffer::{PlaybackBuffer, StepPhase}, ship_mod::{CannonAmmoUpgradeMod, CannonRangeUpgradeMod, CannonReloadUpgradeMod, ShipMod, ShipModType, get_ship_mod_cost}, sync_checker::{SYNC_STATE_FRAME_INTERVAL, SyncState}, world::World, wrap_rcc};
 
-pub const MAX_INPUT_STEP_BLOCK_TIME: f32 = 15.0;
+pub const MAX_INPUT_STEP_BLOCK_TIME: f32 = 20.0;
 pub const DEFAULT_SIMULATION_TIMESTEP: f64 = 60.0;
 pub const ACCELERATED_SIMULATION_TIMESTEP: f64 = DEFAULT_SIMULATION_TIMESTEP * 3.0;
 
@@ -63,8 +63,15 @@ impl Controller {
     }
 
     pub fn is_next_step_ready(&self) -> bool {
-        !(self.input_buffer.is_phase_over() &&
-            (self.input_buffer.get_buffer_size() == 0))
+        // The frame shift issue seems to be lifted. Only when a client loaded the world faster
+        // than the auth client, they waited 15 frames until a step came, then froze. Unfortunately,
+        // the moment a reply came, the client applied it on the 16th frame, i.e., one iteration after.
+        // That lead to a complete shift in input step intervals, throwing the game into, initially subtle,
+        // but eventual chaos.
+        (match self.input_buffer.get_curr_phase() {
+            StepPhase::Imminent | StepPhase::Running => true,
+            _ => false
+        } && self.input_buffer.is_next_step_ready())
     }
 
     pub fn is_block_timed_out(&mut self) -> bool {
@@ -100,7 +107,7 @@ impl Controller {
     }
 
     fn update_step(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
-        if self.input_buffer.is_phase_over() {
+        if self.input_buffer.get_curr_phase() == StepPhase::Over {
             if let Some(next_step) = self.input_buffer.get_next_step() {
                 self.apply_step(ctx, next_step, world)?;
                 self.send_curr_state().convert()?;
@@ -112,12 +119,10 @@ impl Controller {
 
     fn apply_step(&mut self, ctx: &mut Context, step: InputStep, world: &mut World) -> tetra::Result {
         self.curr_gen += 1;
-        if self.curr_gen % 30 == 0 {
-            println!("Applying step {} (server: {}) at frame {}", self.curr_gen, step.gen,
-                self.input_buffer.curr_frames);
-        }
-
+        // println!("Applying step {} at frame {} (t: {})", self.curr_gen, self.input_buffer.curr_frames,
+        //     self.input_buffer.curr_frames - self.input_buffer.last_step_frame);
         self.blocking_time = Instant::now();
+
         for (sender, state) in step.states.into_iter() {
             self.apply_state(ctx, sender, state, world)?;
         }
@@ -195,9 +200,10 @@ impl Controller {
         // Notable due to sync state generated every 25 gens, so every 300 frames,
         // then sometimes the curr. frame is 301->601->901->... instead of 300->600->...
 
-        // This may not only confuse the sync checker, but also apply steps at the wrong frame
-        // (one too late), hence adding a sight desync that is hardly noticable at first.
-        // --> After some testing, this may not be an issue, steps are applied correctly.
+        // This may not only confuse the sync checker, but also implies a step was applied
+        // one frame too late, hence adding a sight desync that is hardly noticable at first.
+        // -> After some testing, this seems to be the central issue for slightly varying positions
+        //    among clients.
         // However, now that sync states are always created on the same frames (300->600->...) on
         // every client, the apparent desync (seems to have) disappeared.
         // So, there was no actual desync occuring? Visually, the game appeared to be synchronous, anyway...
@@ -206,12 +212,13 @@ impl Controller {
         // applied, the input buffer already adds +1 frame to current phase?
         
         //if self.curr_gen > 0 && self.curr_gen % SYNC_STATE_GEN_INTERVAL == 0 {
-        if self.input_buffer.curr_frames % 300 == 0 && self.input_buffer.curr_frames > 0 {
+        if self.input_buffer.curr_frames % SYNC_STATE_FRAME_INTERVAL == 0 &&
+            self.input_buffer.curr_frames > 0 {
             let player_ships = self.players
                 .values()
                 .map(|p| p.borrow().possessed_ship.clone())
                 .collect::<Vec<_>>();
-            let state = SyncState::gen_from_ships(self.curr_gen, player_ships);
+            let state = SyncState::gen_from_ships(self.input_buffer.curr_frames, player_ships);
             println!("Generated sync state {} at frame {}. Hash = {}", self.curr_gen,
                 self.input_buffer.curr_frames, state.hash);
             self.game.borrow_mut().network.as_mut().unwrap().send_packet(Packet::Sync {
