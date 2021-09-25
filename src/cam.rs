@@ -27,6 +27,10 @@ impl Cam {
     pub fn unproject_pos(&self, ctx: &mut Context, pos: V2) -> V2 {
         self.instance.unproject(pos)
     }
+
+    pub fn centre_on(&mut self, pos: V2) {
+        self.instance.position = pos;
+    }
 }
 
 impl State for Cam {

@@ -41,6 +41,7 @@ mod ui {
     pub mod image;
     pub mod textbox;
     pub mod chat;
+    pub mod health_bar;
 }
 mod net {
     pub mod network;

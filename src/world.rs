@@ -22,7 +22,7 @@ impl World {
     }
 
     pub fn add_player_ship(&mut self, ctx: &mut Context, id: ID, ship_type: ShipType) -> tetra::Result<Rcc<Ship>> {
-        self.add_ship(ctx, ship_type, id.name,
+        self.add_ship(ctx, ship_type, id.name, id.n,
             V2::right() * id.n as f32 * 1000.0, // Initial spawn position
             true)
     }
@@ -105,15 +105,15 @@ impl World {
         self.entities.insert(index, entity);
     }
 
-    fn add_ship(&mut self, ctx: &mut Context, ship_type: ShipType, name: String, spawn: V2,
-        respawn: bool) -> tetra::Result<Rcc<Ship>> {
+    fn add_ship(&mut self, ctx: &mut Context, ship_type: ShipType, name: String, id: u16,
+        spawn: V2, respawn: bool) -> tetra::Result<Rcc<Ship>> {
         let ship = match ship_type {
             ShipType::Caravel => Ship::caravel(ctx, self.game.clone(),
-                name, spawn, respawn),
+                name, id, spawn, respawn),
             ShipType::Galleon => Ship::galleon(ctx, self.game.clone(),
-                name, spawn, respawn),
+                name, id, spawn, respawn),
             ShipType::Schooner => Ship::schooner(ctx, self.game.clone(),
-                name, spawn, respawn)
+                name, id, spawn, respawn)
         }?;
         let index = ship.get_index();
         let ship_ref = self.add_entity::<Ship>(ship).unwrap();

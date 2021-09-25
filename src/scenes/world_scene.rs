@@ -67,7 +67,8 @@ impl WorldScene {
         for (id, ship_type) in players.into_iter() {
             let player_instance = self.add_player(ctx, id.clone(), ship_type)?;
             if id == local_id {
-                self.controller.set_local_player(player_instance);
+                self.controller.set_local_player(player_instance.clone());
+                // Focus camera on player
             }
         }
         Ok(())

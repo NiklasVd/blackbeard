@@ -1,11 +1,13 @@
 use core::fmt;
 use std::{collections::HashMap, iter::FromIterator};
 use binary_stream::{BinaryStream, Serializable};
-use crate::{Rcc, round_to_multiple, ship::Ship};
+use nalgebra::ComplexField;
+use crate::{Rcc, ship::Ship};
 
 // pub const SYNC_STATE_GEN_INTERVAL: u64 = 20;
+// Could possibly change this back, as generations are now identical unlike before
 pub const SYNC_STATE_FRAME_INTERVAL: u64 = 120;
-pub const SYNC_STATE_GEN_MARGIN_OF_ERROR: f32 = 1.0;
+//pub const SYNC_STATE_GEN_MARGIN_OF_ERROR: f32 = 1.0;
 // First desync might be small inaccuracy. Second will mean it has spiralled out of control.
 pub const MAX_DESYNC_INTERVAL: u16 = 3;
 
@@ -37,15 +39,14 @@ impl SyncState {
         buffer.extend(ship_ref.curr_health.to_le_bytes());
         let translation = ship_ref.transform.get_translation();
         
-        // let x_state = translation.0.x;
-        // let y_state = translation.0.y;
-        // let rot_state = translation.1;
-
-        let x_state = round_to_multiple(translation.0.x, SYNC_STATE_GEN_MARGIN_OF_ERROR);
-        let y_state = round_to_multiple(translation.0.y, SYNC_STATE_GEN_MARGIN_OF_ERROR);
-        let rot_state = round_to_multiple(translation.1, SYNC_STATE_GEN_MARGIN_OF_ERROR / 50.0);
-        println!("{} Ship: Pos = ({:.2}, {:.2})",
-            ship_ref.name, translation.0.x, translation.0.y);
+        let x_state = ComplexField::round(translation.0.x);
+        let y_state = ComplexField::round(translation.0.y);
+        let rot_state = ComplexField::round(translation.1);
+        // let x_state = round_to_multiple(translation.0.x, SYNC_STATE_GEN_MARGIN_OF_ERROR);
+        // let y_state = round_to_multiple(translation.0.y, SYNC_STATE_GEN_MARGIN_OF_ERROR);
+        // let rot_state = round_to_multiple(translation.1, SYNC_STATE_GEN_MARGIN_OF_ERROR / 50.0);
+        // println!("{} Ship: Pos = ({:.2}, {:.2})",
+        //     ship_ref.name, translation.0.x, translation.0.y);
         
         buffer.extend(x_state.to_le_bytes());
         buffer.extend(y_state.to_le_bytes());

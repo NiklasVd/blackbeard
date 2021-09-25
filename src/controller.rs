@@ -5,7 +5,7 @@ use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, Transfo
 
 pub const MAX_INPUT_STEP_BLOCK_TIME: f32 = 20.0;
 pub const DEFAULT_SIMULATION_TIMESTEP: f64 = 60.0;
-pub const ACCELERATED_SIMULATION_TIMESTEP: f64 = DEFAULT_SIMULATION_TIMESTEP * 3.0;
+pub const ACCELERATED_SIMULATION_TIMESTEP: f64 = DEFAULT_SIMULATION_TIMESTEP * 4.0;
 
 pub struct Controller {
     pub players: IndexMap<u16, Rcc<Player>>,
@@ -95,7 +95,7 @@ impl Controller {
         // Suddenly, 
         let buffered_steps = self.input_buffer.get_buffer_size();
         let timestep = {
-            if buffered_steps > 1 {
+            if buffered_steps > 1 { // or zero?
                 println!("Input feedback delayed by {} steps. Accelerate simulation to {} frames/s",
                     buffered_steps - 1, ACCELERATED_SIMULATION_TIMESTEP);
                 ACCELERATED_SIMULATION_TIMESTEP
@@ -280,6 +280,11 @@ impl GameState for Controller {
                         },
                         Key::Q => self.curr_input_state.q = true,
                         Key::E => self.curr_input_state.e = true,
+                        Key::Tab => {
+                            let curr_pos = self.local_player.as_ref().unwrap().borrow()
+                                .possessed_ship.borrow().transform.get_translation().0;
+                            self.game.borrow_mut().cam.centre_on(curr_pos);
+                        }
                         _ => ()
                     }
                 },

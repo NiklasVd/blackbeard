@@ -1,8 +1,8 @@
 use std::{f32::consts::PI};
 use binary_stream::{BinaryStream, Serializable};
 use rapier2d::{data::Index};
-use tetra::{Context, State, graphics::{text::Text}, math::Clamp};
-use crate::{BbResult, Cannon, CannonSide, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, WorldEvent, conv_vec, disassemble_iso, economy::{Deposit}, entity::{Entity, EntityType, GameState}, get_angle, pi_to_pi2_range, polar_to_cartesian, ship_mod::{ShipMod, ShipModType}, vec_distance, world::World};
+use tetra::{Context, State, graphics::{Color}, math::Clamp};
+use crate::{BbResult, Cannon, CannonSide, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, WorldEvent, conv_vec, disassemble_iso, economy::{Deposit}, entity::{Entity, EntityType, GameState}, get_angle, health_bar::HealthBar, pi_to_pi2_range, polar_to_cartesian, ship_mod::{ShipMod, ShipModType}, vec_distance, world::World};
 
 const BASE_STUN_LENGTH: f32 = 1.0;
 const BASE_OBJECT_COLLISION_DAMAGE: u16 = 10;
@@ -42,6 +42,7 @@ impl Serializable for ShipType {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct ShipAttributes {
     pub health: u16,
     pub defense: u16, // 1-100
@@ -93,6 +94,7 @@ pub struct Ship {
     pub curr_health: u16,
     pub stun: Timer,
     pub name: String,
+    pub id: u16,
     pub target_pos: Option<V2>,
     pub rotate_only: bool,
     pub attr: ShipAttributes,
@@ -102,42 +104,44 @@ pub struct Ship {
     pub mods: Vec<Box<dyn ShipMod>>,
     pub is_in_harbour: bool,
     sprite: Sprite,
-    label: Text,
+    health_bar: HealthBar,
+    is_local_player: bool,
     spawn: Option<V2>,
     destroy: bool,
     game: GC
 }
 
 impl Ship {
-    pub fn caravel(ctx: &mut Context, game: GC, name: String, spawn: V2,
+    pub fn caravel(ctx: &mut Context, game: GC, name: String, id: u16, spawn: V2,
         respawn: bool) -> tetra::Result<Ship> {
-        Self::new(ctx, name, "Caravel.png", ShipAttributes::caravel(), spawn, respawn,
+        Self::new(ctx, name, id, "Caravel.png", ShipAttributes::caravel(), spawn, respawn,
             4, 1.0, V2::zero(), 1.0, game)
     }
 
-    pub fn galleon(ctx: &mut Context, game: GC, name: String, spawn: V2, respawn: bool)
-        -> tetra::Result<Ship> {
-        Self::new(ctx, name, "Galleon.png", ShipAttributes::galleon(), spawn, respawn,
+    pub fn galleon(ctx: &mut Context, game: GC, name: String, id: u16, spawn: V2,
+        respawn: bool) -> tetra::Result<Ship> {
+        Self::new(ctx, name, id, "Galleon.png", ShipAttributes::galleon(), spawn, respawn,
             5, 1.2, V2::zero(), 1.0, game)
     }
 
-    pub fn schooner(ctx: &mut Context, game: GC, name: String, spawn: V2, respawn: bool)
-        -> tetra::Result<Ship> {
-        Self::new(ctx, name, "Schooner.png", ShipAttributes::schooner(), spawn, respawn,
+    pub fn schooner(ctx: &mut Context, game: GC, name: String, id: u16, spawn: V2,
+        respawn: bool) -> tetra::Result<Ship> {
+        Self::new(ctx, name, id, "Schooner.png", ShipAttributes::schooner(), spawn, respawn,
             3, 0.9, V2::new(0.0, 15.0), 1.25, game)
     }
 
-    fn new(ctx: &mut Context, name: String, ship_texture: &str, attributes: ShipAttributes, spawn: V2,
+    fn new(ctx: &mut Context, name: String, id: u16, ship_texture: &str, attributes: ShipAttributes, spawn: V2,
         respawn: bool, cannons_per_side: u32, cannon_power: f32, cannon_pos: V2, mass: f32, game: GC) -> tetra::Result<Ship> {
         let mut game_ref = game.borrow_mut();
         let sprite = Sprite::new(game_ref.assets.load_texture(
             ctx, ship_texture.to_owned(), true)?, SpriteOrigin::Centre, None);
         let handle = game_ref.physics.build_ship_collider(
             sprite.texture.width() as f32 * 0.5, sprite.texture.height() as f32 * 0.5, mass);
-        let label = Text::new("", game_ref.assets.header_font.clone());
         let attr = ShipAttributes::caravel();
         let stun_length = attr.get_stun_length();
         game_ref.economy.add_deposit();
+        let is_local_player = game_ref.network.as_ref().unwrap()
+            .client.get_local_id().unwrap().n == id;
         std::mem::drop(game_ref);
 
         let mut transform = Transform::new(handle, game.clone());
@@ -166,17 +170,21 @@ impl Ship {
             port_pos -= V2::new(45.0, 0.0);
         }
 
-        
         Ok(Ship {
-            stype: ShipType::Caravel, curr_health: attr.health, name,
+            stype: ShipType::Caravel, curr_health: attr.health, name: name.to_owned(), id,
             target_pos: None, rotate_only: false, attr, cannons,
             transform, treasury: Deposit::default(), mods: Vec::new(),
-            is_in_harbour: false, stun: Timer::new(stun_length),
-            sprite, label, spawn, destroy: false, game
+            is_in_harbour: false, stun: Timer::new(stun_length), sprite,
+            health_bar: HealthBar::new(ctx, name.as_str(), match is_local_player {
+                true => Color::rgb8(255, 255, 75),
+                false => Color::WHITE
+            }, attr.health, game.clone())?,
+            spawn, is_local_player, destroy: false, game
         })
     }
 
     pub fn apply_mod<T: ShipMod + 'static>(&mut self, ship_mod: T) {
+        // TODO: Accept &mut Ship param to allow application of mod inside Ship method?
         // Cannot apply mod inside ship method as this will lead to a borrow conflict
         self.mods.push(Box::new(ship_mod));
     }
@@ -193,13 +201,18 @@ impl Ship {
         Ok(None)
     }
 
+    pub fn set_health(&mut self, curr_health: u16) {
+        assert!(curr_health <= self.attr.health);
+        self.curr_health = curr_health;
+        self.health_bar.set_info(curr_health);
+    }
+
     pub fn repair(&mut self) {
-        self.curr_health = self.attr.health;
+        self.set_health(self.attr.health);
     }
 
     pub fn stun(&mut self) {
-        // Causes desync
-        //self.stun.reset();
+        self.stun.reset();
     }
 
     pub fn is_stunned(&mut self) -> bool {
@@ -219,7 +232,7 @@ impl Ship {
             self.curr_health -= damage;
         }
 
-        self.curr_health = self.curr_health.clamped(0, self.attr.health);
+        self.set_health(self.curr_health.clamped(0, self.attr.health));
         if self.curr_health == 0 {
             self.sink(ctx, world)?;
             Ok(true)
@@ -234,19 +247,20 @@ impl Ship {
         world.add_ship_wreck(ctx, pos, rot)?;
 
         if let Some(spawn) = self.spawn { // Respawn
-            // When to ships collide, the contact parts may be interchanged.
-            // E.g. (ID: 0, ID: 1) and (ID: 1, ID: 0) locally.
-            // Consequently, the spawn order and positions of the ships may turn out to be
-            // swapped and not in sync anymore.
-            // FIX: Search for free spawn position on y-, not x-axis.
-            // Then respawning ships do not block each other's spawn positions anymore.
             self.reset();
-            let free_spawn = self.game.borrow().physics.check_for_space(
-                spawn, self.sprite.get_size() * 1.5, V2::down() /* = Up in Tetra space */);
-            self.transform.set_pos(free_spawn, 0.0);
+            let free_spawn = {
+                let mut game_ref = self.game.borrow_mut();
+                let free_spawn = game_ref.physics.check_for_space(
+                    spawn, self.sprite.get_size() * 1.5, V2::down() /* = Up in Tetra space */);
+                if self.is_local_player {
+                    game_ref.cam.centre_on(free_spawn.clone());
+                }
+                free_spawn
+            };
+            self.transform.set_pos(free_spawn.clone(), 0.0);
         }
         else {
-            self.curr_health = 0;
+            self.set_health(0);
             self.destroy = true;
         }
         
@@ -261,7 +275,7 @@ impl Ship {
         self.transform.reset_velocity();
         self.reset_target_pos();
         self.stun.end();
-        self.curr_health = self.attr.health;
+        self.repair();
     }
 
     pub fn take_cannon_ball_hit(&mut self, ctx: &mut Context, dmg: u16,
@@ -277,9 +291,6 @@ impl Ship {
                     .economy.total_payout(self.treasury.networth);
                 shooter_ref.treasury.add(forfeited_escudos + generated_payout);
                 self.treasury.lose(forfeited_escudos);
-
-                // println!("{} sunk {}'s ship with a cannon shot and stole {} escudos!",
-                //     shooter_ref.get_name(), self.get_name(), forfeited_escudos);
                 self.game.borrow_mut().world.add_event(
                     WorldEvent::PlayerSunkByCannon(shooter_ref.get_name(), self.get_name()));
                 Ok(())
@@ -300,7 +311,7 @@ impl Ship {
     }
 
     pub fn shoot_cannons(&mut self, ctx: &mut Context, world: &mut World)
-        -> tetra::Result { // Add option to choose cannon side
+        -> tetra::Result {
         for cannon in self.cannons.iter_mut() {
             cannon.shoot(ctx, world)?;
         }
@@ -350,15 +361,6 @@ impl Ship {
                 rb.apply_torque_impulse(applied_torque, true);
             }
         }
-    }
-
-    fn update_label(&mut self) {
-        let mut stunned = "";
-        if self.is_stunned() {
-            stunned = "*";
-        }
-        self.label.set_content(format!("Cpt. {} [{}/{} HP] {}", self.name,
-            self.curr_health, self.attr.health, stunned));
     }
 }
 
@@ -471,7 +473,6 @@ impl GameState for Ship {
             ship_mod.update(ctx, world)?;
         }
         self.move_to_target_pos();
-        self.update_label();
         Ok(())
     }
 
@@ -482,8 +483,7 @@ impl GameState for Ship {
             cannon.set_ship_translation(translation);
             cannon.draw(ctx)?;
         }
-        // Ship mod draw call unneccessary
-        self.label.draw(ctx, translation.0 - V2::new(90.0, 15.0));
+        self.health_bar.draw(ctx, translation.0);
         Ok(())
     }
 }
