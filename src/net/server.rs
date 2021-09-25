@@ -186,10 +186,10 @@ impl Server {
             sync_checker.add_state(sender, state);
             for id in sync_checker.get_desynced_players() {
                 println!("Player with ID {} is out of sync. Terminating connection...", id);
-                self.disconnect_player(id, DisconnectReason::Desync)?;
+                //self.disconnect_player(id, DisconnectReason::Desync)?;
             }
         } else {
-            println!("Server: Dropping received sync state of player {}. Game hasn't started yet.", sender);
+            println!("Server: Dropping sync state of player {}. Game hasn't started yet.", sender);
         }
         Ok(())
     }
@@ -199,7 +199,7 @@ impl Server {
             pool.add_state(sender, state);
             self.check_input_pool()
         } else {
-            println!("Server: Dropping received input state of player {}. Game hasn't started yet.", sender);
+            println!("Server: Dropping input state of player {}. Game hasn't started yet.", sender);
             Ok(())
         }
     }

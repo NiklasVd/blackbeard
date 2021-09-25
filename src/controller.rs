@@ -84,14 +84,8 @@ impl Controller {
     }
 
     fn adjust_simulation(&mut self, ctx: &mut Context) {
-        // After multiple tests, it seems that the simulation does not experience desync
-        // when ships are simply travelling forward. Yet as soon as they collide,
-        // the local positions quickly drift apart. There could be one solution:
-        // The timers used for ship stuns ignore timestep changes.
-        // A timer with duration 3s will take the same time to complete on 60
-        // or 180 FPS. While the frame rate rises, the delta time falls, balancing out
-        // the increment on the curr. timer duration. That will obviously
-        // throw the synchronisation into chaos.
+        // During accelerations, there seems to occur a frame drift.
+        // Suddenly, 
         let buffered_steps = self.input_buffer.get_buffer_size();
         let timestep = {
             if buffered_steps > 1 {
@@ -107,10 +101,10 @@ impl Controller {
 
     fn update_step(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
         if self.input_buffer.is_phase_over() {
-            self.adjust_simulation(ctx);
             if let Some(next_step) = self.input_buffer.get_next_step() {
                 self.apply_step(ctx, next_step, world)?;
                 self.send_curr_state().convert()?;
+                self.adjust_simulation(ctx);
             }
         }
         Ok(())
@@ -118,7 +112,10 @@ impl Controller {
 
     fn apply_step(&mut self, ctx: &mut Context, step: InputStep, world: &mut World) -> tetra::Result {
         self.curr_gen += 1;
-        self.check_sync_state().convert()?;
+        if self.curr_gen % 30 == 0 {
+            println!("Applying step {} (server: {}) at frame {}", self.curr_gen, step.gen,
+                self.input_buffer.curr_frames);
+        }
 
         self.blocking_time = Instant::now();
         for (sender, state) in step.states.into_iter() {
@@ -193,13 +190,30 @@ impl Controller {
     }
 
     fn check_sync_state(&mut self) -> BbResult {
-        if self.curr_gen > 0 && self.curr_gen % SYNC_STATE_GEN_INTERVAL == 0 {
+        // For some reason, the frame interval on which steps are applied (and consequently
+        // sync states created) can shift by one or two frames during catch-ups.
+        // Notable due to sync state generated every 25 gens, so every 300 frames,
+        // then sometimes the curr. frame is 301->601->901->... instead of 300->600->...
+
+        // This may not only confuse the sync checker, but also apply steps at the wrong frame
+        // (one too late), hence adding a sight desync that is hardly noticable at first.
+        // --> After some testing, this may not be an issue, steps are applied correctly.
+        // However, now that sync states are always created on the same frames (300->600->...) on
+        // every client, the apparent desync (seems to have) disappeared.
+        // So, there was no actual desync occuring? Visually, the game appeared to be synchronous, anyway...
+        // This could mean the timer is yet innocent. Furthermore, I need to investigate this frame
+        // shift occuring. Could it be that after the current phase runs out, and the next step is
+        // applied, the input buffer already adds +1 frame to current phase?
+        
+        //if self.curr_gen > 0 && self.curr_gen % SYNC_STATE_GEN_INTERVAL == 0 {
+        if self.input_buffer.curr_frames % 300 == 0 && self.input_buffer.curr_frames > 0 {
             let player_ships = self.players
                 .values()
                 .map(|p| p.borrow().possessed_ship.clone())
                 .collect::<Vec<_>>();
             let state = SyncState::gen_from_ships(self.curr_gen, player_ships);
-            println!("Generated sync state. Hash = {}", state.hash);
+            println!("Generated sync state {} at frame {}. Hash = {}", self.curr_gen,
+                self.input_buffer.curr_frames, state.hash);
             self.game.borrow_mut().network.as_mut().unwrap().send_packet(Packet::Sync {
                 state
             })
@@ -212,7 +226,8 @@ impl Controller {
 impl GameState for Controller {
     fn update(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
         self.input_buffer.update(ctx)?;
-        self.update_step(ctx, world)
+        self.update_step(ctx, world)?;
+        self.check_sync_state().convert()
     }
 
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {

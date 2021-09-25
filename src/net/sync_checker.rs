@@ -3,8 +3,8 @@ use std::{collections::HashMap, iter::FromIterator};
 use binary_stream::{BinaryStream, Serializable};
 use crate::{Rcc, round_to_multiple, ship::Ship};
 
-pub const SYNC_STATE_GEN_INTERVAL: u64 = 50;
-pub const SYNC_STATE_GEN_MARGIN_OF_ERROR: f32 = 10.0;
+pub const SYNC_STATE_GEN_INTERVAL: u64 = 20;
+pub const SYNC_STATE_GEN_MARGIN_OF_ERROR: f32 = 2.0;
 // First desync might be small inaccuracy. Second will mean it has spiralled out of control.
 pub const MAX_DESYNC_INTERVAL: u16 = 5;
 
@@ -38,7 +38,7 @@ impl SyncState {
         let x_state = round_to_multiple(translation.0.x, SYNC_STATE_GEN_MARGIN_OF_ERROR);
         let y_state = round_to_multiple(translation.0.y, SYNC_STATE_GEN_MARGIN_OF_ERROR);
         let rot_state = round_to_multiple(translation.1, SYNC_STATE_GEN_MARGIN_OF_ERROR / 50.0);
-        println!("{} Ship: Pos = ({:.2}, {:.2}/)",
+        println!("{} Ship: Pos = ({:.2}, {:.2})",
             ship_ref.name, translation.0.x, translation.0.y);
         
         buffer.extend(x_state.to_le_bytes());

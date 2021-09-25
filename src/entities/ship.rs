@@ -198,7 +198,8 @@ impl Ship {
     }
 
     pub fn stun(&mut self) {
-        self.stun.reset();
+        // Causes desync
+        //self.stun.reset();
     }
 
     pub fn is_stunned(&mut self) -> bool {

@@ -7,6 +7,7 @@ const MAX_TIMESTAMPS_CACHED: usize = 500;
 pub struct PlaybackBuffer {
     steps: VecDeque<InputStep>,
     curr_frame_index: u32,
+    pub curr_frames: u64,
     timestamps: VecDeque<f32>,
     startup_time: Instant
 }
@@ -14,7 +15,7 @@ pub struct PlaybackBuffer {
 impl PlaybackBuffer {
     pub fn new() -> PlaybackBuffer {
         PlaybackBuffer {
-            steps: VecDeque::new(), curr_frame_index: 0,
+            steps: VecDeque::new(), curr_frame_index: 0, curr_frames: 0,
             timestamps: VecDeque::new(), startup_time: Instant::now()
         }
     }
@@ -61,6 +62,7 @@ impl PlaybackBuffer {
 impl State for PlaybackBuffer {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
         self.curr_frame_index += 1;
+        self.curr_frames += 1;
         Ok(())
     }
 }

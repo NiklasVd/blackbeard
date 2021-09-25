@@ -57,7 +57,7 @@ impl Physics {
             .linear_damping(2.5).angular_damping(3.0).build();
         let rb_handle = self.rb_set.insert(rb);
         let coll = ColliderBuilder::cuboid(half_x * 0.9, half_y * 0.835)
-            .density(mass).friction(2.0).restitution(0.8)
+            .density(mass).friction(2.0).restitution(0.9)
             .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
             .collision_groups(InteractionGroups::new(
                 get_any_coll_group(), get_any_coll_group()))
@@ -72,7 +72,8 @@ impl Physics {
         entity_type: EntityType) -> PhysicsHandle {
         let rb = RigidBodyBuilder::new_static().build();
         let rb_handle = self.rb_set.insert(rb);
-        let coll = ColliderBuilder::cuboid(half_x, half_y).density(density)
+        let coll = ColliderBuilder::cuboid(half_x, half_y)
+            .density(density).restitution(0.5)
             .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
             .collision_groups(InteractionGroups::new(
                 get_any_coll_group(), get_any_coll_group()))

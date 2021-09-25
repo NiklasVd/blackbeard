@@ -21,7 +21,7 @@ impl Harbour {
         let handle = game_ref.physics.build_harbour_collider(
             sprite_size.x * 0.5, sprite_size.y * 0.5);
         let zone_handle = game_ref.physics.build_harbour_zone(pos, rot,
-            sprite_size.x * 1.5, sprite_size.y * 1.5);
+            sprite_size.x * 1.25, sprite_size.y * 1.25);
         let name_label = Text::new(name.clone(), game_ref.assets.header_font.clone());
         std::mem::drop(game_ref);
 

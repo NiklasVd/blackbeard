@@ -406,7 +406,7 @@ struct HarbourUI {
 impl HarbourUI {
     pub fn new(ctx: &mut Context, grid: &mut Grid, game: GC) -> tetra::Result<HarbourUI> {
         let mut harbour_grid = Grid::new_bg(ctx, UIAlignment::Vertical,
-            UILayout::Centre, V2::new(225.0, 600.0), 0.0,
+            UILayout::Centre, V2::new(460.0, 350.0), 0.0,
             Some("UI/Background.png".to_owned()), Some(game.clone()))?;
         harbour_grid.set_visibility(false);
         harbour_grid.add_element(Label::new(ctx, "Harbour", FontSize::Header, 2.0,
