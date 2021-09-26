@@ -1,7 +1,7 @@
 use tetra::{Context};
-use crate::{GC, Rcc, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment, UILayout}, label::{FontSize, Label}, textbox::Textbox, ui_element::{DefaultUIReactor}};
+use crate::{GC, Rcc, V2, button::{Button, DefaultButton}, grid::{Grid, UIAlignment, UILayout}, label::{FontSize, Label}, textbox::Textbox, ui_element::{DefaultUIReactor, UIState}};
 
-const MAX_CHAT_MESSAGES_COUNT: usize = 12;
+const MAX_CHAT_MESSAGES_COUNT: usize = 9;
 
 pub struct Chat {
     grid: Rcc<Grid>,
@@ -59,6 +59,7 @@ impl Chat {
         if !msg.is_empty() &&
             (self.send_button.borrow().is_pressed() || msg_txt_ref.confirm_enter(ctx)) {
             msg_txt_ref.set_text("");
+            msg_txt_ref.reactor.state = UIState::Idle;
             Some(msg.to_owned())
         } else {
             None

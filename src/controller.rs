@@ -1,7 +1,7 @@
 use std::{time::Instant};
 use indexmap::IndexMap;
 use tetra::{Context, Event, State, input::{Key, MouseButton}, time::{Timestep, set_timestep}};
-use crate::{BbResult, CannonSide, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, input_pool::STEP_PHASE_TIME_SECS, packet::{InputState, InputStep, Packet}, playback_buffer::{PlaybackBuffer, StepPhase}, ship_mod::{CannonAmmoUpgradeMod, CannonRangeUpgradeMod, CannonReloadUpgradeMod, ShipMod, ShipModType, get_ship_mod_cost}, sync_checker::{SYNC_STATE_FRAME_INTERVAL, SyncState}, world::World, wrap_rcc};
+use crate::{BbResult, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, input_pool::STEP_PHASE_TIME_SECS, packet::{InputState, InputStep, Packet}, playback_buffer::{PlaybackBuffer, StepPhase}, ship_mod::ShipModType, sync_checker::{SYNC_STATE_GEN_INTERVAL, SyncState}, world::World, wrap_rcc};
 
 pub const MAX_INPUT_STEP_BLOCK_TIME: f32 = 20.0;
 pub const DEFAULT_SIMULATION_TIMESTEP: f64 = 60.0;
@@ -83,7 +83,7 @@ impl Controller {
     }
 
     pub fn calc_input_feedback_latency(&self) -> f32 {
-        (self.input_buffer.get_buffer_size() + 1) as f32 * STEP_PHASE_TIME_SECS
+        self.input_buffer.get_buffer_size() as f32 * STEP_PHASE_TIME_SECS
     }
 
     pub fn get_curr_gen(&self) -> u64 {
@@ -91,8 +91,6 @@ impl Controller {
     }
 
     fn adjust_simulation(&mut self, ctx: &mut Context) {
-        // During accelerations, there seems to occur a frame drift.
-        // Suddenly, 
         let buffered_steps = self.input_buffer.get_buffer_size();
         let timestep = {
             if buffered_steps > 1 { // or zero?
@@ -111,6 +109,7 @@ impl Controller {
             if let Some(next_step) = self.input_buffer.get_next_step() {
                 self.apply_step(ctx, next_step, world)?;
                 self.send_curr_state().convert()?;
+                self.check_sync_state().convert()?;
                 self.adjust_simulation(ctx);
             }
         }
@@ -119,10 +118,7 @@ impl Controller {
 
     fn apply_step(&mut self, ctx: &mut Context, step: InputStep, world: &mut World) -> tetra::Result {
         self.curr_gen += 1;
-        // println!("Applying step {} at frame {} (t: {})", self.curr_gen, self.input_buffer.curr_frames,
-        //     self.input_buffer.curr_frames - self.input_buffer.last_step_frame);
         self.blocking_time = Instant::now();
-
         for (sender, state) in step.states.into_iter() {
             self.apply_state(ctx, sender, state, world)?;
         }
@@ -132,59 +128,10 @@ impl Controller {
     fn apply_state(&mut self, ctx: &mut Context, sender: u16, state: InputState, world: &mut World)
         -> tetra::Result {
         if let Some(player) = self.players.get(&sender) {
-            let player_ref = player.borrow();
-            let mut ship_ref = player_ref.possessed_ship.borrow_mut();
-            if state.q {
-                ship_ref.shoot_cannons_on_side(ctx, CannonSide::Bowside, world)?;
-            }
-            if state.e {
-                ship_ref.shoot_cannons_on_side(ctx, CannonSide::Portside, world)?;
-            }
-
-            if let Some(mouse_pos) = state.mouse_pos {
-                ship_ref.set_target_pos(mouse_pos, state.r);
-            }
-
-            if state.buy_mod && ship_ref.is_in_harbour {
-                if let Some(mod_type) = state.mod_type {
-                    let cost = get_ship_mod_cost(mod_type);
-                    if ship_ref.treasury.balance < cost {
-                        println!("{:?} does not have enough escudos to buy {:?}",
-                            player_ref.id, mod_type);
-                    } else {
-                        ship_ref.treasury.spend(cost);
-                        std::mem::drop(ship_ref);
-
-                        match &mod_type {
-                            ShipModType::Repair => {
-                                player_ref.possessed_ship.borrow_mut().repair();
-                            },
-                            ShipModType::CannonAmmoUpgrade => {
-                                let mut ship_mod = CannonAmmoUpgradeMod::new(ctx,
-                                    player_ref.possessed_ship.clone(), self.game.clone())?;
-                                ship_mod.on_apply().convert()?;
-                                player_ref.possessed_ship.borrow_mut().apply_mod(ship_mod);
-                            },
-                            ShipModType::CannonReloadUpgrade => {
-                                let mut ship_mod = CannonReloadUpgradeMod::new(ctx,
-                                    player_ref.possessed_ship.clone(), self.game.clone())?;
-                                ship_mod.on_apply().convert()?;
-                                player_ref.possessed_ship.borrow_mut().apply_mod(ship_mod);
-                            },
-                            ShipModType::CannonRangeUpgrade => {
-                                let mut ship_mod = CannonRangeUpgradeMod::new(ctx, 
-                                    player_ref.possessed_ship.clone(), self.game.clone())?;
-                                ship_mod.on_apply().convert()?;
-                                player_ref.possessed_ship.borrow_mut().apply_mod(ship_mod);
-                            },
-                        };
-                        println!("Player {:?} purchased and applied {:?} mod at harbour.",
-                            player_ref.id, mod_type);
-                    }
-                }
-            }
+            player.borrow_mut().apply_state(ctx, state, world)
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
     fn send_curr_state(&mut self) -> BbResult {
@@ -195,32 +142,14 @@ impl Controller {
     }
 
     fn check_sync_state(&mut self) -> BbResult {
-        // For some reason, the frame interval on which steps are applied (and consequently
-        // sync states created) can shift by one or two frames during catch-ups.
-        // Notable due to sync state generated every 25 gens, so every 300 frames,
-        // then sometimes the curr. frame is 301->601->901->... instead of 300->600->...
-
-        // This may not only confuse the sync checker, but also implies a step was applied
-        // one frame too late, hence adding a sight desync that is hardly noticable at first.
-        // -> After some testing, this seems to be the central issue for slightly varying positions
-        //    among clients.
-        // However, now that sync states are always created on the same frames (300->600->...) on
-        // every client, the apparent desync (seems to have) disappeared.
-        // So, there was no actual desync occuring? Visually, the game appeared to be synchronous, anyway...
-        // This could mean the timer is yet innocent. Furthermore, I need to investigate this frame
-        // shift occuring. Could it be that after the current phase runs out, and the next step is
-        // applied, the input buffer already adds +1 frame to current phase?
-        
-        //if self.curr_gen > 0 && self.curr_gen % SYNC_STATE_GEN_INTERVAL == 0 {
-        if self.input_buffer.curr_frames % SYNC_STATE_FRAME_INTERVAL == 0 &&
-            self.input_buffer.curr_frames > 0 {
+        if self.curr_gen % SYNC_STATE_GEN_INTERVAL == 0 && self.curr_gen > 0 {
             let player_ships = self.players
                 .values()
                 .map(|p| p.borrow().possessed_ship.clone())
                 .collect::<Vec<_>>();
-            let state = SyncState::gen_from_ships(self.input_buffer.curr_frames, player_ships);
-            println!("Generated sync state {} at frame {}. Hash = {}", self.curr_gen,
-                self.input_buffer.curr_frames, state.hash);
+            let state = SyncState::gen_from_ships(self.curr_gen, player_ships);
+            // println!("Generated sync state {} at frame {}. Hash = {}", self.curr_gen,
+            //     self.input_buffer.curr_frames, state.hash);
             self.game.borrow_mut().network.as_mut().unwrap().send_packet(Packet::Sync {
                 state
             })
@@ -233,8 +162,7 @@ impl Controller {
 impl GameState for Controller {
     fn update(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
         self.input_buffer.update(ctx)?;
-        self.update_step(ctx, world)?;
-        self.check_sync_state().convert()
+        self.update_step(ctx, world)
     }
 
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
@@ -291,7 +219,6 @@ impl GameState for Controller {
                 _ => ()
             }
         }
-
         Ok(())
     }
 }

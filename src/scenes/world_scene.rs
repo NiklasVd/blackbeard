@@ -46,7 +46,7 @@ impl WorldScene {
 
     pub fn add_player(&mut self, ctx: &mut Context, id: ID, ship_type: ShipType) -> BbResult<Rcc<Player>> {
         let ship = self.world.add_player_ship(ctx, id.clone(), ship_type).convert()?;
-        Ok(self.controller.add_player(Player::new(id, ship)))
+        Ok(self.controller.add_player(Player::new(id, ship, self.game.clone())))
     }
 
     pub fn leave_match(&mut self) -> BbResult {
@@ -68,7 +68,10 @@ impl WorldScene {
             let player_instance = self.add_player(ctx, id.clone(), ship_type)?;
             if id == local_id {
                 self.controller.set_local_player(player_instance.clone());
-                // Focus camera on player
+                // Adjust camera for player
+                let pos = player_instance.borrow()
+                    .possessed_ship.borrow().transform.get_translation().0;
+                self.game.borrow_mut().cam.centre_on(pos);
             }
         }
         Ok(())
@@ -227,7 +230,6 @@ impl NetController for WorldScene {
 }
 
 struct WorldSceneUI {
-    // Add event log/chat (combined?)
     pub chat: Chat,
     menu_button: Rcc<DefaultButton>,
     menu_grid: Rcc<Grid>,

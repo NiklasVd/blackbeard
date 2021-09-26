@@ -4,9 +4,7 @@ use binary_stream::{BinaryStream, Serializable};
 use nalgebra::ComplexField;
 use crate::{Rcc, ship::Ship};
 
-// pub const SYNC_STATE_GEN_INTERVAL: u64 = 20;
-// Could possibly change this back, as generations are now identical unlike before
-pub const SYNC_STATE_FRAME_INTERVAL: u64 = 120;
+pub const SYNC_STATE_GEN_INTERVAL: u64 = 20;
 //pub const SYNC_STATE_GEN_MARGIN_OF_ERROR: f32 = 1.0;
 // First desync might be small inaccuracy. Second will mean it has spiralled out of control.
 pub const MAX_DESYNC_INTERVAL: u16 = 3;

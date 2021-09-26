@@ -56,8 +56,6 @@ impl Cannon {
     pub fn shoot(&mut self, ctx: &mut Context, world: &mut World)
         -> tetra::Result<Option<Rcc<CannonBall>>> {
         if !self.can_shoot() {
-            println!("Cannon isn't ready yet. Time to reload: {:.1}",
-                self.reload.time_until_over());
             return Ok(None);
         }
 

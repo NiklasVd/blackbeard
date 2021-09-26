@@ -1,6 +1,6 @@
 use binary_stream::{BinaryStream, Serializable};
 use tetra::{Context, input::{Key, MouseButton, get_mouse_position, is_key_down, is_mouse_button_down}};
-use crate::{GC, ID, V2, deserialize_v2, peer::DisconnectReason, serialize_v2, ship_mod::ShipModType, sync_checker::SyncState};
+use crate::{GC, ID, V2, deserialize_v2, game_settings::GameSettings, peer::DisconnectReason, serialize_v2, ship::ShipType, ship_mod::ShipModType, sync_checker::SyncState};
 use std::fmt;
 
 pub enum Packet {
@@ -30,6 +30,11 @@ pub enum Packet {
     },
     Sync {
         state: SyncState
+    },
+    Selection {
+        mode: bool,
+        ship: Option<ShipType>,
+        settings: Option<GameSettings>
     }
 }
 
@@ -44,7 +49,8 @@ impl Packet {
             Packet::Input { .. } => 5,
             Packet::InputStep { .. } => 6,
             Packet::Game { .. } => 7,
-            Packet::Sync { .. } => 8
+            Packet::Sync { .. } => 8,
+            Packet::Selection { .. } => 9
         }
     }
 }
@@ -63,7 +69,8 @@ impl fmt::Debug for Packet {
             Packet::Input { state } => write!(f, "Input State Packet ({:?})", state),
             Packet::InputStep { step } => write!(f, "Input Step Packet (states: {:?}, gen: {})", step.states, step.gen),
             Packet::Game { phase } => write!(f, "Game Packet (phase: {:?})", phase),
-            Packet::Sync { state } => write!(f, "Sync Packet (state: {:?})", state)
+            Packet::Sync { state } => write!(f, "Sync Packet (state: {:?})", state),
+            Packet::Selection { mode, ship, settings } => write!(f, "Selection Packet (ship: {:?}, settings: {:?}", ship, settings)
         }
     }
 }
@@ -98,6 +105,14 @@ impl Serializable for Packet {
             },
             Packet::Sync { state } => {
                 state.to_stream(stream);
+            },
+            Packet::Selection { mode, ship, settings } => {
+                stream.write_bool(*mode).unwrap();
+                if *mode {
+                    ship.as_ref().unwrap().to_stream(stream);
+                } else {
+                    settings.as_ref().unwrap().to_stream(stream);
+                }
             }
         };
     }
@@ -147,7 +162,19 @@ impl Serializable for Packet {
                 Packet::Sync {
                     state: SyncState::from_stream(stream)
                 }
-            }
+            },
+            9 => {
+                let mode = stream.read_bool().unwrap();
+                if mode {
+                    Packet::Selection {
+                        mode, ship: Some(ShipType::from_stream(stream)), settings: None
+                    }
+                } else {
+                    Packet::Selection {
+                        mode, ship: None, settings: Some(GameSettings::from_stream(stream))
+                    }
+                }
+            },
             n @ _ => panic!("Index {} not assigned to any packet type", n)
         }
     }

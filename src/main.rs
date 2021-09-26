@@ -59,6 +59,7 @@ mod err;
 mod diagnostics;
 mod world;
 mod economy;
+mod game_settings;
 
 pub use game::*;
 pub use physics::*;
