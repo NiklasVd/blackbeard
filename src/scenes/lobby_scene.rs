@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 use tetra::{Context, State};
-use crate::{BbResult, GC, ID, Rcc, TransformResult, V2, button::{Button, DefaultButton}, chat::Chat, grid::{Grid, UIAlignment, UILayout}, label::{FontSize, Label}, loading_scene::LoadingScene, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::{GamePhase, Packet}, peer::DisconnectReason, ship::ShipType, ui_element::{DefaultUIReactor, UIElement}};
+use crate::{BbResult, GC, ID, PlayerParams, Rcc, TransformResult, V2, button::{Button, DefaultButton}, chat::Chat, game_settings::GameSettings, grid::{Grid, UIAlignment, UILayout}, label::{FontSize, Label}, loading_scene::LoadingScene, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::{GamePhase, Packet}, peer::DisconnectReason, ship::ShipType, ui_element::{DefaultUIReactor, UIElement}};
 use super::scenes::{Scene, SceneType};
 
 pub struct LobbyScene {
     pub grid: Grid,
     ui: LobbySceneUI,
-    players: HashMap<u16, (ID, ShipType)>,
+    players: HashMap<u16, PlayerParams>,
     game_started: bool,
     disconnected: bool,
+    game_settings: GameSettings,
     game: GC
 }
 
@@ -38,16 +39,17 @@ impl LobbyScene {
         let ui = LobbySceneUI::new(ctx, &mut grid, game.clone())?;
 
         Ok(LobbyScene {
-            grid, ui, players: HashMap::new(), game_started: false, disconnected: false, game
+            grid, ui, players: HashMap::new(), game_started: false,
+            disconnected: false, game_settings: GameSettings::default(), game
         })
     }
 
     fn update_ship_selection(&mut self) -> BbResult {
         if let Some(selected_ship_type) = self.ui.selected_ship_type.take() {
-            // self.game.borrow_mut().network.as_mut().unwrap().send_packet(Packet::Option {
-            //     ship_type: Some(selected_ship_type), weather: None
-            // })
-            println!("(Todo) Selected ship type: {:?}", selected_ship_type);
+            self.game.borrow_mut().network.as_mut().unwrap().send_packet(Packet::Selection {
+                mode: true, ship: Some(selected_ship_type), settings: None
+            })?;
+            println!("Selected ship type: {:?}", selected_ship_type);
             Ok(())
         } else {
             Ok(())
@@ -116,16 +118,16 @@ impl NetController for LobbyScene {
     }
 
     fn on_player_connect(&mut self, ctx: &mut Context, id: ID) -> BbResult {
-        self.players.insert(id.n, (id.clone(), ShipType::Schooner));
-        self.ui.add_player(ctx, id.clone(), ShipType::Schooner)?;
+        self.players.insert(id.n, PlayerParams::new(id.clone(), ShipType::Caravel));
+        self.ui.add_player(ctx, id.clone(), ShipType::Caravel)?;
         self.ui.chat.add_line(ctx, &format!("{:?} connected to the game!", id)).convert()
     }
 
     fn on_player_disconnect(&mut self, ctx: &mut Context, id: u16, reason: DisconnectReason)
         -> BbResult {
-        if let Some((id, ship_type)) = self.players.remove(&id) {
+        if let Some(player) = self.players.remove(&id) {
             self.ui.update_player_list(ctx, self.players.values()
-                .map(|(id, ship_type)| (id.clone(), ship_type.clone())).collect())?;
+                .map(|p| p.clone()).collect())?;
             self.ui.chat.add_line(ctx,
                 &format!("{:?} left the game. Reason: {:?}.", id, reason)).convert()
         } else {
@@ -145,6 +147,24 @@ impl NetController for LobbyScene {
         self.game_started = true;
         Ok(())
     }
+
+    fn on_select_ship(&mut self, ctx: &mut Context, sender: u16, ship: ShipType) -> BbResult {
+        if let Some(player) = self.players.get_mut(&sender) {
+            println!("{:?} selected the {:?} ship.", player.id, ship);
+            player.ship_type = ship;
+            self.ui.update_player_list(ctx, self.players.values()
+                .map(|p| p.clone()).collect())?;
+        } else {
+            println!("Unknown player with ID {} attempted to change ship type to {:?}", sender, ship)
+        }
+        Ok(())
+    }
+
+    fn on_change_settings(&mut self, ctx: &mut Context, settings: GameSettings) -> BbResult {
+        println!("Updated settings: {:?}", &settings);
+        self.game_settings = settings;
+        Ok(())
+    }
 }
 
 struct LobbySceneUI {
@@ -155,6 +175,7 @@ struct LobbySceneUI {
     player_list_grid: Rcc<Grid>,
     caravel_ship_button: Rcc<DefaultButton>,
     galleon_ship_button: Rcc<DefaultButton>,
+    schooner_ship_button: Rcc<DefaultButton>,
     selected_ship_type: Option<ShipType>,
     game_started: bool,
     game: GC
@@ -184,14 +205,22 @@ impl LobbySceneUI {
         let mut game_grid = Grid::default(ctx, UIAlignment::Vertical,
             V2::zero(), V2::new(250.0, 500.0), 5.0).convert()?;
         let mut game_settings_grid = Grid::default(ctx, UIAlignment::Vertical,
-            V2::zero(), V2::new(120.0, 110.0), 2.0).convert()?;
+            V2::zero(), V2::new(120.0, 230.0), 2.0).convert()?;
         game_settings_grid.add_element(Label::new(ctx,
             "Select Ship", FontSize::Normal, 1.0, game.clone()).convert()?);
+        game_settings_grid.add_element(Label::new(ctx,
+            "Caravel: Medium sized two-master. 4 cannons/side. 140 HP. Jack of all trades.", FontSize::Small, 2.0, game.clone()).convert()?);
         let caravel_ship_button = game_settings_grid.add_element(Button::new(ctx,
             "Caravel", V2::new(90.0, 35.0), 2.0, DefaultUIReactor::new(), game.clone()).convert()?);
         caravel_ship_button.borrow_mut().set_disabled(true);
+        game_settings_grid.add_element(Label::new(ctx,
+            "Galleon: Heavy square rig. 5 cannons/side. 160 HP. Slow but destructive.", FontSize::Small, 2.0, game.clone()).convert()?);
         let galleon_ship_button = game_settings_grid.add_element(Button::new(ctx,
             "Galleon", V2::new(90.0, 35.0), 2.0, DefaultUIReactor::new(), game.clone()).convert()?);
+        game_settings_grid.add_element(Label::new(ctx,
+            "Schooner: Light fore-and-aft rig. 3 cannons/side. 120 HP. Quick and mobile.", FontSize::Small, 2.0, game.clone()).convert()?);
+        let schooner_ship_button = game_settings_grid.add_element(Button::new(ctx,
+            "Schooner", V2::new(90.0, 35.0), 2.0, DefaultUIReactor::new(), game.clone()).convert()?);
         game_grid.add_element(game_settings_grid);
 
         let chat = Chat::new(ctx, UILayout::Default, &mut game_grid, game.clone()).convert()?;
@@ -199,14 +228,15 @@ impl LobbySceneUI {
         
         Ok(LobbySceneUI {
             match_grid, chat, start_game_button, disconnect_button, player_list_grid,
-            caravel_ship_button, galleon_ship_button, selected_ship_type: Some(ShipType::Caravel),
+            caravel_ship_button, galleon_ship_button, schooner_ship_button,
+            selected_ship_type: Some(ShipType::Caravel),
             game_started: false, game
         })
     }
 
     fn add_player(&mut self, ctx: &mut Context, id: ID, ship_type: ShipType) -> BbResult {
         let mut player_list_grid_ref = self.player_list_grid.borrow_mut();
-        let name = format!(" {:?} {} - {:?}", &id, {
+        let name = format!("  {:?} {} - {:?}", &id, {
             if id.n == 0 {
                 "(Host)"
             } else {
@@ -218,14 +248,14 @@ impl LobbySceneUI {
         Ok(())
     }
 
-    fn update_player_list(&mut self, ctx: &mut Context, players: Vec<(ID, ShipType)>)
+    fn update_player_list(&mut self, ctx: &mut Context, players: Vec<PlayerParams>)
         -> BbResult {
         {
             let mut player_list_grid_ref = self.player_list_grid.borrow_mut();
             player_list_grid_ref.clear_elements();
         }
-        for (id, ship_type) in players.into_iter() {
-            self.add_player(ctx, id.clone(), ship_type)?;
+        for player in players.into_iter() {
+            self.add_player(ctx, player.id.clone(), player.ship_type)?;
         }
         Ok(())
     }
@@ -252,6 +282,7 @@ impl LobbySceneUI {
                 self.selected_ship_type = Some(ShipType::Caravel);
                 caravel_ship_button_ref.set_disabled(true);
                 self.galleon_ship_button.borrow_mut().set_disabled(false);
+                self.schooner_ship_button.borrow_mut().set_disabled(false);
             }
         }
         {
@@ -260,6 +291,16 @@ impl LobbySceneUI {
                 self.selected_ship_type = Some(ShipType::Galleon);
                 galleon_ship_button_ref.set_disabled(true);
                 self.caravel_ship_button.borrow_mut().set_disabled(false);
+                self.schooner_ship_button.borrow_mut().set_disabled(false);
+            }
+        }
+        {
+            let mut schooner_ship_button_ref = self.schooner_ship_button.borrow_mut();
+            if schooner_ship_button_ref.is_pressed() {
+                self.selected_ship_type = Some(ShipType::Schooner);
+                schooner_ship_button_ref.set_disabled(true);
+                self.caravel_ship_button.borrow_mut().set_disabled(false);
+                self.galleon_ship_button.borrow_mut().set_disabled(false);
             }
         }
         Ok(())

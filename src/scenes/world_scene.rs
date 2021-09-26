@@ -1,5 +1,5 @@
 use tetra::{Context, Event, State, input::Key};
-use crate::{BbError, BbErrorType, BbResult, Controller, GC, ID, Player, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, entity::{Entity, GameState}, grid::{Grid, UIAlignment, UILayout}, image::Image, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ship::ShipType, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, ui_element::{DefaultUIReactor, UIElement}, world::World};
+use crate::{BbError, BbErrorType, BbResult, Controller, GC, ID, Player, PlayerParams, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, entity::{Entity, GameState}, grid::{Grid, UIAlignment, UILayout}, image::Image, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ship::ShipType, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, ui_element::{DefaultUIReactor, UIElement}, world::World};
 use super::scenes::{Scene, SceneType};
 
 pub struct WorldScene {
@@ -12,11 +12,11 @@ pub struct WorldScene {
 }
 
 impl WorldScene {
-    pub fn new(ctx: &mut Context, players: Vec<(ID, ShipType)>, game: GC) -> BbResult<WorldScene> {
+    pub fn new(ctx: &mut Context, players: Vec<PlayerParams>, game: GC) -> BbResult<WorldScene> {
         let mut grid = Grid::default(ctx, UIAlignment::Horizontal,
             V2::zero(), V2::one() * 200.0, 0.0).convert()?;
         let mut ui = WorldSceneUI::new(ctx, game.clone(), &mut grid).convert()?;
-        ui.update_players(ctx, players.iter().map(|(id, ..)| id.clone()).collect()).convert()?;
+        ui.update_players(ctx, players.iter().map(|p| p.id.clone()).collect()).convert()?;
 
         let mut world_scene = WorldScene {
             controller: Controller::new(ctx, game.clone()).convert()?,
@@ -56,17 +56,17 @@ impl WorldScene {
         Ok(())
     }
 
-    fn init_players(&mut self, ctx: &mut Context, mut players: Vec<(ID, ShipType)>)
+    fn init_players(&mut self, ctx: &mut Context, mut players: Vec<PlayerParams>)
         -> BbResult {
         let local_id = {
             self.game.borrow().network.as_ref().unwrap().client
                 .get_local_id().expect("Client has no local ID assigned")
         };
 
-        players.sort_unstable_by(|a, b| a.0.n.cmp(&b.0.n));
-        for (id, ship_type) in players.into_iter() {
-            let player_instance = self.add_player(ctx, id.clone(), ship_type)?;
-            if id == local_id {
+        players.sort_unstable_by(|a, b| a.id.n.cmp(&b.id.n));
+        for player in players.into_iter() {
+            let player_instance = self.add_player(ctx, player.id.clone(), player.ship_type)?;
+            if player.id == local_id {
                 self.controller.set_local_player(player_instance.clone());
                 // Adjust camera for player
                 let pos = player_instance.borrow()
@@ -304,7 +304,7 @@ impl WorldSceneUI {
         let mut players_grid_ref = self.players_grid.borrow_mut();
         players_grid_ref.clear_elements();
         for player in players.into_iter() {
-            players_grid_ref.add_element(Label::new(ctx, format!(" {:?} {}", player,
+            players_grid_ref.add_element(Label::new(ctx, format!("  {:?} {}", player,
                 match player.n {
                     0 => "(Host)",
                     _ => ""

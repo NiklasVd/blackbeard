@@ -1,24 +1,24 @@
 use tetra::{Context, State};
-use crate::{BbResult, GC, ID, Timer, V2, grid::{Grid, UIAlignment}, image::Image, label::{FontSize, Label}, rand_u32, ship::ShipType, world_scene::WorldScene};
+use crate::{BbResult, GC, PlayerParams, Timer, V2, grid::{Grid, UIAlignment}, image::Image, label::{FontSize, Label}, rand_u32, world_scene::WorldScene};
 use super::scenes::{Scene, SceneType};
 
 const MIN_LOADING_TIME: f32 = 1.0;
 const LOADING_HINTS: [&str; 11] = [
     "Ship collisions stun the crew. Duration and damage depend on the ship's defence value.",
     "Use the Q and E keys to shoot cannons on star- and portside respectively.",
+    "Use the R key to change course without moving.",
     "What smaller ships lack in firepower, they make up in mobility.",
-    "Sinking a ship by ramming yields 25% of escudos onboard.",
-    "Sinking a ship via cannon shot yields 20% of escudos onboard.",
-    "When your ship sinks due to an accidental collision, you lose 20% of escudos onboard.",
+    "Sinking a ship by ramming yields 15% of escudos onboard.",
+    "Sinking a ship via cannon shot yields 10% of escudos onboard.",
+    "When your ship sinks due to an accidental collision, you lose 10% of escudos onboard.",
     "The more escudos you have, the slower your ship will sail.",
     "Use your escudos to buy upgrades and repairs at harbours.",
     "Reefs will prove an impassable barrier to heavier ships, while allowing lighter ships to pass.",
     "Beware of bandit outposts! They will shoot any ship on sight.",
-    "Some ships can drop powder kegs into the water, which will detonate upon collision."
 ];
 
 pub struct LoadingScene {
-    players: Vec<(ID, ShipType)>,
+    players: Vec<PlayerParams>,
     min_load_timer: Timer,
     grid: Grid,
     image_loaded: bool,
@@ -26,7 +26,7 @@ pub struct LoadingScene {
 }
 
 impl LoadingScene {
-    pub fn new(ctx: &mut Context, players: Vec<(ID, ShipType)>, game: GC)
+    pub fn new(ctx: &mut Context, players: Vec<PlayerParams>, game: GC)
         -> tetra::Result<LoadingScene> {
         let mut grid = Grid::default(ctx, UIAlignment::Vertical,
             V2::zero(), V2::one() * 200.0, 0.0)?;

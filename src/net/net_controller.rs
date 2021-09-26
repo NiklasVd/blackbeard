@@ -1,5 +1,5 @@
 use tetra::Context;
-use crate::{BbResult, ID, packet::{GamePhase, InputStep, Packet}, peer::{DisconnectReason, is_auth_client}};
+use crate::{BbResult, ID, game_settings::GameSettings, packet::{GamePhase, InputStep, Packet}, peer::{DisconnectReason, is_auth_client}, ship::ShipType};
 
 pub trait NetController {
     fn poll_received_packets(&mut self, ctx: &mut Context) -> BbResult<Option<(Packet, u16)>>;
@@ -31,6 +31,8 @@ pub trait NetController {
             Packet::ChatMessage { message } => self.on_chat_message(ctx, message, sender),
             Packet::InputStep { step } => self.on_input_step(ctx, step),
             Packet::Game { phase } => self.on_game_phase_changed(ctx, phase),
+            Packet::Selection { mode, ship, .. } if mode => self.on_select_ship(ctx, sender, ship.unwrap()),
+            Packet::Selection { mode, ship: _, settings } => self.on_change_settings(ctx, settings.unwrap()),
             _ => Ok(())
         }
     }
@@ -55,6 +57,12 @@ pub trait NetController {
         Ok(())
     }
     fn on_game_phase_changed(&mut self, ctx: &mut Context, phase: GamePhase) -> BbResult {
+        Ok(())
+    }
+    fn on_select_ship(&mut self, ctx: &mut Context, sender: u16, ship: ShipType) -> BbResult {
+        Ok(())
+    }
+    fn on_change_settings(&mut self, ctx: &mut Context, settings: GameSettings) -> BbResult {
         Ok(())
     }
 }

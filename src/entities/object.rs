@@ -44,6 +44,8 @@ impl Object {
             pos, rot)
     }
 
+    
+
     fn build_object(ctx: &mut Context, obj_type: ObjectType, game: GC, tex_name: String,
         pos: V2, rot: f32)
         -> tetra::Result<Object> {

@@ -4,17 +4,17 @@ use rapier2d::{data::Index};
 use tetra::{Context, State, graphics::{Color}, math::Clamp};
 use crate::{BbResult, Cannon, CannonSide, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, WorldEvent, conv_vec, disassemble_iso, economy::{Deposit}, entity::{Entity, EntityType, GameState}, get_angle, health_bar::HealthBar, pi_to_pi2_range, polar_to_cartesian, ship_mod::{ShipMod, ShipModType}, vec_distance, world::World};
 
-const BASE_STUN_LENGTH: f32 = 1.0;
-const BASE_OBJECT_COLLISION_DAMAGE: u16 = 10;
+const BASE_STUN_LENGTH: f32 = 0.5;
+const BASE_OBJECT_COLLISION_DAMAGE: u16 = 20;
 const MAX_SHIP_DEFENSE: u16 = 100;
 const BASE_MOVEMENT_FORCE: f32 = 10.0 * MASS_FORCE_SCALE;
 const BASE_TORQUE_FORCE: f32 = 1000.0 * MASS_FORCE_SCALE;
 const TARGET_POS_DIST_MARGIN: f32 = 75.0;
 const TARGET_ROT_MARGIN: f32 = PI / 45.0;
 
-const ESCUTO_RAM_STEAL_PERCENTAGE: f32 = 0.25;
-const ESCUTO_SHOOT_STEAL_PERCENTAGE: f32 = 0.2;
-const ESCUTO_ACCIDENT_LOSS_PERCENTAGE: f32 = 0.2;
+const ESCUTO_RAM_STEAL_PERCENTAGE: f32 = 0.15;
+const ESCUTO_SHOOT_STEAL_PERCENTAGE: f32 = 0.1;
+const ESCUTO_ACCIDENT_LOSS_PERCENTAGE: f32 = 0.1;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ShipType {
@@ -58,28 +58,28 @@ impl ShipAttributes {
         ShipAttributes {
             health: 140,
             defense: 60,
-            movement_speed: 9.0, turn_rate: 5.0,
-            cannon_damage: 20, cannon_reload_time: 5.0,
+            movement_speed: 13.5, turn_rate: 5.25,
+            cannon_damage: 15, cannon_reload_time: 5.0,
             ram_damage: 20
         }
     }
 
     pub fn galleon() -> ShipAttributes {
         ShipAttributes {
-            health: 180,
+            health: 160,
             defense: 80,
-            movement_speed: 6.0, turn_rate: 3.85,
-            cannon_damage: 20, cannon_reload_time: 5.0,
-            ram_damage: 35
+            movement_speed: 12.0, turn_rate: 4.85,
+            cannon_damage: 15, cannon_reload_time: 5.0,
+            ram_damage: 30
         }
     }
 
     pub fn schooner() -> ShipAttributes {
         ShipAttributes {
-            health: 115,
+            health: 120,
             defense: 35,
-            movement_speed: 10.0, turn_rate: 4.5,
-            cannon_damage: 20, cannon_reload_time: 5.0,
+            movement_speed: 12.5, turn_rate: 3.25,
+            cannon_damage: 15, cannon_reload_time: 5.0,
             ram_damage: 15
         }
     }
@@ -114,30 +114,29 @@ pub struct Ship {
 impl Ship {
     pub fn caravel(ctx: &mut Context, game: GC, name: String, id: u16, spawn: V2,
         respawn: bool) -> tetra::Result<Ship> {
-        Self::new(ctx, name, id, "Caravel.png", ShipAttributes::caravel(), spawn, respawn,
-            4, 1.0, V2::zero(), 1.0, game)
+        Self::new(ctx, ShipType::Caravel, name, id, "Caravel.png",
+            ShipAttributes::caravel(), spawn, respawn, 4, 1.0, V2::new(10.0, 0.0), 1.0, game)
     }
 
     pub fn galleon(ctx: &mut Context, game: GC, name: String, id: u16, spawn: V2,
         respawn: bool) -> tetra::Result<Ship> {
-        Self::new(ctx, name, id, "Galleon.png", ShipAttributes::galleon(), spawn, respawn,
-            5, 1.2, V2::zero(), 1.0, game)
+        Self::new(ctx, ShipType::Galleon, name, id, "Galleon.png",
+        ShipAttributes::galleon(), spawn, respawn, 5, 1.2, V2::new(15.0, 0.0), 1.0, game)
     }
 
     pub fn schooner(ctx: &mut Context, game: GC, name: String, id: u16, spawn: V2,
         respawn: bool) -> tetra::Result<Ship> {
-        Self::new(ctx, name, id, "Schooner.png", ShipAttributes::schooner(), spawn, respawn,
-            3, 0.9, V2::new(0.0, 15.0), 1.25, game)
+        Self::new(ctx, ShipType::Schooner, name, id, "Schooner.png",
+        ShipAttributes::schooner(), spawn, respawn, 3, 0.9, V2::new(0.0, 15.0), 1.25, game)
     }
 
-    fn new(ctx: &mut Context, name: String, id: u16, ship_texture: &str, attributes: ShipAttributes, spawn: V2,
+    fn new(ctx: &mut Context, stype: ShipType, name: String, id: u16, ship_texture: &str, attr: ShipAttributes, spawn: V2,
         respawn: bool, cannons_per_side: u32, cannon_power: f32, cannon_pos: V2, mass: f32, game: GC) -> tetra::Result<Ship> {
         let mut game_ref = game.borrow_mut();
         let sprite = Sprite::new(game_ref.assets.load_texture(
             ctx, ship_texture.to_owned(), true)?, SpriteOrigin::Centre, None);
         let handle = game_ref.physics.build_ship_collider(
             sprite.texture.width() as f32 * 0.5, sprite.texture.height() as f32 * 0.5, mass);
-        let attr = ShipAttributes::caravel();
         let stun_length = attr.get_stun_length();
         game_ref.economy.add_deposit();
         let is_local_player = game_ref.network.as_ref().unwrap()
@@ -171,12 +170,12 @@ impl Ship {
         }
 
         Ok(Ship {
-            stype: ShipType::Caravel, curr_health: attr.health, name: name.to_owned(), id,
+            stype, curr_health: attr.health, name: name.to_owned(), id,
             target_pos: None, rotate_only: false, attr, cannons,
             transform, treasury: Deposit::default(), mods: Vec::new(),
             is_in_harbour: false, stun: Timer::new(stun_length), sprite,
             health_bar: HealthBar::new(ctx, name.as_str(), match is_local_player {
-                true => Color::rgb8(255, 255, 75),
+                true => Color::rgb8(0, 255, 0),
                 false => Color::WHITE
             }, attr.health, game.clone())?,
             spawn, is_local_player, destroy: false, game

@@ -1,4 +1,3 @@
-use binary_stream::{BinaryStream, Serializable};
 use rapier2d::data::Index;
 use tetra::Context;
 use crate::{CannonSide, GC, ID, Rcc, TransformResult, World, entity::Entity, packet::InputState, ship::{Ship, ShipType}, ship_mod::{CannonAmmoUpgradeMod, CannonRangeUpgradeMod, CannonReloadUpgradeMod, ShipMod, ShipModType, get_ship_mod_cost}};
@@ -81,27 +80,14 @@ impl Player {
 
 #[derive(Debug, Clone)]
 pub struct PlayerParams {
-    pub id: u16,
+    pub id: ID,
     pub ship_type: ShipType
 }
 
 impl PlayerParams {
-    pub fn new(id: u16, ship_type: ShipType) -> PlayerParams {
+    pub fn new(id: ID, ship_type: ShipType) -> PlayerParams {
         PlayerParams {
             id, ship_type
         }
-    }
-}
-
-impl Serializable for PlayerParams {
-    fn to_stream(&self, stream: &mut BinaryStream) {
-        stream.write_u16(self.id).unwrap();
-        self.ship_type.to_stream(stream);
-    }
-
-    fn from_stream(stream: &mut BinaryStream) -> Self {
-        let id = stream.read_u16().unwrap();
-        let ship_type = ShipType::from_stream(stream);
-        PlayerParams::new(id, ship_type)
     }
 }
