@@ -1,6 +1,6 @@
 use rapier2d::{data::Index, na::Vector2};
 use tetra::{Context, State, graphics::text::Text};
-use crate::{AnimatedSprite, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, build_water_splash_sprite, conv_vec, entity::{Entity, EntityType, GameState}, get_angle, get_decal_coll_group, get_empty_coll_group, polar_to_cartesian, ship::Ship, ship_mod::Attribute, world::World};
+use crate::{AnimatedSprite, CANNON_BALL_COLL_GROUP, EMPTY_COLL_GROUP, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, build_water_splash_sprite, conv_vec, entity::{Entity, EntityType, GameState}, get_angle, polar_to_cartesian, ship::Ship, ship_mod::Attribute, world::World};
 
 pub const POWER_FORCE_FACTOR: f32 = 40.0 * MASS_FORCE_SCALE;
 pub const POWER_DROP_THRESHOLD: f32 = 5.0 * POWER_FORCE_FACTOR / MASS_FORCE_SCALE;
@@ -179,7 +179,7 @@ impl CannonBall {
             self.transform.handle.0);
         rb.set_linvel(Vector2::new(0.0, 0.0), true);
         game_ref.physics.set_coll_group(self.transform.handle.1,
-            get_decal_coll_group(), get_empty_coll_group());
+            CANNON_BALL_COLL_GROUP, EMPTY_COLL_GROUP);
         self.miss_effect = Some(miss_effect);
         Ok(())
     }

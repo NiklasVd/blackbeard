@@ -1,10 +1,10 @@
 use tetra::{Context};
-use crate::{GC, Sprite, SpriteOrigin, Transform, V2, entity::{Entity, EntityType, GameState}};
+use crate::{ANY_COLL_GROUP, GC, SMALL_SHIP_COLL_GROUP, Sprite, SpriteOrigin, Transform, V2, entity::{Entity, EntityType, GameState}};
 
 // Reefs only pose hazard to big ships (with greater keel depth), hence providing
 // a way of escape for smaller ships
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum ObjectType {
     Island,
     Reef,
@@ -30,7 +30,7 @@ impl Object {
             n @ _ => panic!("Island type {} doesn't exist", n)
         };
         Self::build_object(ctx, ObjectType::Island, game, island_tex.to_owned(),
-            pos, rot)
+            pos, rot, ANY_COLL_GROUP)
     }
 
     pub fn build_ship_wreck(ctx: &mut Context, game: GC, pos: V2, rot: f32)
@@ -41,19 +41,24 @@ impl Object {
         // Regardless, shipwrecks should take up less space and visual focus.
         // Add a transparent gradient for submerging effect.
         Self::build_object(ctx, ObjectType::Shipwreck, game, "Destroyed Caravel.png".to_owned(),
-            pos, rot)
+            pos, rot, ANY_COLL_GROUP)
     }
 
-    
+    pub fn build_reef(ctx: &mut Context, game: GC, pos: V2, rot: f32)
+        -> tetra::Result<Object> {
+        Self::build_object(ctx, ObjectType::Reef, game.clone(), "Reef.png".to_owned(),
+            pos, rot, ANY_COLL_GROUP ^ SMALL_SHIP_COLL_GROUP)
+    }
 
     fn build_object(ctx: &mut Context, obj_type: ObjectType, game: GC, tex_name: String,
-        pos: V2, rot: f32)
+        pos: V2, rot: f32, filter_groups: u32)
         -> tetra::Result<Object> {
         let mut game_ref = game.borrow_mut();
         let sprite = Sprite::new(game_ref.assets.load_texture(
             ctx, tex_name.to_owned(), true)?, SpriteOrigin::Centre, None);
         let handle = game_ref.physics.build_object_collider(
-            sprite.texture.width() as f32 * 0.4, sprite.texture.height() as f32 * 0.4);
+            sprite.texture.width() as f32 * 0.4, sprite.texture.height() as f32 * 0.4,
+            obj_type, filter_groups);
         std::mem::drop(game_ref);
 
         let mut transform = Transform::new(handle, game.clone());

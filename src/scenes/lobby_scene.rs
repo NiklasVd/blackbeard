@@ -209,16 +209,16 @@ impl LobbySceneUI {
         game_settings_grid.add_element(Label::new(ctx,
             "Select Ship", FontSize::Normal, 1.0, game.clone()).convert()?);
         game_settings_grid.add_element(Label::new(ctx,
-            "Caravel: Medium sized two-master. 4 cannons/side. 140 HP. Jack of all trades.", FontSize::Small, 2.0, game.clone()).convert()?);
+            "Caravel: Medium sized two-master. 4 cannons/side. 140 HP. 60 Defence. Jack of all trades.", FontSize::Small, 2.0, game.clone()).convert()?);
         let caravel_ship_button = game_settings_grid.add_element(Button::new(ctx,
             "Caravel", V2::new(90.0, 35.0), 2.0, DefaultUIReactor::new(), game.clone()).convert()?);
         caravel_ship_button.borrow_mut().set_disabled(true);
         game_settings_grid.add_element(Label::new(ctx,
-            "Galleon: Heavy square rig. 5 cannons/side. 160 HP. Slow but destructive.", FontSize::Small, 2.0, game.clone()).convert()?);
+            "Galleon: Heavy square rig. 5 cannons/side. 160 HP. 80 Defence. Slow but destructive.", FontSize::Small, 2.0, game.clone()).convert()?);
         let galleon_ship_button = game_settings_grid.add_element(Button::new(ctx,
             "Galleon", V2::new(90.0, 35.0), 2.0, DefaultUIReactor::new(), game.clone()).convert()?);
         game_settings_grid.add_element(Label::new(ctx,
-            "Schooner: Light fore-and-aft rig. 3 cannons/side. 120 HP. Quick and mobile.", FontSize::Small, 2.0, game.clone()).convert()?);
+            "Schooner: Light fore-and-aft rig. 3 cannons/side. 120 HP. 35 Defence. Quick and mobile.", FontSize::Small, 2.0, game.clone()).convert()?);
         let schooner_ship_button = game_settings_grid.add_element(Button::new(ctx,
             "Schooner", V2::new(90.0, 35.0), 2.0, DefaultUIReactor::new(), game.clone()).convert()?);
         game_grid.add_element(game_settings_grid);

@@ -136,7 +136,8 @@ impl Ship {
         let sprite = Sprite::new(game_ref.assets.load_texture(
             ctx, ship_texture.to_owned(), true)?, SpriteOrigin::Centre, None);
         let handle = game_ref.physics.build_ship_collider(
-            sprite.texture.width() as f32 * 0.5, sprite.texture.height() as f32 * 0.5, mass);
+            sprite.texture.width() as f32 * 0.5,
+            sprite.texture.height() as f32 * 0.5, mass, stype);
         let stun_length = attr.get_stun_length();
         game_ref.economy.add_deposit();
         let is_local_player = game_ref.network.as_ref().unwrap()

@@ -24,6 +24,9 @@ impl WorldScene {
             grid, ui, back_to_menu: false, game: game.clone()
         };
         
+        world_scene.world.add_reef(ctx, V2::new(-450.0, -575.0), -0.8).convert()?;
+        world_scene.world.add_reef(ctx, V2::new(2100.0, -700.0), 1.1).convert()?;
+
         world_scene.world.add_island(ctx, V2::new(800.0, 500.0), 0.6, 1).convert()?;
         world_scene.world.add_island(ctx, V2::new(150.0, 1000.0), 4.0, 2).convert()?;
         world_scene.world.add_island(ctx, V2::new(-200.0, -800.0), 0.0, 1).convert()?;
@@ -34,9 +37,8 @@ impl WorldScene {
         world_scene.world.add_island(ctx, V2::new(2300.0, -400.0), 3.5, 2).convert()?;
         world_scene.world.add_island(ctx, V2::new(1600.0, 1700.0), 0.0, 3).convert()?;
         world_scene.world.add_island(ctx, V2::new(800.0, -1600.0), 0.2, 4).convert()?;
-
-        world_scene.world.add_harbour(ctx, "Port Elisabeth",
-            V2::new(820.0, -1285.0), -0.5).convert()?;
+        world_scene.world.add_harbour(ctx, "Port Elisabeth", V2::new(820.0, -1325.0),
+            -0.5).convert()?;
 
         world_scene.init_players(ctx, players)?;
         world_scene.ui.set_local_player(

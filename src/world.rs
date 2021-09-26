@@ -39,6 +39,12 @@ impl World {
         Ok(self.add_entity(ship_wreck).unwrap())
     }
 
+    pub fn add_reef(&mut self, ctx: &mut Context, pos: V2, rot: f32)
+        -> tetra::Result<Rcc<Object>> {
+        let reef = Object::build_reef(ctx, self.game.clone(), pos, rot)?;
+        Ok(self.add_entity(reef).unwrap())
+    }
+
     pub fn add_harbour(&mut self, ctx: &mut Context, name: &str, pos: V2, rot: f32)
         -> tetra::Result<Rcc<Harbour>> {
         let harbour = Harbour::new(ctx, name.to_owned(), pos, rot, self.game.clone())?;

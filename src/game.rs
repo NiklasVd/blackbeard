@@ -27,7 +27,7 @@ impl GameContainer {
             physics: Physics::setup(),
             settings: Settings::new(),
             world: WorldSettings::new(),
-            cam: Cam::setup(ctx, 550.0),
+            cam: Cam::setup(ctx, 700.0),
             network: None,
             economy: Economy::new(),
             simulation_state: true

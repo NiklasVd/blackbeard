@@ -1,9 +1,25 @@
 use crossbeam_channel::{Receiver};
 use rapier2d::{math::Real, na::{Isometry2}, prelude::{ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, Collider, ColliderBuilder, ColliderHandle, ColliderSet, ContactEvent, Cuboid, IntegrationParameters, InteractionGroups, IntersectionEvent, IslandManager, JointSet, NarrowPhase, PhysicsPipeline, QueryPipeline, Ray, RigidBody, RigidBodyBuilder, RigidBodyHandle, RigidBodySet}};
 use tetra::{State, graphics::{Color, DrawParams}, math::{Vec2}};
-use crate::{conv_vec, conv_vec_point, entity::EntityType};
+use crate::{conv_vec, conv_vec_point, entity::EntityType, object::ObjectType, ship::ShipType};
 
 pub const MASS_FORCE_SCALE: f32 = 1000.0;
+
+pub const EMPTY_COLL_GROUP: u32 =       0b0;
+pub const SHIP_COLL_GROUP: u32 =        0b1;
+pub const SMALL_SHIP_COLL_GROUP: u32 =  0b10;
+pub const SHIPWRECK_COLL_GROUP: u32 =   0b100;
+pub const ISLAND_COLL_GROUP: u32 =      0b1000;
+pub const CANNON_BALL_COLL_GROUP: u32 = 0b10000;
+pub const REEF_COLL_GROUP: u32 =        0b100000;
+pub const HARBOUR_COLL_GROUP: u32 =     0b1000000;
+pub const DECAL_COLL_GROUP: u32 =       0b10000000;
+pub const OBJECT_COLL_GROUP: u32 =
+    SHIPWRECK_COLL_GROUP | ISLAND_COLL_GROUP | REEF_COLL_GROUP;
+pub const ENTITY_COLL_GROUP: u32 = SHIP_COLL_GROUP | SMALL_SHIP_COLL_GROUP |
+    OBJECT_COLL_GROUP;
+pub const ANY_COLL_GROUP: u32 = ENTITY_COLL_GROUP | CANNON_BALL_COLL_GROUP |
+    HARBOUR_COLL_GROUP;
 
 pub type V2 = Vec2<f32>;
 
@@ -51,8 +67,8 @@ impl Physics {
         }
     }
 
-    pub fn build_ship_collider(&mut self, half_x: f32, half_y: f32, mass: f32)
-        -> PhysicsHandle {
+    pub fn build_ship_collider(&mut self, half_x: f32, half_y: f32, mass: f32,
+        ship_type: ShipType) -> PhysicsHandle {
         let rb = RigidBodyBuilder::new_dynamic()
             .linear_damping(2.5).angular_damping(3.0).build();
         let rb_handle = self.rb_set.insert(rb);
@@ -60,7 +76,10 @@ impl Physics {
             .density(mass).friction(2.0).restitution(0.9)
             .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
             .collision_groups(InteractionGroups::new(
-                get_any_coll_group(), get_any_coll_group()))
+                match ship_type {
+                    ShipType::Schooner => SMALL_SHIP_COLL_GROUP,
+                    _ => SHIP_COLL_GROUP,
+                }, ANY_COLL_GROUP))
             .user_data(EntityType::Ship.to_num()).build();
         let coll_handle = self.coll_set.insert_with_parent(coll, rb_handle,
             &mut self.rb_set);
@@ -69,26 +88,33 @@ impl Physics {
     }
 
     pub fn build_static_collider(&mut self, density: f32, half_x: f32, half_y: f32,
-        entity_type: EntityType) -> PhysicsHandle {
+        entity_type: EntityType, member_groups: u32, filter_groups: u32) -> PhysicsHandle {
         let rb = RigidBodyBuilder::new_static().build();
         let rb_handle = self.rb_set.insert(rb);
         let coll = ColliderBuilder::cuboid(half_x, half_y)
             .density(density).restitution(0.5)
             .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
             .collision_groups(InteractionGroups::new(
-                get_any_coll_group(), get_any_coll_group()))
+                member_groups, filter_groups))
             .user_data(entity_type.to_num()).build();
         let coll_handle = self.coll_set.insert_with_parent(coll, rb_handle,
             &mut self.rb_set);
         PhysicsHandle(rb_handle, coll_handle)
     }
 
-    pub fn build_object_collider(&mut self, half_x: f32, half_y: f32) -> PhysicsHandle {
-       self.build_static_collider(4.0, half_x, half_y, EntityType::Object)
+    pub fn build_object_collider(&mut self, half_x: f32, half_y: f32,
+        obj_type: ObjectType, filter_groups: u32) -> PhysicsHandle {
+        self.build_static_collider(4.0, half_x, half_y, EntityType::Object,
+            match obj_type {
+                ObjectType::Island => ISLAND_COLL_GROUP,
+                ObjectType::Reef => REEF_COLL_GROUP,
+                ObjectType::Shipwreck => SHIPWRECK_COLL_GROUP,
+        }, filter_groups)
     }
 
     pub fn build_harbour_collider(&mut self, half_x: f32, half_y: f32) -> PhysicsHandle {
-        self.build_static_collider(4.0, half_x, half_y, EntityType::Harbour)
+        self.build_static_collider(4.0, half_x, half_y, EntityType::Harbour,
+            HARBOUR_COLL_GROUP, ANY_COLL_GROUP)
     }
 
     pub fn build_harbour_zone(&mut self, pos: V2, rot: f32, half_x: f32, half_y: f32)
@@ -112,7 +138,7 @@ impl Physics {
         let coll = ColliderBuilder::ball(size).active_events(ActiveEvents::CONTACT_EVENTS)
             .user_data(EntityType::CannonBall.to_num())
             .collision_groups(InteractionGroups::new(
-                get_any_coll_group(), get_any_coll_group()))
+                CANNON_BALL_COLL_GROUP, ANY_COLL_GROUP))
             .density(density).build();
         let coll_handle = self.coll_set.insert_with_parent(coll, rb_handle, &mut self.rb_set);
         PhysicsHandle(rb_handle, coll_handle)
@@ -241,16 +267,4 @@ impl State for Physics {
         self.query_pipeline.update(&mut self.island_manager, &self.rb_set, &self.coll_set);
         Ok(())
     }
-}
-
-pub fn get_any_coll_group() -> u32 {
-    1 | 2 | 4
-}
-
-pub fn get_decal_coll_group() -> u32 {
-    6
-}
-
-pub fn get_empty_coll_group() -> u32 {
-    0
 }
