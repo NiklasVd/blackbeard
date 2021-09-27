@@ -6,19 +6,20 @@ const MIN_LOADING_TIME: f32 = 1.0;
 const LOADING_HINTS: [&str; 11] = [
     "Ship collisions stun the crew. Duration and damage depend on the ship's defence value.",
     "Use the Q and E keys to shoot cannons on star- and portside respectively.",
-    "Use the R key to change course without moving.",
+    "Use the R key to reorientate your ship to the target direction.",
     "What smaller ships lack in firepower, they make up in mobility.",
     "Sinking a ship by ramming yields 15% of escudos onboard.",
     "Sinking a ship via cannon shot yields 10% of escudos onboard.",
     "When your ship sinks due to an accidental collision, you lose 10% of escudos onboard.",
     "The more escudos you have, the slower your ship will sail.",
     "Use your escudos to buy upgrades and repairs at harbours.",
-    "Reefs will prove an impassable barrier to heavier ships, while allowing lighter ships to pass.",
+    "Reefs will prove an impassable barrier to heavier ships, while allowing schooners to pass.",
     "Beware of bandit outposts! They will shoot any ship on sight.",
 ];
 
 pub struct LoadingScene {
     players: Vec<PlayerParams>,
+    world_seed: u64,
     min_load_timer: Timer,
     grid: Grid,
     image_loaded: bool,
@@ -26,7 +27,7 @@ pub struct LoadingScene {
 }
 
 impl LoadingScene {
-    pub fn new(ctx: &mut Context, players: Vec<PlayerParams>, game: GC)
+    pub fn new(ctx: &mut Context, players: Vec<PlayerParams>, world_seed: u64, game: GC)
         -> tetra::Result<LoadingScene> {
         let mut grid = Grid::default(ctx, UIAlignment::Vertical,
             V2::zero(), V2::one() * 200.0, 0.0)?;
@@ -43,7 +44,7 @@ impl LoadingScene {
         grid.add_element(title_grid);
         
         Ok(LoadingScene {
-            players, min_load_timer: Timer::start(MIN_LOADING_TIME),
+            players, world_seed, min_load_timer: Timer::start(MIN_LOADING_TIME),
             grid, image_loaded: false, game
         })
     }
@@ -75,7 +76,8 @@ impl Scene for LoadingScene {
 
     fn poll(&self, ctx: &mut Context) -> BbResult<Option<Box<dyn Scene + 'static>>> {
         Ok(if self.min_load_timer.is_over() {
-            Some(Box::new(WorldScene::new(ctx, self.players.clone(), self.game.clone())?))
+            Some(Box::new(WorldScene::new(ctx, self.players.clone(), self.world_seed,
+                self.game.clone())?))
         } else {
             None
         })

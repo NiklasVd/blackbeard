@@ -49,12 +49,12 @@ impl Network {
         })
     }
 
-    pub fn set_game_phase(&mut self, phase: GamePhase) -> BbResult {
+    pub fn load_world_phase(&mut self, world_seed: u64) -> BbResult {
         if !self.has_authority() {
             return Err(BbError::Bb(BbErrorType::NetInsufficientAuthority))
         } else {
             self.send_packet(Packet::Game {
-                phase
+                phase: GamePhase::World(world_seed)
             })
         }
     }

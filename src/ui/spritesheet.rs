@@ -1,6 +1,5 @@
-use tetra::{Context, graphics::{DrawParams, Rectangle, Texture}};
-
-use crate::GC;
+use tetra::{Context, graphics::{DrawParams, NineSlice, Rectangle, Texture}};
+use crate::{GC, V2};
 
 pub struct Spritesheet {
     pub texture: Texture,
@@ -32,6 +31,11 @@ impl Spritesheet {
     }
 
     pub fn draw(&self, ctx: &mut Context, params: DrawParams) {
-        self.texture.draw_region(ctx, self.get_curr_rect(), params)
+        self.texture.draw_region(ctx, self.get_curr_rect(), params);
+    }
+
+    pub fn draw_nine_slice(&self, ctx: &mut Context, config: &NineSlice, size: V2,
+        params: DrawParams) {
+        self.texture.draw_nine_slice(ctx, config, size.x, size.y, params)
     }
 }

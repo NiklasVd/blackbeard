@@ -2,9 +2,9 @@ use core::fmt;
 use std::{collections::HashMap, iter::FromIterator};
 use binary_stream::{BinaryStream, Serializable};
 use nalgebra::ComplexField;
-use crate::{Rcc, ship::Ship};
+use crate::{Rcc, input_pool::STEP_PHASE_FRAME_LENGTH, ship::Ship};
 
-pub const SYNC_STATE_GEN_INTERVAL: u64 = 20;
+pub const SYNC_STATE_GEN_INTERVAL: u64 = 60 / STEP_PHASE_FRAME_LENGTH as u64;
 //pub const SYNC_STATE_GEN_MARGIN_OF_ERROR: f32 = 1.0;
 // First desync might be small inaccuracy. Second will mean it has spiralled out of control.
 pub const MAX_DESYNC_INTERVAL: u16 = 3;

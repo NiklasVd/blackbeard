@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use tetra::{Context, State};
-use crate::{BbResult, GC, ID, PlayerParams, Rcc, TransformResult, V2, button::{Button, DefaultButton}, chat::Chat, game_settings::GameSettings, grid::{Grid, UIAlignment, UILayout}, label::{FontSize, Label}, loading_scene::LoadingScene, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::{GamePhase, Packet}, peer::DisconnectReason, ship::ShipType, ui_element::{DefaultUIReactor, UIElement}};
+use crate::{BbResult, GC, ID, PlayerParams, Rcc, TransformResult, V2, button::{Button, DefaultButton}, chat::Chat, game_settings::GameSettings, grid::{Grid, UIAlignment, UILayout}, label::{FontSize, Label}, loading_scene::LoadingScene, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::{GamePhase, Packet}, peer::DisconnectReason, rand_u64, ship::ShipType, ui_element::{DefaultUIReactor, UIElement}};
 use super::scenes::{Scene, SceneType};
 
 pub struct LobbyScene {
     pub grid: Grid,
     ui: LobbySceneUI,
     players: HashMap<u16, PlayerParams>,
+    world_seed: u64,
     game_started: bool,
     disconnected: bool,
     game_settings: GameSettings,
@@ -39,7 +40,7 @@ impl LobbyScene {
         let ui = LobbySceneUI::new(ctx, &mut grid, game.clone())?;
 
         Ok(LobbyScene {
-            grid, ui, players: HashMap::new(), game_started: false,
+            grid, ui, players: HashMap::new(), world_seed: 0, game_started: false,
             disconnected: false, game_settings: GameSettings::default(), game
         })
     }
@@ -73,7 +74,7 @@ impl Scene for LobbyScene {
     fn poll(&self, ctx: &mut Context) -> BbResult<Option<Box<dyn Scene + 'static>>> {
         Ok(if self.game_started {
             Some(Box::new(LoadingScene::new(ctx, self.players.values().map(|p| p.clone())
-                .collect(), self.game.clone()).convert()?))
+                .collect(), self.world_seed, self.game.clone()).convert()?))
         } else if self.ui.disconnect_button.borrow().is_pressed() {
             self.game.borrow_mut().network.as_mut().unwrap().disconnect(DisconnectReason::Manual)?;
             Some(Box::new(MenuScene::new(ctx, self.game.clone()).convert()?))
@@ -144,7 +145,13 @@ impl NetController for LobbyScene {
     }
 
     fn on_game_phase_changed(&mut self, ctx: &mut Context, phase: GamePhase) -> BbResult {
-        self.game_started = true;
+        match phase {
+            GamePhase::World(world_seed) => {
+                self.world_seed = world_seed;
+                self.game_started = true;
+            },
+            _ => ()
+        }
         Ok(())
     }
 
@@ -265,7 +272,8 @@ impl LobbySceneUI {
             let mut start_game_button_ref = self.start_game_button.borrow_mut();
             if start_game_button_ref.is_pressed() && self.game.borrow().network.as_ref().unwrap()
                 .has_authority() && !self.game_started {
-                self.game.borrow_mut().network.as_mut().unwrap().set_game_phase(GamePhase::World)?;
+                self.game.borrow_mut().network.as_mut().unwrap()
+                    .load_world_phase(rand_u64())?;
                 start_game_button_ref.set_disabled(true);
                 self.game_started = true;
             }

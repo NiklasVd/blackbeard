@@ -1,6 +1,6 @@
 use std::{cell::RefCell , rc::Rc};
 use tetra::{Context, State, graphics::{self, Color, text::Text}, window::{get_height, get_width}};
-use crate::{Assets, Cam, Physics, Settings, V2, WorldSettings, economy::Economy, get_version, network::Network, scenes::scenes::{Scenes}};
+use crate::{Assets, Cam, Diagnostics, Physics, Settings, V2, WorldSettings, economy::Economy, get_version, network::Network, scenes::scenes::{Scenes}};
 
 pub type Rcc<T> = Rc<RefCell<T>>;
 pub type GC = Rcc<GameContainer>;
@@ -17,6 +17,7 @@ pub struct GameContainer {
     pub cam: Cam,
     pub network: Option<Network>,
     pub economy: Economy,
+    pub diagnostics: Diagnostics,
     pub simulation_state: bool
 }
 
@@ -27,9 +28,10 @@ impl GameContainer {
             physics: Physics::setup(),
             settings: Settings::new(),
             world: WorldSettings::new(),
-            cam: Cam::setup(ctx, 700.0),
+            cam: Cam::setup(ctx, 800.0),
             network: None,
             economy: Economy::new(),
+            diagnostics: Diagnostics::new(),
             simulation_state: true
         })
     }
@@ -64,6 +66,13 @@ impl Game {
         Ok(Game {
             container, scenes, watermark
         })
+    }
+}
+
+impl Drop for Game {
+    fn drop(&mut self) {
+        self.container.borrow_mut().diagnostics.backup_sync_states()
+            .expect("Failed to backup cached sync states");
     }
 }
 

@@ -14,7 +14,7 @@ pub enum ObjectType {
 pub struct Object {
     pub transform: Transform,
     pub obj_type: ObjectType,
-    sprite: Sprite,
+    pub sprite: Sprite,
     destroy: bool,
     game: GC
 }

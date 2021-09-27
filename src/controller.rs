@@ -1,7 +1,7 @@
 use std::{time::Instant};
 use indexmap::IndexMap;
 use tetra::{Context, Event, State, input::{Key, MouseButton}, time::{Timestep, set_timestep}};
-use crate::{BbResult, GC, Player, Rcc, Sprite, SpriteOrigin, TransformResult, V2, entity::GameState, input_pool::STEP_PHASE_TIME_SECS, packet::{InputState, InputStep, Packet}, playback_buffer::{PlaybackBuffer, StepPhase}, ship_mod::ShipModType, sync_checker::{SYNC_STATE_GEN_INTERVAL, SyncState}, world::World, wrap_rcc};
+use crate::{BbResult, GC, Player, Rcc, Sprite, SpriteOrigin, SyncStateShipData, TransformResult, V2, entity::GameState, input_pool::STEP_PHASE_TIME_SECS, packet::{InputState, InputStep, Packet}, playback_buffer::{PlaybackBuffer, StepPhase}, ship_mod::ShipModType, sync_checker::{SYNC_STATE_GEN_INTERVAL, SyncState}, world::World, wrap_rcc};
 
 pub const MAX_INPUT_STEP_BLOCK_TIME: f32 = 20.0;
 pub const DEFAULT_SIMULATION_TIMESTEP: f64 = 60.0;
@@ -147,12 +147,21 @@ impl Controller {
                 .values()
                 .map(|p| p.borrow().possessed_ship.clone())
                 .collect::<Vec<_>>();
-            let state = SyncState::gen_from_ships(self.curr_gen, player_ships);
-            // println!("Generated sync state {} at frame {}. Hash = {}", self.curr_gen,
-            //     self.input_buffer.curr_frames, state.hash);
-            self.game.borrow_mut().network.as_mut().unwrap().send_packet(Packet::Sync {
-                state
-            })
+            let state = SyncState::gen_from_ships(self.curr_gen, player_ships.clone());
+            {
+                let ship_data = self.players.values().map(|p| {
+                    let p_ref = p.borrow();
+                    let ship_ref = p_ref.possessed_ship.borrow_mut();
+                    let translation = ship_ref.transform.get_translation();
+                    SyncStateShipData::new(p_ref.id.n,
+                        translation.0, translation.1, ship_ref.curr_health)
+                }).collect();
+                let mut game_ref = self.game.borrow_mut();
+                game_ref.diagnostics.add_sync_state(state, ship_data);
+                game_ref.network.as_mut().unwrap().send_packet(Packet::Sync {
+                    state
+                })
+            }
         } else {
             Ok(())
         }

@@ -1,14 +1,13 @@
 use std::f32::consts::PI;
 use binary_stream::BinaryStream;
 use nalgebra::{ComplexField, RealField};
-use rand::Rng;
+use rand::{Rng, RngCore};
+use rand_xoshiro::{Xoshiro128Plus};
 use rapier2d::{math::{Isometry, Real, Vector}, na::{Point2}};
-use tetra::{Context, time::get_delta_time};
-use crate::{V2};
+use tetra::{Context};
+use crate::{DEFAULT_SIMULATION_TIMESTEP, V2};
 
-pub fn get_dt(ctx: &mut Context) -> f32 {
-    get_delta_time(ctx).as_secs_f32()
-}
+pub const UNIT_FRAMERATE_TIMESTEP: f32 = 1.0 / DEFAULT_SIMULATION_TIMESTEP as f32;
 
 pub fn conv_rvec(m_vec: Vector<Real>) -> V2 {
     V2::new(m_vec.x, m_vec.y)
@@ -68,7 +67,16 @@ pub fn round_to_multiple(n: f32, multiple: f32) -> f32 {
 }
 
 pub fn rand_u32(min: u32, max: u32) -> u32 {
+    // TODO: Merge rand crate functionality with xishiro
     rand::thread_rng().gen_range(min..=max)
+}
+
+pub fn rand_u64() -> u64 {
+    rand::thread_rng().gen()
+}
+
+pub fn rand_f32(rng: &mut Xoshiro128Plus) -> f32 {
+    (rng.next_u32() >> 8) as f32 / (1 << 24) as f32
 }
 
 pub fn serialize_v2(stream: &mut BinaryStream, vec: V2) -> std::io::Result<()> {
@@ -105,7 +113,7 @@ impl Timer {
         // will not respond to frame rate acceleration (due to simulation catch-ups
         // of the lockstep model).
         // Using delta time, the duration of a timer will be the same on 60 or 180 FPS alike.
-        self.curr_time += 1.0 / 60.0;
+        self.curr_time += UNIT_FRAMERATE_TIMESTEP;
     }
 
     pub fn is_running(&self) -> bool {

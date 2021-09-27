@@ -1,5 +1,5 @@
-use tetra::{Context, Event, State, input::Key};
-use crate::{BbError, BbErrorType, BbResult, Controller, GC, ID, Player, PlayerParams, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, entity::{Entity, GameState}, grid::{Grid, UIAlignment, UILayout}, image::Image, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ship::ShipType, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, ui_element::{DefaultUIReactor, UIElement}, world::World};
+use tetra::{Context, Event, State, input::Key, math::Clamp};
+use crate::{BbError, BbErrorType, BbResult, Controller, GC, ID, Player, PlayerParams, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, entity::{Entity, GameState}, gen_world, grid::{Grid, UIAlignment, UILayout}, image::Image, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ship::ShipType, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, ui_element::{DefaultUIReactor, UIElement}, world::World};
 use super::scenes::{Scene, SceneType};
 
 pub struct WorldScene {
@@ -12,7 +12,8 @@ pub struct WorldScene {
 }
 
 impl WorldScene {
-    pub fn new(ctx: &mut Context, players: Vec<PlayerParams>, game: GC) -> BbResult<WorldScene> {
+    pub fn new(ctx: &mut Context, players: Vec<PlayerParams>, world_seed: u64,
+        game: GC) -> BbResult<WorldScene> {
         let mut grid = Grid::default(ctx, UIAlignment::Horizontal,
             V2::zero(), V2::one() * 200.0, 0.0).convert()?;
         let mut ui = WorldSceneUI::new(ctx, game.clone(), &mut grid).convert()?;
@@ -23,22 +24,9 @@ impl WorldScene {
             world: World::new(ctx, game.clone()),
             grid, ui, back_to_menu: false, game: game.clone()
         };
-        
-        world_scene.world.add_reef(ctx, V2::new(-450.0, -575.0), -0.8).convert()?;
-        world_scene.world.add_reef(ctx, V2::new(2100.0, -700.0), 1.1).convert()?;
-
-        world_scene.world.add_island(ctx, V2::new(800.0, 500.0), 0.6, 1).convert()?;
-        world_scene.world.add_island(ctx, V2::new(150.0, 1000.0), 4.0, 2).convert()?;
-        world_scene.world.add_island(ctx, V2::new(-200.0, -800.0), 0.0, 1).convert()?;
-        world_scene.world.add_island(ctx, V2::new(-900.0, 200.0), 0.0, 3).convert()?;
-        world_scene.world.add_island(ctx, V2::new(1200.0, -500.0), 0.0, 3).convert()?;
-        world_scene.world.add_island(ctx, V2::new(-600.0, -300.0), 1.0, 2).convert()?;
-        world_scene.world.add_island(ctx, V2::new(2000.0, -1000.0), 0.2, 1).convert()?;
-        world_scene.world.add_island(ctx, V2::new(2300.0, -400.0), 3.5, 2).convert()?;
-        world_scene.world.add_island(ctx, V2::new(1600.0, 1700.0), 0.0, 3).convert()?;
-        world_scene.world.add_island(ctx, V2::new(800.0, -1600.0), 0.2, 4).convert()?;
-        world_scene.world.add_harbour(ctx, "Port Elisabeth", V2::new(820.0, -1325.0),
-            -0.5).convert()?;
+        let map_size = (15 * players.len()).min(45) as i64;
+        gen_world(ctx, map_size, map_size, 500.0, 1.75,
+            world_seed, 2, &mut world_scene.world).convert()?;
 
         world_scene.init_players(ctx, players)?;
         world_scene.ui.set_local_player(

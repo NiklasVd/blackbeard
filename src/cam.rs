@@ -1,5 +1,5 @@
 use tetra::{Context, State, graphics::Camera, input::{Key, is_key_down, is_mouse_scrolled_down, is_mouse_scrolled_up}, math::Clamp, window::{get_height, get_width}};
-use crate::{V2, get_dt};
+use crate::{UNIT_FRAMERATE_TIMESTEP, V2};
 
 pub const CAM_ZOOM_RATE: f32 = 2.0;
 
@@ -36,25 +36,27 @@ impl Cam {
 impl State for Cam {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
         if is_key_down(ctx, Key::W) {
-            self.instance.position.y -= self.movement_speed * get_dt(ctx);
+            self.instance.position.y -= self.movement_speed * UNIT_FRAMERATE_TIMESTEP;
         }
         if is_key_down(ctx, Key::S) {
-            self.instance.position.y += self.movement_speed * get_dt(ctx);
+            self.instance.position.y += self.movement_speed * UNIT_FRAMERATE_TIMESTEP;
         }
         if is_key_down(ctx, Key::A) {
-            self.instance.position.x -= self.movement_speed * get_dt(ctx);
+            self.instance.position.x -= self.movement_speed * UNIT_FRAMERATE_TIMESTEP;
         }
         if is_key_down(ctx, Key::D) {
-            self.instance.position.x += self.movement_speed * get_dt(ctx);
+            self.instance.position.x += self.movement_speed * UNIT_FRAMERATE_TIMESTEP;
         }
 
         if is_mouse_scrolled_up(ctx) {
-            self.instance.scale += CAM_ZOOM_RATE * get_dt(ctx);
-            self.instance.scale = self.instance.scale.clamped(V2::new(0.2, 0.2), V2::one() * 1.3);
+            self.instance.scale += CAM_ZOOM_RATE * UNIT_FRAMERATE_TIMESTEP;
+            // self.instance.scale = self.instance.scale.clamped(V2::new(0.2, 0.2),
+            //     V2::one() * 1.3);
         }
         else if is_mouse_scrolled_down(ctx) {
-            self.instance.scale -= CAM_ZOOM_RATE * get_dt(ctx);
-            self.instance.scale = self.instance.scale.clamped(V2::new(0.2, 0.2), V2::one() * 1.3);
+            self.instance.scale -= CAM_ZOOM_RATE * UNIT_FRAMERATE_TIMESTEP;
+            // self.instance.scale = self.instance.scale.clamped(V2::new(0.2, 0.2),
+            //     V2::one() * 1.3);
         }
 
         self.instance.update();

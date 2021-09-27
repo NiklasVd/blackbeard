@@ -22,9 +22,11 @@ impl World {
     }
 
     pub fn add_player_ship(&mut self, ctx: &mut Context, id: ID, ship_type: ShipType) -> tetra::Result<Rcc<Ship>> {
-        self.add_ship(ctx, ship_type, id.name, id.n,
-            V2::right() * id.n as f32 * 1000.0, // Initial spawn position
-            true)
+        let free_spawn_pos = {
+            self.game.borrow().physics.check_for_space(V2::right() * id.n as f32 * 1500.0,
+                V2::new(400.0, 150.0), V2::down())
+        };
+        self.add_ship(ctx, ship_type, id.name, id.n, free_spawn_pos, true)
     }
 
     pub fn add_island(&mut self, ctx: &mut Context, pos: V2, rot: f32, island_type: u32)

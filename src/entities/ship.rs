@@ -58,7 +58,7 @@ impl ShipAttributes {
         ShipAttributes {
             health: 140,
             defense: 60,
-            movement_speed: 13.5, turn_rate: 5.25,
+            movement_speed: 19.5, turn_rate: 5.25,
             cannon_damage: 15, cannon_reload_time: 5.0,
             ram_damage: 20
         }
@@ -68,7 +68,7 @@ impl ShipAttributes {
         ShipAttributes {
             health: 160,
             defense: 80,
-            movement_speed: 12.0, turn_rate: 4.85,
+            movement_speed: 18.0, turn_rate: 4.85,
             cannon_damage: 15, cannon_reload_time: 5.0,
             ram_damage: 30
         }
@@ -78,7 +78,7 @@ impl ShipAttributes {
         ShipAttributes {
             health: 120,
             defense: 35,
-            movement_speed: 12.5, turn_rate: 3.25,
+            movement_speed: 18.5, turn_rate: 3.25,
             cannon_damage: 15, cannon_reload_time: 5.0,
             ram_damage: 15
         }

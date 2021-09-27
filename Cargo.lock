@@ -132,9 +132,11 @@ dependencies = [
  "laminar",
  "nalgebra 0.29.0",
  "rand",
+ "rand_xoshiro",
  "rapier2d",
  "seahash",
  "tetra",
+ "worldgen",
 ]
 
 [[package]]
@@ -962,6 +964,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand_xoshiro"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f97cdb2a36ed4183de61b2f824cc45c9f1037f28afe0a322e9fff4c108b5aaa"
+dependencies = [
+ "rand_core",
+]
+
+[[package]]
 name = "rapier2d"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1549,6 +1560,12 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
+
+[[package]]
+name = "worldgen"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9b77fba24c873b60af296c1f0c5639114186d1ac3c99f880a7bb590bdc04065"
 
 [[package]]
 name = "xi-unicode"

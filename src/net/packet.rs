@@ -26,7 +26,7 @@ pub enum Packet {
         step: InputStep
     },
     Game {
-        phase: GamePhase
+        phase: GamePhase,
     },
     Sync {
         state: SyncState
@@ -154,8 +154,9 @@ impl Serializable for Packet {
                 }
             },
             7 => {
+                let phase = GamePhase::from_stream(stream);
                 Packet::Game {
-                    phase: GamePhase::from_stream(stream)
+                    phase
                 }
             },
             8 => {
@@ -340,21 +341,27 @@ impl Serializable for InputStep {
 
 #[derive(Debug)]
 pub enum GamePhase {
-    World,
+    World(u64),
     Score
 }
 
 impl Serializable for GamePhase {
     fn to_stream(&self, stream: &mut BinaryStream) {
-        stream.write_buffer_single(match self {
-            GamePhase::World => 0,
-            GamePhase::Score => 1,
-        }).unwrap();
+        match self {
+            GamePhase::World(world_seed) => {
+                stream.write_buffer_single(0).unwrap();
+                stream.write_u64(*world_seed).unwrap();
+            },
+            GamePhase::Score => stream.write_buffer_single(1).unwrap(),
+        }
     }
 
     fn from_stream(stream: &mut BinaryStream) -> Self {
         match stream.read_buffer_single().unwrap() {
-            0 => GamePhase::World,
+            0 => {
+                let world_seed = stream.read_u64().unwrap();
+                GamePhase::World(world_seed)
+            },
             1 => GamePhase::Score,
             n @ _ => panic!("Index {} not assigned to any game phase", n)
         }
