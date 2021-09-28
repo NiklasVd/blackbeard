@@ -1,4 +1,4 @@
-use tetra::{Context, State, graphics::Camera, input::{Key, is_key_down, is_mouse_scrolled_down, is_mouse_scrolled_up}, math::Clamp, window::{get_height, get_width}};
+use tetra::{Context, State, graphics::Camera, input::{Key, is_key_down, is_mouse_scrolled_down, is_mouse_scrolled_up}, window::{get_height, get_width}};
 use crate::{UNIT_FRAMERATE_TIMESTEP, V2};
 
 pub const CAM_ZOOM_RATE: f32 = 2.0;

@@ -1,5 +1,5 @@
 use tetra::{Context};
-use crate::{ANY_COLL_GROUP, GC, SMALL_SHIP_COLL_GROUP, Sprite, SpriteOrigin, Transform, V2, entity::{Entity, EntityType, GameState}};
+use crate::{ANY_COLL_GROUP, CANNON_BALL_COLL_GROUP, GC, SMALL_SHIP_COLL_GROUP, Sprite, SpriteOrigin, Transform, V2, entity::{Entity, EntityType, GameState}};
 
 // Reefs only pose hazard to big ships (with greater keel depth), hence providing
 // a way of escape for smaller ships
@@ -47,7 +47,7 @@ impl Object {
     pub fn build_reef(ctx: &mut Context, game: GC, pos: V2, rot: f32)
         -> tetra::Result<Object> {
         Self::build_object(ctx, ObjectType::Reef, game.clone(), "Reef.png".to_owned(),
-            pos, rot, ANY_COLL_GROUP ^ SMALL_SHIP_COLL_GROUP)
+            pos, rot, ANY_COLL_GROUP ^ SMALL_SHIP_COLL_GROUP ^ CANNON_BALL_COLL_GROUP)
     }
 
     fn build_object(ctx: &mut Context, obj_type: ObjectType, game: GC, tex_name: String,

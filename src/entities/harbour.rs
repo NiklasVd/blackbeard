@@ -6,7 +6,7 @@ use crate::{GC, Sprite, SpriteOrigin, Transform, V2, entity::{Entity, EntityType
 pub struct Harbour {
     pub transform: Transform,
     pub zone_handle: ColliderHandle,
-    sprite: Sprite,
+    pub sprite: Sprite,
     name_label: Text,
     game: GC
 }
@@ -20,8 +20,9 @@ impl Harbour {
         let sprite_size = sprite.get_size();
         let handle = game_ref.physics.build_harbour_collider(
             sprite_size.x * 0.5, sprite_size.y * 0.5);
+        // TODO: Adjust properly around actual harbour zone
         let zone_handle = game_ref.physics.build_harbour_zone(pos, rot,
-            sprite_size.x * 1.25, sprite_size.y * 1.25);
+            sprite_size.x * 1.085, sprite_size.y * 1.2);
         let name_label = Text::new(name.clone(), game_ref.assets.header_font.clone());
         std::mem::drop(game_ref);
 

@@ -1,4 +1,4 @@
-use tetra::{Context, Event, State, input::Key, math::Clamp};
+use tetra::{Context, Event, State, input::Key};
 use crate::{BbError, BbErrorType, BbResult, Controller, GC, ID, Player, PlayerParams, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, entity::{Entity, GameState}, gen_world, grid::{Grid, UIAlignment, UILayout}, image::Image, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ship::ShipType, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, ui_element::{DefaultUIReactor, UIElement}, world::World};
 use super::scenes::{Scene, SceneType};
 
@@ -24,8 +24,8 @@ impl WorldScene {
             world: World::new(ctx, game.clone()),
             grid, ui, back_to_menu: false, game: game.clone()
         };
-        let map_size = (15 * players.len()).min(45) as i64;
-        gen_world(ctx, map_size, map_size, 500.0, 1.75,
+        let map_size = (20 * players.len()).min(50) as i64;
+        gen_world(ctx, map_size, map_size, 475.0, 1.7,
             world_seed, 2, &mut world_scene.world).convert()?;
 
         world_scene.init_players(ctx, players)?;
