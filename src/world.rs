@@ -202,8 +202,12 @@ impl World {
         let b_ship = {
             let b_ref = b.borrow();
             match b_ref.get_type() {
-                EntityType::Ship => Some(self.get_ship_unchecked(b_ref.get_index())),
-                _ => None
+                EntityType::Ship => {
+                    Some(self.get_ship_unchecked(b_ref.get_index()))
+                },
+                _ => {
+                    None
+                }
             }
         };
         if let Some(b_ship) = b_ship { // b is a ship

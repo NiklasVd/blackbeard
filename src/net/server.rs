@@ -14,7 +14,7 @@ pub struct Server {
 
 impl Server {
     pub fn host(port: u16, settings: NetSettings) -> BbResult<Server> {
-        println!("Hosting server at {}.", port);
+        println!("Server: Hosting at {}.", port);
         Ok(Server {
             settings, peer: Peer::setup(Some(port))?, connections: HashMap::new(),
             curr_id: 0, input_pool: None, sync_checker: None

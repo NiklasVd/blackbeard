@@ -1,6 +1,6 @@
 use rapier2d::data::Index;
 use tetra::Context;
-use crate::{CannonSide, GC, ID, Rcc, TransformResult, World, entity::Entity, packet::InputState, ship::{Ship, ShipType}, ship_mod::{CannonAmmoUpgradeMod, CannonRangeUpgradeMod, CannonReloadUpgradeMod, ShipMod, ShipModType, get_ship_mod_cost}};
+use crate::{CannonSide, GC, ID, Rcc, StateEvent, TransformResult, World, entity::Entity, log_state_event, packet::InputState, ship::{Ship, ShipType}, ship_mod::{CannonAmmoUpgradeMod, CannonRangeUpgradeMod, CannonReloadUpgradeMod, ShipMod, ShipModType, get_ship_mod_cost}};
 
 pub struct Player {
     pub id: ID,
@@ -25,15 +25,26 @@ impl Player {
     pub fn apply_state(&mut self, ctx: &mut Context, state: InputState,
         world: &mut World) -> tetra::Result {
         let mut ship_ref = self.possessed_ship.borrow_mut();
+        if state.disconnect {
+            ship_ref.destroy();
+            return Ok(())
+        }
+        
         if state.q {
             ship_ref.shoot_cannons_on_side(ctx, CannonSide::Bowside, world)?;
         }
         if state.e {
             ship_ref.shoot_cannons_on_side(ctx, CannonSide::Portside, world)?;
         }
+        if state.q || state.e {
+            log_state_event(self.game.clone(), StateEvent::ShipShoot(
+                self.id.n, state.q, state.e));
+        }
 
         if let Some(mouse_pos) = state.mouse_pos {
             ship_ref.set_target_pos(mouse_pos, state.r);
+            log_state_event(self.game.clone(), StateEvent::ShipMotion(
+                self.id.n, state.r, mouse_pos));
         }
 
         if state.buy_mod && ship_ref.is_in_harbour {

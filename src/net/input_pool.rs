@@ -30,7 +30,9 @@ impl InputPool {
     pub fn remove_player(&mut self, id: u16) {
         self.players.remove(&id);
         self.player_states.remove(&id);
-        self.input_states.remove(&id);
+        self.add_state(id, InputState {
+            disconnect: true, ..Default::default()
+        });
     }
 
     pub fn is_step_phase_over(&self) -> bool {
@@ -42,7 +44,10 @@ impl InputPool {
     }
 
     pub fn check_delayed_players(&mut self) -> Vec<u16> {
-        self.players.iter().filter(|id| !self.player_states.contains(id)).map(|id| *id).collect()
+        self.players.iter()
+            .filter(|id| !self.player_states.contains(id))
+            .map(|id| *id)
+            .collect()
     }
 
     pub fn update_states(&mut self) {

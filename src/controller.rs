@@ -1,7 +1,7 @@
 use std::{time::Instant};
 use indexmap::IndexMap;
 use tetra::{Context, Event, State, input::{Key, MouseButton}, time::{Timestep, set_timestep}};
-use crate::{BbResult, GC, Player, Rcc, Sprite, SpriteOrigin, SyncStateShipData, TransformResult, V2, entity::GameState, input_pool::STEP_PHASE_TIME_SECS, packet::{InputState, InputStep, Packet}, playback_buffer::{PlaybackBuffer, StepPhase}, ship_mod::ShipModType, sync_checker::{SYNC_STATE_GEN_INTERVAL, SyncState}, world::World, wrap_rcc};
+use crate::{BbResult, DiagnosticState, GC, Player, Rcc, Sprite, SpriteOrigin, SyncStateShipData, TransformResult, V2, entity::GameState, input_pool::STEP_PHASE_TIME_SECS, packet::{InputState, InputStep, Packet}, playback_buffer::{PlaybackBuffer, StepPhase}, ship_mod::ShipModType, sync_checker::{SYNC_STATE_GEN_INTERVAL, SyncState}, world::World, wrap_rcc};
 
 pub const MAX_INPUT_STEP_BLOCK_TIME: f32 = 20.0;
 pub const DEFAULT_SIMULATION_TIMESTEP: f64 = 60.0;
@@ -63,11 +63,6 @@ impl Controller {
     }
 
     pub fn is_next_step_ready(&self) -> bool {
-        // The frame shift issue seems to be lifted. Only when a client loaded the world faster
-        // than the auth client, they waited 15 frames until a step came, then froze. Unfortunately,
-        // the moment a reply came, the client applied it on the 16th frame, i.e., one iteration after.
-        // That lead to a complete shift in input step intervals, throwing the game into, initially subtle,
-        // but eventual chaos.
         (match self.input_buffer.get_curr_phase() {
             StepPhase::Imminent | StepPhase::Running => true,
             _ => false
@@ -105,6 +100,10 @@ impl Controller {
     }
 
     fn update_step(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
+        /* Rare desync bugs still persist. During over 15min play testing, it occured
+        once. However, the exact cause for disconnection is not entirely clear. The client
+        had not received a reply for long and was in blocking mode.
+        */
         if self.input_buffer.get_curr_phase() == StepPhase::Over {
             if let Some(next_step) = self.input_buffer.get_next_step() {
                 self.apply_step(ctx, next_step, world)?;
@@ -119,6 +118,8 @@ impl Controller {
     fn apply_step(&mut self, ctx: &mut Context, step: InputStep, world: &mut World) -> tetra::Result {
         self.curr_gen += 1;
         self.blocking_time = Instant::now();
+        assert!(self.curr_gen == step.gen);
+
         for (sender, state) in step.states.into_iter() {
             self.apply_state(ctx, sender, state, world)?;
         }
@@ -128,10 +129,15 @@ impl Controller {
     fn apply_state(&mut self, ctx: &mut Context, sender: u16, state: InputState, world: &mut World)
         -> tetra::Result {
         if let Some(player) = self.players.get(&sender) {
-            player.borrow_mut().apply_state(ctx, state, world)
+            let disconnect = state.disconnect;
+            player.borrow_mut().apply_state(ctx, state, world)?;
+            if disconnect {
+                self.remove_player(sender);
+            }
         } else {
-            Ok(())
+            println!("Failed to apply state. Reason: Player with ID {} does not exist", sender);
         }
+        Ok(())
     }
 
     fn send_curr_state(&mut self) -> BbResult {
@@ -156,8 +162,10 @@ impl Controller {
                     SyncStateShipData::new(p_ref.id.n,
                         translation.0, translation.1, ship_ref.curr_health)
                 }).collect();
+
                 let mut game_ref = self.game.borrow_mut();
-                game_ref.diagnostics.add_sync_state(state, ship_data);
+                game_ref.diagnostics.add_state(DiagnosticState::new_sync_state(
+                    self.curr_gen, self.input_buffer.curr_frames, state, ship_data));
                 game_ref.network.as_mut().unwrap().send_packet(Packet::Sync {
                     state
                 })
@@ -171,6 +179,8 @@ impl Controller {
 impl GameState for Controller {
     fn update(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
         self.input_buffer.update(ctx)?;
+        // First update gen/frame, so that events logged in update_step will have correct numbers
+        self.game.borrow_mut().simulation_settings.update(self.curr_gen, self.input_buffer.curr_frames);
         self.update_step(ctx, world)
     }
 

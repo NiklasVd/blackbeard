@@ -1,5 +1,5 @@
 use tetra::{Context, Event, State, input::Key};
-use crate::{BbError, BbErrorType, BbResult, Controller, GC, ID, Player, PlayerParams, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, entity::{Entity, GameState}, gen_world, grid::{Grid, UIAlignment, UILayout}, image::Image, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ship::ShipType, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, ui_element::{DefaultUIReactor, UIElement}, world::World};
+use crate::{BbResult, Controller, GC, ID, Player, PlayerParams, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, entity::{GameState}, gen_world, grid::{Grid, UIAlignment, UILayout}, image::Image, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ship::ShipType, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, ui_element::{DefaultUIReactor, UIElement}, world::World};
 use super::scenes::{Scene, SceneType};
 
 pub struct WorldScene {
@@ -24,7 +24,7 @@ impl WorldScene {
             world: World::new(ctx, game.clone()),
             grid, ui, back_to_menu: false, game: game.clone()
         };
-        let map_size = (20 * players.len()).min(50) as i64;
+        let map_size = (10 + 5 * players.len()).min(30) as i64;
         gen_world(ctx, map_size, map_size, 475.0, 1.7,
             world_seed, 2, &mut world_scene.world).convert()?;
 
@@ -70,7 +70,7 @@ impl WorldScene {
     fn update_world(&mut self, ctx: &mut Context) -> tetra::Result {
         let is_next_step_ready = self.controller.is_next_step_ready();
         // For uppermost game loop to check if physics simulation should be advanced
-        self.game.borrow_mut().simulation_state = is_next_step_ready;
+        self.game.borrow_mut().simulation_settings.run = is_next_step_ready;
         
         if is_next_step_ready {
             self.controller.update(ctx, &mut self.world)?;
@@ -144,7 +144,13 @@ impl Scene for WorldScene {
     fn poll(&self, ctx: &mut Context) -> BbResult<Option<Box<dyn Scene>>> {
         Ok(if self.back_to_menu {
             // Clean up
-            self.game.borrow_mut().physics.clear_colliders();
+            {
+                let mut game_ref = self.game.borrow_mut();
+                game_ref.physics.clear_colliders();
+                if let Err(e) = game_ref.diagnostics.backup_states() {
+                    println!("Failed to back up diagnostic states. Reason: {}", e);
+                }
+            }
             Some(Box::new(MenuScene::new(ctx, self.game.clone()).convert()?))
         }
         else {
@@ -192,17 +198,15 @@ impl NetController for WorldScene {
     
     fn on_player_disconnect(&mut self, ctx: &mut Context, id: u16, reason: DisconnectReason)
         -> BbResult {
-        if let Some(player) = self.controller.remove_player(id) {
-            let player_ref = player.borrow_mut();
-            player_ref.possessed_ship.borrow_mut().destroy();
+        if let Some(player) = self.controller.players.get(&id) {
+            // Player removal is done in controller, when appropiate input state is received
             self.ui.update_players(ctx, self.game.borrow().network.as_ref().unwrap()
                 .client.get_connections()).convert()?;
-            //println!("Player with ID {} disconnected. Reason: {:?}", id, reason);
             self.ui.chat.add_line(ctx,
-                &format!("{:?} left the game. Reason: {:?}.", player_ref.id, reason)).convert()?;
-            Ok(())
+                &format!("{:?} left the game. Reason: {:?}.", player.borrow().id, reason)).convert()
         } else {
-            Err(BbError::Bb(BbErrorType::InvalidPlayerID(id)))
+            println!("Received disconnect from player with invalid ID {}.", id);
+            Ok(())
         }
     }
 

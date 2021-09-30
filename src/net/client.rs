@@ -16,6 +16,7 @@ impl Client {
             peer: Peer::setup(None)?, server_addr: server_addr.parse().unwrap(),
             connections: HashMap::new(), local_id: None, connected: false, name: name.to_owned()
         };
+        println!("Connecting to {}", server_addr);
         client.send_packet(Packet::Handshake {
             name: name.clone()
         })?;

@@ -60,6 +60,7 @@ mod diagnostics;
 mod world;
 mod economy;
 mod game_settings;
+mod simulation_settings;
 
 pub use game::*;
 pub use physics::*;

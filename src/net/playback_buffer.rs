@@ -42,6 +42,7 @@ impl PlaybackBuffer {
     }
 
     pub fn get_curr_phase(&self) -> StepPhase {
+        // Alternative: check with modulo
         if self.curr_frame_index >= STEP_PHASE_FRAME_LENGTH {
             StepPhase::Over
         } else if self.curr_frame_index == STEP_PHASE_FRAME_LENGTH - 1 {

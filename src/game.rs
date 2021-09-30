@@ -1,6 +1,6 @@
 use std::{cell::RefCell , rc::Rc};
 use tetra::{Context, State, graphics::{self, Color, text::Text}, window::{get_height, get_width}};
-use crate::{Assets, Cam, Diagnostics, Physics, Settings, V2, WorldSettings, economy::Economy, get_version, network::Network, scenes::scenes::{Scenes}};
+use crate::{Assets, Cam, Diagnostics, Physics, Settings, V2, WorldSettings, economy::Economy, get_version, network::Network, scenes::scenes::{Scenes}, simulation_settings::SimulationSettings};
 
 pub type Rcc<T> = Rc<RefCell<T>>;
 pub type GC = Rcc<GameContainer>;
@@ -18,7 +18,7 @@ pub struct GameContainer {
     pub network: Option<Network>,
     pub economy: Economy,
     pub diagnostics: Diagnostics,
-    pub simulation_state: bool
+    pub simulation_settings: SimulationSettings
 }
 
 impl GameContainer {
@@ -32,7 +32,7 @@ impl GameContainer {
             network: None,
             economy: Economy::new(),
             diagnostics: Diagnostics::new(),
-            simulation_state: true
+            simulation_settings: SimulationSettings::new()
         })
     }
 }
@@ -43,7 +43,7 @@ impl State for GameContainer {
         if let Some(network) = self.network.as_mut() {
             network.update(ctx)?;
         }
-        if self.simulation_state { // Dont simulate physics if simulation is halted
+        if self.simulation_settings.run { // Dont simulate physics if simulation is halted
             self.physics.update(ctx)?;
         }
         Ok(())
@@ -66,13 +66,6 @@ impl Game {
         Ok(Game {
             container, scenes, watermark
         })
-    }
-}
-
-impl Drop for Game {
-    fn drop(&mut self) {
-        self.container.borrow_mut().diagnostics.backup_sync_states()
-            .expect("Failed to backup cached sync states");
     }
 }
 

@@ -220,15 +220,16 @@ pub struct InputState {
     pub q: bool,
     pub e: bool,
     pub buy_mod: bool,
+    pub disconnect: bool,
     pub mod_type: Option<ShipModType>,
     pub mouse_pos: Option<V2>
 }
 
 impl InputState {
-    pub fn new(rmb: bool, r: bool, q: bool, e: bool, buy_mod: bool, mod_type: Option<ShipModType>,
+    pub fn new(rmb: bool, r: bool, q: bool, e: bool, buy_mod: bool, disconnect: bool, mod_type: Option<ShipModType>,
         mouse_pos: Option<V2>) -> InputState {
         InputState {
-            rmb, r, q, e, buy_mod, mod_type, mouse_pos
+            rmb, r, q, e, disconnect, buy_mod, mod_type, mouse_pos
         }
     }
 
@@ -241,11 +242,13 @@ impl InputState {
             true => Some(get_mouse_position(ctx)),
             false => None
         };
-        InputState::new(rmb, r, q, e, false, None, mouse_pos)
+        InputState::new(rmb, r, q, e, false, false, None, mouse_pos)
     }
+}
 
-    pub fn default() -> InputState {
-        InputState::new(false, false, false, false, false, None, None)
+impl Default for InputState {
+    fn default() -> Self {
+        Self::new(false, false, false, false, false, false, None, None)
     }
 }
 
@@ -256,6 +259,7 @@ impl Serializable for InputState {
         input_bits |= (self.q as u8) << 2;
         input_bits |= (self.e as u8) << 3;
         input_bits |= (self.buy_mod as u8) << 4;
+        input_bits |= (self.disconnect as u8) << 5;
         stream.write_buffer_single(input_bits).unwrap();
 
         if self.buy_mod {
@@ -279,6 +283,7 @@ impl Serializable for InputState {
         let q = (input_bits & (0b1 << 2u8)) != 0;
         let e = (input_bits & (0b1 << 3u8)) != 0;
         let buy_mod = (input_bits & (0b1 << 4u8)) != 0;
+        let disconnect = (input_bits & (0b1 << 5u8)) != 0;
 
         let mod_type = match buy_mod {
             true => Some(ShipModType::from_stream(stream)),
@@ -288,14 +293,14 @@ impl Serializable for InputState {
             true => Some(deserialize_v2(stream)),
             false => None
         };
-        InputState::new(rmb, r, q, e, buy_mod, mod_type, mouse_pos)
+        InputState::new(rmb, r, q, e, buy_mod, disconnect, mod_type, mouse_pos)
     }
 }
 
 impl fmt::Debug for InputState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Rmb: {}, R: {}, Q: {}, E: {}, Buy Mod: {}, Mod Type: {:?}, Mouse Pos.: {:?}",
-            self.rmb, self.r, self.q, self.e, self.buy_mod, self.mod_type, self.mouse_pos)
+        writeln!(f, "Rmb: {}, R: {}, Q: {}, E: {}, Buy Mod: {}, Disconnect: {}, Mod Type: {:?}, Mouse Pos.: {:?}",
+            self.rmb, self.r, self.q, self.e, self.buy_mod, self.disconnect, self.mod_type, self.mouse_pos)
     }
 }
 

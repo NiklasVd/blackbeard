@@ -49,9 +49,7 @@ impl LobbyScene {
         if let Some(selected_ship_type) = self.ui.selected_ship_type.take() {
             self.game.borrow_mut().network.as_mut().unwrap().send_packet(Packet::Selection {
                 mode: true, ship: Some(selected_ship_type), settings: None
-            })?;
-            println!("Selected ship type: {:?}", selected_ship_type);
-            Ok(())
+            })
         } else {
             Ok(())
         }
