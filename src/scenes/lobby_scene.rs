@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use tetra::{Context, State};
-use crate::{BbResult, GC, ID, PlayerParams, Rcc, TransformResult, V2, button::{Button, DefaultButton}, chat::Chat, game_settings::GameSettings, grid::{Grid, UIAlignment, UILayout}, label::{FontSize, Label}, loading_scene::LoadingScene, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::{GamePhase, Packet}, peer::DisconnectReason, rand_u64, ship::ShipType, ui_element::{DefaultUIReactor, UIElement}};
+use crate::{BbResult, GC, ID, PlayerParams, Rcc, TransformResult, V2, button::{Button, DefaultButton}, chat::Chat, client::ClientEvent, game_settings::GameSettings, grid::{Grid, UIAlignment, UILayout}, label::{FontSize, Label}, loading_scene::LoadingScene, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::{GamePhase, Packet, serialize_packet}, peer::{DisconnectReason, is_auth_client}, rand_u64, server::ServerEvent, ship::ShipType, ui_element::{DefaultUIReactor, UIElement}};
 use super::scenes::{Scene, SceneType};
 
 pub struct LobbyScene {
@@ -94,8 +94,81 @@ impl State for LobbyScene {
 }
 
 impl NetController for LobbyScene {
-    fn poll_received_packets(&mut self, ctx: &mut Context) -> BbResult<Option<(Packet, u16)>> {
-        self.game.borrow_mut().network.as_mut().unwrap().poll_received_packets()
+    fn poll_received_server_packets(&mut self, ctx: &mut Context) -> BbResult<ServerEvent> {
+        self.game.borrow_mut().network.as_mut().unwrap().poll_received_server_packets()
+    }
+    
+    fn poll_received_client_packets(&mut self, ctx: &mut Context) -> BbResult<ClientEvent> {
+        self.game.borrow_mut().network.as_mut().unwrap().poll_received_client_packets()
+    }
+
+    fn on_server_receive_handshake(&mut self, id: ID, remote_addr: std::net::SocketAddr) -> BbResult {
+        let mut game_ref = self.game.borrow_mut();
+        let server = game_ref.network.as_mut().unwrap().server.as_mut().unwrap();
+        // TODO: Implement player params in handshake reply
+        server.send_raw_unicast(serialize_packet(Packet::HandshakeReply {
+            players: server.get_connections()
+                .into_iter()
+                .map(|p| p.0.clone())
+                .collect() // Send list of all players to new connection
+        }, id.n), remote_addr)?;
+
+        if server.get_connection_count() > 1 {
+            // Notify all other players that a newcomer has arrived
+            server.send_multicast_group(Packet::PlayerConnect {
+                name: id.name.to_owned()
+            }, id.n, server.get_connections()
+                .filter(|conn| id != conn.0)
+                .map(|conn| conn.0.n)
+                .collect::<Vec<u16>>().as_slice()) // Send new player connection to remaining players
+        } else {
+            Ok(())
+        }
+    }
+
+    fn on_server_receive_disconnect(&mut self, sender: u16, reason: DisconnectReason) -> BbResult {
+        // server.disconnect_player called automatically
+        // Irrelevant?
+        Ok(())
+    }
+
+    fn on_server_set_game_phase(&mut self, sender: u16, phase: GamePhase) -> BbResult {
+        let is_valid_phase = match phase {
+            GamePhase::World(..) => true,
+            _ => false
+        };
+        if is_auth_client(sender) && is_valid_phase {
+            self.game.borrow_mut().network.as_mut().unwrap()
+                .server.as_mut().unwrap().send_multicast(Packet::Game {
+                    phase
+                }, sender)
+        } else {
+            println!("Server: Player with ID {} failed to set phase {:?}. Insufficient permissions or invalid phase", sender, phase);
+            Ok(())
+        }
+    }
+    
+    fn on_server_receive_ship_selection(&mut self, ctx: &mut Context, sender: u16,
+        ship_type: ShipType) -> BbResult {
+        self.game.borrow_mut().network.as_mut().unwrap()
+            .server.as_mut().unwrap().send_multicast(Packet::Selection {
+                mode: true, ship: Some(ship_type), settings: None
+            }, sender)
+    }
+
+    fn on_server_receive_settings(&mut self, ctx: &mut Context, sender: u16, settings: GameSettings) -> BbResult {
+        self.game.borrow_mut().network.as_mut().unwrap()
+            .server.as_mut().unwrap().send_multicast(Packet::Selection {
+                mode: false, ship: None, settings: Some(settings)
+            }, sender)
+    }
+
+    fn on_server_receive_chat_message(&mut self, sender: u16, message: String) -> BbResult {
+        // Check for spam/profanity?
+        self.game.borrow_mut().network.as_mut().unwrap()
+            .server.as_mut().unwrap().send_multicast(Packet::ChatMessage {
+                message
+            }, sender)
     }
 
     fn on_establish_connection(&mut self, ctx: &mut Context) -> BbResult {

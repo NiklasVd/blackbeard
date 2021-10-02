@@ -1,5 +1,5 @@
 use tetra::{Context, Event, State, input::Key};
-use crate::{BbResult, Controller, GC, ID, Player, PlayerParams, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, entity::{GameState}, gen_world, grid::{Grid, UIAlignment, UILayout}, image::Image, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputStep, Packet}, peer::DisconnectReason, ship::ShipType, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, ui_element::{DefaultUIReactor, UIElement}, world::World};
+use crate::{BbResult, Controller, GC, ID, Player, PlayerParams, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, client::ClientEvent, entity::{GameState}, gen_world, grid::{Grid, UIAlignment, UILayout}, image::Image, input_pool::InputPool, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputState, InputStep, Packet}, peer::DisconnectReason, server::ServerEvent, ship::ShipType, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, sync_checker::{SyncChecker, SyncState}, ui_element::{DefaultUIReactor, UIElement}, world::World};
 use super::scenes::{Scene, SceneType};
 
 pub struct WorldScene {
@@ -8,6 +8,8 @@ pub struct WorldScene {
     grid: Grid,
     ui: WorldSceneUI,
     back_to_menu: bool,
+    input_pool: Option<InputPool>,
+    sync_checker: Option<SyncChecker>,
     game: GC
 }
 
@@ -18,11 +20,17 @@ impl WorldScene {
             V2::zero(), V2::one() * 200.0, 0.0).convert()?;
         let mut ui = WorldSceneUI::new(ctx, game.clone(), &mut grid).convert()?;
         ui.update_players(ctx, players.iter().map(|p| p.id.clone()).collect()).convert()?;
-
+        
+        let (input_pool, sync_checker) = match game.borrow().network.as_ref().unwrap()
+            .has_authority() {
+            true => (Some(InputPool::new(players.iter().map(|p| p.id.n).collect())),
+                Some(SyncChecker::new())),
+            false => (None, None)
+        };
         let mut world_scene = WorldScene {
             controller: Controller::new(ctx, game.clone()).convert()?,
             world: World::new(ctx, game.clone()),
-            grid, ui, back_to_menu: false, game: game.clone()
+            grid, ui, back_to_menu: false, input_pool, sync_checker, game: game.clone()
         };
         let map_size = (10 + 5 * players.len()).min(30) as i64;
         gen_world(ctx, map_size, map_size, 475.0, 1.7,
@@ -68,11 +76,10 @@ impl WorldScene {
     }
 
     fn update_world(&mut self, ctx: &mut Context) -> tetra::Result {
-        let is_next_step_ready = self.controller.is_next_step_ready();
-        // For uppermost game loop to check if physics simulation should be advanced
-        self.game.borrow_mut().simulation_settings.run = is_next_step_ready;
-        
-        if is_next_step_ready {
+        let is_next_frame_ready = self.controller.is_next_frame_ready();
+        self.game.borrow_mut().simulation_settings.run = is_next_frame_ready;
+
+        if is_next_frame_ready {
             self.controller.update(ctx, &mut self.world)?;
             self.world.update(ctx)
         } else if self.controller.is_block_timed_out() {
@@ -84,7 +91,7 @@ impl WorldScene {
     }
 
     fn event_world(&mut self, ctx: &mut Context, event: Event) -> tetra::Result {
-        if self.controller.is_next_step_ready() {
+        if self.controller.is_next_frame_ready() {
             self.controller.event(ctx, event.clone(), &mut self.world)?;
             self.world.event(ctx, event.clone())
         } else {
@@ -130,6 +137,33 @@ impl WorldScene {
         }
         Ok(())
     }
+
+    fn update_serverside(&mut self) -> BbResult {
+        if let Some(input_pool) = self.input_pool.as_mut() {
+            if input_pool.is_step_phase_over() {
+                // By now clients should have sent all states, so server can bundle and send them back to all
+                let delayed_players = input_pool.check_delayed_players();
+                // In the first generation every player has to send their state, to signal they're ready
+                if input_pool.curr_gen > 0 || delayed_players.len() == 0 {
+                    let step = input_pool.flush_states();
+                    self.game.borrow_mut().network.as_mut().unwrap()
+                        .server.as_mut().unwrap().send_multicast(Packet::InputStep {
+                            step
+                    }, 0)?;
+                } else if input_pool.curr_gen == 0 && delayed_players.len() > 0
+                    && input_pool.is_max_delay_exceeded() {
+                    for id in delayed_players.iter() {
+                        println!("Player with ID {} failed to send first input state in time. Terminating connection...", id);
+                        self.game.borrow_mut().network.as_mut().unwrap().server.as_mut().unwrap()
+                            .disconnect_player(*id, DisconnectReason::Timeout)?;
+                    }
+                }
+            }
+            // Update after checking, to start checking at frame zero
+            input_pool.update_states();
+        }
+        Ok(())
+    }
 }
 
 impl Scene for WorldScene {
@@ -143,9 +177,9 @@ impl Scene for WorldScene {
 
     fn poll(&self, ctx: &mut Context) -> BbResult<Option<Box<dyn Scene>>> {
         Ok(if self.back_to_menu {
-            // Clean up
             {
                 let mut game_ref = self.game.borrow_mut();
+                // Cleanup
                 game_ref.physics.clear_colliders();
                 if let Err(e) = game_ref.diagnostics.backup_states("final") {
                     println!("Failed to back up diagnostic states. Reason: {}", e);
@@ -165,13 +199,15 @@ impl Scene for WorldScene {
 
 impl State for WorldScene {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
+        self.handle_received_packets(ctx).convert()?;
+        self.update_serverside().convert()?;
+        self.update_world(ctx)?;
+
         self.ui.update(ctx)?;
         self.update_menu_ui().convert()?;
         self.update_harbour_ui().convert()?;
-        // Don't react to input if player is writing in chat
-        self.controller.catch_input = !self.ui.is_chat_focused();
-        self.handle_received_packets(ctx).convert()?;
-        self.update_world(ctx)
+        self.controller.catch_input = !self.ui.is_chat_focused(); // Don't react to input if player is writing in chat
+        Ok(())
     }
 
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
@@ -187,12 +223,49 @@ impl State for WorldScene {
 }
 
 impl NetController for WorldScene {
-    fn poll_received_packets(&mut self, ctx: &mut Context) -> BbResult<Option<(Packet, u16)>> {
-        self.game.borrow_mut().network.as_mut().unwrap().poll_received_packets()
+    fn poll_received_server_packets(&mut self, _: &mut Context) -> BbResult<ServerEvent> {
+        self.game.borrow_mut().network.as_mut().unwrap().poll_received_server_packets()
     }
 
-    fn on_connection_lost(&mut self, ctx: &mut Context, reason: DisconnectReason) -> BbResult {
-        println!("Lost connection to server! Aborting game...");
+    fn poll_received_client_packets(&mut self, _: &mut Context) -> BbResult<ClientEvent> {
+        self.game.borrow_mut().network.as_mut().unwrap().poll_received_client_packets()
+    }
+
+    fn on_server_receive_disconnect(&mut self, sender: u16, reason: DisconnectReason) -> BbResult {
+        if let Some(input_pool) = self.input_pool.as_mut() {
+            input_pool.remove_player(sender);
+        }
+        Ok(())
+    }
+
+    fn on_server_receive_input(&mut self, _: &mut Context, sender: u16, input: InputState) -> BbResult {
+        if let Some(input_pool) = self.input_pool.as_mut() {
+            input_pool.add_state(sender, input);
+        }
+        Ok(())
+    }
+
+    fn on_server_receive_sync_state(&mut self, _: &mut Context, sender: u16,
+        state: SyncState) -> BbResult {
+        if let Some(sync_checker) = self.sync_checker.as_mut() {
+            sync_checker.add_state(sender, state);
+            for id in sync_checker.review_desyncs(state.t).into_iter() {
+                self.game.borrow_mut().network.as_mut().unwrap().server.as_mut().unwrap()
+                    .disconnect_player(id, DisconnectReason::Desync)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn on_server_receive_chat_message(&mut self, sender: u16, message: String) -> BbResult {
+        self.game.borrow_mut().network.as_mut().unwrap()
+            .server.as_mut().unwrap().send_multicast(Packet::ChatMessage {
+            message
+        }, sender)
+    }
+
+    fn on_connection_lost(&mut self, _ctx: &mut Context, reason: DisconnectReason) -> BbResult {
+        println!("Lost connection to server! Reason: {:?}", reason);
         self.leave_match() // Previously only set self.back_to_menu to true. Problem if connection is already terminated when calling network.disconnect()? 
     }
     
@@ -216,7 +289,7 @@ impl NetController for WorldScene {
         }
     }
 
-    fn on_input_step(&mut self, ctx: &mut Context, step: InputStep) -> BbResult {
+    fn on_input_step(&mut self, _: &mut Context, step: InputStep) -> BbResult {
         self.controller.add_step(step);
         Ok(())
     }

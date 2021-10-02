@@ -1,5 +1,14 @@
 use std::{collections::HashMap, net::{SocketAddr}, thread, time::Duration};
+use laminar::SocketEvent;
+
 use crate::{BbResult, ID, packet::{Packet, deserialize_packet, serialize_packet_unsigned}, peer::{DisconnectReason, Peer, is_auth_client}};
+
+pub enum ClientEvent {
+    ReceivePacket(u16, Packet),
+    Connect(u16),
+    Disconnect(DisconnectReason),
+    Empty
+}
 
 pub struct Client {
     peer: Peer,
@@ -52,39 +61,55 @@ impl Client {
         self.peer.shutdown()
     }
 
-    pub fn poll_received_packets(&mut self) -> BbResult<Option<(Packet, u16)>> {
-        match self.peer.poll_received_packets() {
-            Ok(Some((packet, sender))) => {
-                if sender != self.server_addr {
-                    println!("Received packet {:?} from unknown endpoint: {}. Dropping...", packet, sender);
-                    Ok(None)
-                } else {
-                    let (packet, sender) = deserialize_packet(packet.payload().to_vec());
-                    self.handle_server_packet(&packet, sender);
-                    Ok(Some((packet, sender)))
-                }
-            },
-            Ok(None) => Ok(None),
-            Err(e) => Err(e)
+    pub fn poll_received_packets(&mut self) -> BbResult<ClientEvent> {
+        if let Some(event) = self.peer.poll_received_packets()? {
+            Ok(match event {
+                laminar::SocketEvent::Packet(packet) =>  {
+                    let sender_addr = packet.addr();
+                    if sender_addr != self.server_addr {
+                        println!("Received packet {:?} from unknown endpoint: {}. Dropping...", packet, sender_addr);
+                        ClientEvent::Empty
+                    } else {
+                        let (packet, sender) = deserialize_packet(packet.payload().to_vec());
+                        self.handle_server_packet(packet, sender)?
+                    }
+                },
+                SocketEvent::Connect(_) => {
+                    println!("Established connection to server.");
+                    ClientEvent::Empty
+                },
+                SocketEvent::Timeout(_) => {
+                    println!("Connection to server timed out.");
+                    ClientEvent::Disconnect(DisconnectReason::Timeout)
+                },
+                SocketEvent::Disconnect(_) => {
+                    println!("Disconnected from server.");
+                    //ClientEvent::Disconnect()
+                    ClientEvent::Empty
+                },
+            })
+        } else {
+            Ok(ClientEvent::Empty)
         }
     }
 
-    fn handle_server_packet(&mut self, packet: &Packet, sender: u16) {
-        match packet {
+    fn handle_server_packet(&mut self, packet: Packet, sender: u16) -> BbResult<ClientEvent> {
+        Ok(match &packet {
             Packet::HandshakeReply { players } => {
                 println!("Server accepted connection attempt!");
-                let local_id = ID::new(self.name.clone(), sender);
-                self.connections.insert(sender, local_id.clone());
-                self.local_id = Some(local_id);
                 players.iter().for_each(|id| {
                     println!("Updating player: {}^{}", id.name, id.n);
                     self.connections.insert(id.n, id.clone());
+                    if id.n == sender {
+                        self.local_id = Some(id.clone());
+                    }
                 });
                 self.connected = true;
+                ClientEvent::Connect(sender)
             },
             Packet::PlayerConnect { name } => {
                 self.connections.insert(sender, ID::new(name.to_owned(), sender));
-                println!("{}^{} connected.", name, sender);
+                ClientEvent::ReceivePacket(sender, packet)
             },
             Packet::PlayerDisconnect { reason } => {
                 if let Some(player) = self.connections.remove(&sender) {
@@ -92,14 +117,19 @@ impl Client {
                     if is_auth_client(sender) {
                         println!("Host disconnected - connection terminated.");
                         self.connected = false;
-                        // Host migration?
+                        ClientEvent::ReceivePacket(sender, packet)
                     } else if player.n == self.local_id.as_ref().unwrap().n {
                         println!("Server terminated this connection, potentially due to latency issues.");
                         self.connected = false;
+                        ClientEvent::Disconnect(*reason)
+                    } else {
+                        ClientEvent::ReceivePacket(sender, packet)
                     }
+                } else {
+                    ClientEvent::Empty
                 }
             },
-            _ => ()
-        }
+            _ => ClientEvent::ReceivePacket(sender, packet)
+        })
     }
 }

@@ -31,7 +31,6 @@ impl Player {
             return Ok(())
         }
         
-
         if state.q && state.e {
             ship_ref.shoot_cannons(ctx, None, world)?;
         } else if state.q {

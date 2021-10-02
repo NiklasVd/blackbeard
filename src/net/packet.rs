@@ -3,6 +3,7 @@ use tetra::{Context, input::{Key, MouseButton, get_mouse_position, is_key_down, 
 use crate::{GC, ID, V2, deserialize_v2, game_settings::GameSettings, peer::DisconnectReason, serialize_v2, ship::ShipType, ship_mod::ShipModType, sync_checker::SyncState};
 use std::fmt;
 
+#[derive(Clone)]
 pub enum Packet {
     Handshake {
         name: String
@@ -304,6 +305,7 @@ impl fmt::Debug for InputState {
     }
 }
 
+#[derive(Clone)]
 pub struct InputStep {
     pub states: Vec<(u16, InputState)>,
     pub gen: u64
@@ -344,7 +346,7 @@ impl Serializable for InputStep {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum GamePhase {
     World(u64),
     Score

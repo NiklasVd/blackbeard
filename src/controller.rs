@@ -62,11 +62,24 @@ impl Controller {
         self.input_buffer.add_step(step);
     }
 
-    pub fn is_next_step_ready(&self) -> bool {
-        (match self.input_buffer.get_curr_phase() {
-            StepPhase::Imminent | StepPhase::Running => true,
-            _ => false
-        } && self.input_buffer.is_next_step_ready())
+    pub fn is_next_frame_ready(&self) -> bool {
+        // (match self.input_buffer.get_curr_phase() {
+        //     StepPhase::Imminent | StepPhase::Running => true,
+        //     _ => false
+        // } && self.input_buffer.is_next_step_ready())
+        /* This actually blocks the simulation when advancing to a new phase
+        if there is no next step in the buffer. Instead, either check if:
+            -next step is imminent && next step is ready
+            -current phase is still running
+        Now, the simulation runs the furthest it can spare until having to wait
+        for the next step. */
+        // The simulation is ready for the next frame, if...
+        match self.input_buffer.get_curr_phase() {
+            // ...the current phase is imminent or over and the next step is ready
+            StepPhase::Over | StepPhase::Imminent => self.input_buffer.get_buffer_size() > 0,
+            // ...or the phase is still going on
+            StepPhase::Running => true
+        }
     }
 
     pub fn is_block_timed_out(&mut self) -> bool {
@@ -100,10 +113,6 @@ impl Controller {
     }
 
     fn update_step(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
-        /* Rare desync bugs still persist. During over 15min play testing, it occured
-        once. However, the exact cause for disconnection is not entirely clear. The client
-        had not received a reply for long and was in blocking mode.
-        */
         if self.input_buffer.get_curr_phase() == StepPhase::Over {
             if let Some(next_step) = self.input_buffer.get_next_step() {
                 self.apply_step(ctx, next_step, world)?;
@@ -178,10 +187,13 @@ impl Controller {
 
 impl GameState for Controller {
     fn update(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
+        // First update step, to start checking at frame zero?
+        self.update_step(ctx, world)?;
         self.input_buffer.update(ctx)?;
-        // First update gen/frame, so that events logged in update_step will have correct numbers
-        self.game.borrow_mut().simulation_settings.update(self.curr_gen, self.input_buffer.curr_frames);
-        self.update_step(ctx, world)
+        self.game.borrow_mut().simulation_settings.update(
+            self.curr_gen, self.input_buffer.curr_frames);
+        Ok(())
+
     }
 
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
@@ -191,7 +203,7 @@ impl GameState for Controller {
         Ok(())
     }
 
-    fn event(&mut self, ctx: &mut Context, event: Event, world: &mut World)
+    fn event(&mut self, ctx: &mut Context, event: Event, _world: &mut World)
         -> tetra::Result {
         if !self.catch_input {
             return Ok(())
@@ -228,7 +240,7 @@ impl GameState for Controller {
                         Key::Q => self.curr_input_state.q = true,
                         Key::E => self.curr_input_state.e = true,
                         Key::Tab => {
-                            let curr_pos = self.local_player.as_ref().unwrap().borrow()
+                            let curr_pos = local_player.borrow()
                                 .possessed_ship.borrow().transform.get_translation().0;
                             self.game.borrow_mut().cam.centre_on(curr_pos);
                         }

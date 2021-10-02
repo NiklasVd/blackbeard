@@ -1,5 +1,3 @@
-#![allow(unused_variables)]
-
 mod game;
 mod physics;
 mod assets;

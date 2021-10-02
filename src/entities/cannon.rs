@@ -144,7 +144,7 @@ impl CannonBall {
 
         let mut transform = Transform::new(physics_handle, game.clone());
         transform.set_pos(starting_pos, 0.0);
-        let rb = {
+        {
             let mut game_ref = game.borrow_mut();
             let rb = game_ref.physics.get_rb_mut(physics_handle.0);
             rb.apply_impulse(conv_vec(dir * POWER_FORCE_FACTOR * shooting_power), true);

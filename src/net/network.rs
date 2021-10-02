@@ -1,5 +1,4 @@
-use tetra::State;
-use crate::{BbError, BbErrorType, BbResult, client::Client, net_settings::NetSettings, packet::{GamePhase, InputState, Packet}, peer::{DisconnectReason, is_auth_client}, server::Server};
+use crate::{BbError, BbErrorType, BbResult, client::{Client, ClientEvent}, net_settings::NetSettings, packet::{GamePhase, InputState, Packet}, peer::{DisconnectReason}, server::{Server, ServerEvent}};
 
 pub struct Network {
     pub client: Client,
@@ -26,12 +25,24 @@ impl Network {
         self.server.is_some()
     }
 
-    pub fn poll_received_packets(&mut self) -> BbResult<Option<(Packet, u16)>> {
-        if let Some(server) = self.server.as_mut() {
-            server.poll_received_packets()?;
-        }
-        self.client_poll_received_packets()
+    pub fn poll_received_client_packets(&mut self) -> BbResult<ClientEvent> {
+        self.client.poll_received_packets()
     }
+
+    pub fn poll_received_server_packets(&mut self) -> BbResult<ServerEvent> {
+        if let Some(server) = self.server.as_mut() {
+            server.poll_received_packets()
+        } else {
+            Ok(ServerEvent::Empty)
+        }
+    }
+
+    // pub fn poll_received_packets(&mut self) -> BbResult<ClientEvent> {
+    //     if let Some(server) = self.server.as_mut() {
+    //         server.poll_received_packets()?;
+    //     }
+    //     self.client.poll_received_packets()
+    // }
 
     pub fn get_connection_name(&self, id: u16) -> String {
         self.client.get_connection(id)
@@ -63,28 +74,6 @@ impl Network {
         self.client.disconnect(reason)?;
         if let Some(mut server) = self.server.take() {
             server.shutdown()?;
-        }
-        Ok(())
-    }
-
-    fn client_poll_received_packets(&mut self) -> BbResult<Option<(Packet, u16)>> {
-        if let Some((packet, sender)) = self.client.poll_received_packets()? {
-            match &packet {
-                &Packet::PlayerDisconnect { reason } if is_auth_client(sender) =>
-                    self.disconnect(reason)?, // If host shut down, disconnect from server
-                _ => ()
-            }
-            Ok(Some((packet, sender)))
-        } else {
-            Ok(None)
-        }
-    }
-}
-
-impl State for Network {
-    fn update(&mut self, ctx: &mut tetra::Context) -> tetra::Result {
-        if let Some(server) = self.server.as_mut() {
-            server.update(ctx)?;
         }
         Ok(())
     }

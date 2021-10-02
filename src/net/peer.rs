@@ -54,7 +54,7 @@ impl Peer {
         Ok(())
     }
 
-    pub fn poll_received_packets(&mut self) -> BbResult<Option<(LaminarPacket, SocketAddr)>> {
+    pub fn poll_received_packets(&mut self) -> BbResult<Option<SocketEvent>> {
         if !self.running.load(Ordering::Relaxed) {
             return Ok(None)
         }
@@ -70,27 +70,7 @@ impl Peer {
                 Ok(None)
             }
         }?;
-        if let Some(event) = event {
-            match event {
-                SocketEvent::Packet(packet) => {
-                    let addr = packet.addr();
-                    Ok(Some((packet, addr)))
-                },
-                SocketEvent::Timeout(addr) => {
-                    println!("{} timed out.", addr);
-                    Err(BbError::Bb(BbErrorType::NetTimeout(addr)))
-                },
-                SocketEvent::Connect(addr) => {
-                    Ok(None)
-                },
-                SocketEvent::Disconnect(addr) => {
-                    println!("{} disconnected.", addr);
-                    Err(BbError::Bb(BbErrorType::NetDisconnect(addr)))
-                }
-            }
-        } else {
-            Ok(None)
-        }
+        Ok(event)
     }
 
     pub fn shutdown(&mut self) -> BbResult { // Stop polling loop

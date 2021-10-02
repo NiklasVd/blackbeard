@@ -49,8 +49,6 @@ impl<T> TransformResult<T, tetra::TetraError> for BbResult<T> {
 
 #[derive(Debug)]
 pub enum BbErrorType {
-    NetTimeout(SocketAddr),
-    NetDisconnect(SocketAddr),
     NetShutdownFailure(Box<dyn Any + Send + 'static>),
     NetNotConnected,
     NetInvalidSender(SocketAddr),

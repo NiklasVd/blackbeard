@@ -40,9 +40,6 @@ impl GameContainer {
 impl State for GameContainer {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
         self.cam.update(ctx)?;
-        if let Some(network) = self.network.as_mut() {
-            network.update(ctx)?;
-        }
         if self.simulation_settings.run { // Dont simulate physics if simulation is halted
             self.physics.update(ctx)?;
         }

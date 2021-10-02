@@ -78,7 +78,7 @@ impl PlaybackBuffer {
 }
 
 impl State for PlaybackBuffer {
-    fn update(&mut self, ctx: &mut Context) -> tetra::Result {
+    fn update(&mut self, _ctx: &mut Context) -> tetra::Result {
         self.curr_frame_index += 1;
         self.curr_frames += 1;
         Ok(())

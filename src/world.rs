@@ -23,6 +23,7 @@ impl World {
 
     pub fn add_player_ship(&mut self, ctx: &mut Context, id: ID, ship_type: ShipType) -> tetra::Result<Rcc<Ship>> {
         let free_spawn_pos = {
+            // This sometimes leads to immediate desync for one (usually the last) player
             // self.game.borrow().physics.check_for_space(V2::right() * id.n as f32 * 1500.0,
             //     V2::new(500.0, 200.0), V2::down())
             V2::new(1000.0 + id.n as f32 * 1000.0, -450.0)
