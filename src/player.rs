@@ -1,6 +1,7 @@
+use binary_stream::{BinaryStream, Serializable};
 use rapier2d::data::Index;
 use tetra::Context;
-use crate::{CannonSide, GC, ID, Rcc, StateEvent, TransformResult, World, entity::Entity, log_state_event, packet::InputState, ship::{Ship, ShipType}, ship_mod::{CannonAmmoUpgradeMod, CannonRangeUpgradeMod, CannonReloadUpgradeMod, ShipMod, ShipModType, get_ship_mod_cost}};
+use crate::{CannonSide, GC, ID, Rcc, TransformResult, World, entity::Entity, packet::InputState, ship::{Ship, ShipType}, ship_mod::{CannonAmmoUpgradeMod, CannonRangeUpgradeMod, CannonReloadUpgradeMod, ShipMod, ShipModType, get_ship_mod_cost}};
 
 pub struct Player {
     pub id: ID,
@@ -30,21 +31,17 @@ impl Player {
             return Ok(())
         }
         
-        if state.q {
-            ship_ref.shoot_cannons_on_side(ctx, CannonSide::Bowside, world)?;
-        }
-        if state.e {
-            ship_ref.shoot_cannons_on_side(ctx, CannonSide::Portside, world)?;
-        }
-        if state.q || state.e {
-            log_state_event(self.game.clone(), StateEvent::ShipShoot(
-                self.id.n, state.q, state.e));
+
+        if state.q && state.e {
+            ship_ref.shoot_cannons(ctx, None, world)?;
+        } else if state.q {
+            ship_ref.shoot_cannons(ctx, Some(CannonSide::Bowside), world)?;
+        } else if state.q {
+            ship_ref.shoot_cannons(ctx, Some(CannonSide::Portside), world)?;
         }
 
         if let Some(mouse_pos) = state.mouse_pos {
             ship_ref.set_target_pos(mouse_pos, state.r);
-            log_state_event(self.game.clone(), StateEvent::ShipMotion(
-                self.id.n, state.r, mouse_pos));
         }
 
         if state.buy_mod && ship_ref.is_in_harbour {
@@ -100,5 +97,31 @@ impl PlayerParams {
         PlayerParams {
             id, ship_type
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PlayerNetParams(u16, ShipType);
+
+impl PlayerNetParams {
+    pub fn new(id: u16, ship_type: ShipType) -> Self {
+        Self(id, ship_type)
+    }
+
+    pub fn from_player(p_param: PlayerParams) -> Self {
+        Self::new(p_param.id.n, p_param.ship_type)
+    }
+}
+
+impl Serializable for PlayerNetParams {
+    fn to_stream(&self, stream: &mut BinaryStream) {
+        stream.write_u16(self.0).unwrap();
+        self.1.to_stream(stream);
+    }
+
+    fn from_stream(stream: &mut BinaryStream) -> Self {
+        let id = stream.read_u16().unwrap();
+        let ship_type = ShipType::from_stream(stream);
+        Self::new(id, ship_type)
     }
 }

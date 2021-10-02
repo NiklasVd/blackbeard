@@ -5,7 +5,7 @@ use crate::{BbResult, DiagnosticState, GC, Player, Rcc, Sprite, SpriteOrigin, Sy
 
 pub const MAX_INPUT_STEP_BLOCK_TIME: f32 = 20.0;
 pub const DEFAULT_SIMULATION_TIMESTEP: f64 = 60.0;
-pub const ACCELERATED_SIMULATION_TIMESTEP: f64 = DEFAULT_SIMULATION_TIMESTEP * 4.0;
+pub const ACCELERATED_SIMULATION_TIMESTEP: f64 = DEFAULT_SIMULATION_TIMESTEP * 6.0;
 
 pub struct Controller {
     pub players: IndexMap<u16, Rcc<Player>>,

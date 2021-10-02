@@ -48,7 +48,7 @@ impl Client {
         self.send_packet(Packet::PlayerDisconnect {
             reason
         })?;
-        thread::sleep(Duration::from_secs_f32(2.0));
+        thread::sleep(Duration::from_secs_f32(1.0));
         self.peer.shutdown()
     }
 

@@ -2,7 +2,7 @@ use std::{f32::consts::PI};
 use binary_stream::{BinaryStream, Serializable};
 use rapier2d::{data::Index};
 use tetra::{Context, State, graphics::{Color}, math::Clamp};
-use crate::{BbResult, Cannon, CannonSide, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, WorldEvent, conv_vec, disassemble_iso, economy::{Deposit}, entity::{Entity, EntityType, GameState}, get_angle, health_bar::HealthBar, pi_to_pi2_range, polar_to_cartesian, ship_mod::{ShipMod, ShipModType}, vec_distance, world::World};
+use crate::{BbResult, Cannon, CannonSide, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, StateEvent, Timer, Transform, V2, WorldEvent, conv_vec, disassemble_iso, economy::{Deposit}, entity::{Entity, EntityType, GameState}, get_angle, health_bar::HealthBar, log_state_event, pi_to_pi2_range, polar_to_cartesian, ship_mod::{ShipMod, ShipModType}, vec_distance, world::World};
 
 const BASE_STUN_LENGTH: f32 = 0.5;
 const BASE_OBJECT_COLLISION_DAMAGE: u16 = 20;
@@ -284,6 +284,9 @@ impl Ship {
         let mut shooter_ref = shooter.borrow_mut(); // Bold unwrap but what else...
         println!("{} was hit by {} cannon and took {} damage!",
             self.get_name(), shooter_ref.get_name(), dmg);
+        log_state_event(self.game.clone(), StateEvent::ShipCannonBallCollision(
+            self.id, shooter_ref.id, dmg));
+
         match self.take_damage(ctx, dmg, world) {
             Ok(true) => {
                 let forfeited_escudos = (self.treasury.balance as f32 * ESCUTO_SHOOT_STEAL_PERCENTAGE) as u32;
@@ -300,20 +303,19 @@ impl Ship {
         }
     }
 
-    pub fn shoot_cannons_on_side(&mut self, ctx: &mut Context,
-        side: CannonSide, world: &mut World) -> tetra::Result {
-        for cannon in self.cannons.iter_mut() {
-            if cannon.side == side {
-                cannon.shoot(ctx, world)?;
-            }
-        }
-        Ok(())
-    }
-
-    pub fn shoot_cannons(&mut self, ctx: &mut Context, world: &mut World)
+    pub fn shoot_cannons(&mut self, ctx: &mut Context, side: Option<CannonSide>,
+        world: &mut World)
         -> tetra::Result {
-        for cannon in self.cannons.iter_mut() {
-            cannon.shoot(ctx, world)?;
+        let cannons: Vec<_> = match side {
+            Some(side) => self.cannons.iter_mut().filter(|c| c.side == side).collect(),
+            None => self.cannons.iter_mut().collect()
+        };
+        for cannon in cannons {
+            if let Some(cannonball) = cannon.shoot(ctx, world)? {
+                let cannonball_ref = cannonball.borrow();
+                log_state_event(self.game.clone(), StateEvent::ShipShootCannon(self.id,
+                    cannonball_ref.transform.get_translation().0, cannonball_ref.dmg));
+            }
         }
         Ok(())
     }
@@ -394,6 +396,8 @@ impl Entity for Ship {
         let mut other_ref = other.borrow_mut();
         println!("{} collided with {} and dealt {} ram damage!",
             self.get_name(), other_ref.get_name(), self.attr.ram_damage);
+        log_state_event(self.game.clone(), StateEvent::ShipShipCollision(
+            self.id, other_ref.id, self.attr.ram_damage));
         
         other_ref.stun();
         match other_ref.take_damage(ctx, self.attr.ram_damage, world) {
@@ -418,8 +422,9 @@ impl Entity for Ship {
     fn collide_with_entity(&mut self, ctx: &mut Context, other: Rcc<dyn Entity>, world: &mut World)
         -> tetra::Result {
         let other_ref = other.borrow();
+        let other_entity_type = other_ref.get_type();
         if self.is_stunned() ||
-            other_ref.get_type() == EntityType::CannonBall /* Cannon ball does the damage part */ {
+            other_entity_type == EntityType::CannonBall /* Cannon ball does the damage part */ {
             return Ok(())
         }
 
@@ -431,6 +436,7 @@ impl Entity for Ship {
             return Ok(())
         }
         println!("{} collided with object {}!", self.get_name(), other_ref.get_name());
+        log_state_event(self.game.clone(), StateEvent::ShipEntityCollision(self.id, other_entity_type, damage));
 
         self.stun();
         match self.take_damage(ctx, damage, world) {

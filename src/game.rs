@@ -95,3 +95,11 @@ impl State for Game {
         self.scenes.event(ctx, event)
     }
 }
+
+impl Drop for Game {
+    fn drop(&mut self) {
+        if let Err(e) = self.container.borrow_mut().diagnostics.backup_states("exit") {
+            println!("Failed to back up diagnostic states. Reason: {}", e);
+        }
+    }
+}

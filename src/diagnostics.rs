@@ -1,9 +1,8 @@
-use std::{fs::File, io::{self, Write}, path::Path, time::{SystemTime, UNIX_EPOCH}};
-use indexmap::IndexMap;
-use crate::{GC, V2, sync_checker::SyncState};
+use std::{collections::VecDeque, fs::File, io::{self, Write}, path::Path, time::{SystemTime, UNIX_EPOCH}};
+use crate::{GC, V2, entity::EntityType, sync_checker::SyncState};
 
 pub const DIAGNOSTICS_LOG_PATH: &str = "log";
-const MAX_CACHE_SIZE: usize = 100;
+const MAX_CACHE_SIZE: usize = 220;
 
 pub struct SyncStateShipData {
     id: u16,
@@ -20,8 +19,11 @@ impl SyncStateShipData {
 
 pub enum StateEvent {
     SyncState(u64, Vec<SyncStateShipData>),
-    ShipShoot(u16, bool, bool),
-    ShipMotion(u16, bool, V2)
+    ShipShipCollision(u16, u16, u16),
+    ShipEntityCollision(u16, EntityType, u16),
+    ShipCannonBallCollision(u16, u16, u16),
+    CannonBallMiss(u16, V2),
+    ShipShootCannon(u16, V2, u16),
 }
 
 impl StateEvent {
@@ -35,13 +37,21 @@ impl StateEvent {
                 }
                 Ok(())
             },
-            StateEvent::ShipShoot(id, q, e) =>
-                writeln!(file, "Shoot;^{};{};{}", id, q, e),
-            StateEvent::ShipMotion(id, rotate, target_pos, ) =>
-                writeln!(file, "Move;^{};{};{:.2},{:.2}", id, match rotate {
-                    true => "Rot",
-                    false => "Move"
-                }, target_pos.x, target_pos.y)
+            StateEvent::ShipShipCollision(player1_id, player2_id, dmg) =>
+                writeln!(file, "ShipColl;^{};collided with;^{};{} dmg",
+                player1_id, player2_id, dmg),
+            StateEvent::ShipEntityCollision(player_id, entity_type, dmg) =>
+                writeln!(file, "EntityColl;^{};collided with;{:?};{} dmg",
+                player_id, entity_type, dmg),
+            StateEvent::ShipCannonBallCollision(player_id, shooter_id, dmg) =>
+                writeln!(file, "CannonColl;^{};shot by;^{};{} dmg",
+                player_id, shooter_id, dmg),
+            StateEvent::CannonBallMiss(shooter_id, pos) =>
+                writeln!(file, "CannonMiss;^{};{:.2},{:.2}", shooter_id, pos.x, pos.y),
+            StateEvent::ShipShootCannon(shooter_id, starting_pos, dmg) =>
+                writeln!(file, "Shoot;^{};From;{:.2},{:.2};{} dmg",
+                shooter_id, starting_pos.x, starting_pos.y, dmg),
+            
         }
     }
 }
@@ -71,38 +81,34 @@ impl DiagnosticState {
 }
 
 pub struct Diagnostics {
-    states: IndexMap<u64, Vec<DiagnosticState>>
+    states: VecDeque<DiagnosticState>
 }
 
 impl Diagnostics {
     pub fn new() -> Diagnostics {
         Diagnostics {
-            states: IndexMap::new()
+            states: VecDeque::new()
         }
     }
 
     pub fn add_state(&mut self, state: DiagnosticState) {
         if self.states.len() >= MAX_CACHE_SIZE {
-            // Are index maps ordered inherently by the key, if implementing Ord?
-            self.states.drain(..10);
+            self.states.pop_front();
         }
-
-        if let Some(curr_gen_states) = self.states.get_mut(&state.t) {
-            curr_gen_states.push(state);
-        } else {
-            self.states.insert(state.t, vec![state]);
-        }
+        self.states.push_back(state);
     }
 
-    pub fn backup_states(&mut self) -> io::Result<()> {
+    pub fn backup_states(&mut self, name: &str) -> io::Result<()> {
+        if self.states.len() == 0 {
+            return Ok(())
+        }
+
         let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         let mut file = File::create(Path::new(DIAGNOSTICS_LOG_PATH)
-            .join(format!("{}-{}.csv", "states", timestamp)))?;
+            .join(format!("{}-{}-{}.csv", "states", name, timestamp)))?;
         writeln!(&mut file, "t;CurrFrame;Event")?;
-        for (_, mut states) in self.states.drain(..) {
-            for state in states.drain(..) {
-                state.log(&mut file)?;
-            }
+        for state in self.states.drain(..) {
+            state.log(&mut file)?;
         }
         file.flush()
     }
@@ -113,16 +119,4 @@ pub fn log_state_event(game: GC, state: StateEvent) {
     let curr_gen = game_ref.simulation_settings.curr_gen;
     let curr_frames = game_ref.simulation_settings.curr_frames;
     game_ref.diagnostics.add_state(DiagnosticState::new(curr_gen, curr_frames, state));
-}
-
-pub fn log(prefix: &str, text: &str) {
-    println!("[{}] {}", prefix, text);
-}
-
-pub fn log_warning(text: &str) {
-    log("W", text);
-}
-
-pub fn log_err(text: &str) {
-    log("E", text);
 }

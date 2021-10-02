@@ -61,9 +61,11 @@ impl Cannon {
 
         let curr_translation = self.get_world_translation();
         let facing_dir = polar_to_cartesian(1.0, curr_translation.1);
+        let starting_pos = curr_translation.0 + facing_dir;
         let cannon_ball = CannonBall::new(ctx, self.dmg.total(), self.shooting_power.total(),
-            self.ship_index, curr_translation.0 + facing_dir, facing_dir, self.game.clone())?;
+            self.ship_index, starting_pos, facing_dir, self.game.clone())?;
         let cannon_ball = world.add_cannon_ball(ctx, cannon_ball);
+
         // Shoot effect
         self.reload.reset();
         Ok(Some(cannon_ball))
@@ -155,18 +157,20 @@ impl CannonBall {
     }
 
     fn check_trajectory(&mut self, ctx: &mut Context) -> tetra::Result {
-        let game_ref = self.game.borrow();
-        let rb = game_ref.physics.get_rb(self.transform.handle.0);
-        if rb.linvel().magnitude() <= POWER_DROP_THRESHOLD
+        if self.transform.get_lin_velocity().magnitude() <= POWER_DROP_THRESHOLD
             && self.state == CannonBallState::Travelling {
-            std::mem::drop(game_ref);
-            self.on_drop(ctx)?;
+            self.on_drop(ctx)
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
     fn on_hit_ship(&mut self, ctx: &mut Context, ship: Rcc<Ship>, world: &mut World)
         -> tetra::Result {
+        // Issue: When two cannon balls hit a ship in immediate succession, and the first
+        // sinks the ship, the second still applies damage right afterward. This results
+        // in the ship spawning with less than 100% health, which is suboptimal.
+        // Even potential desync issues?
         self.state = CannonBallState::Hit;
         self.destroy = true;
         ship.borrow_mut().take_cannon_ball_hit(ctx, self.dmg, self.shooter_index, world)       

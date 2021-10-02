@@ -147,7 +147,7 @@ impl Scene for WorldScene {
             {
                 let mut game_ref = self.game.borrow_mut();
                 game_ref.physics.clear_colliders();
-                if let Err(e) = game_ref.diagnostics.backup_states() {
+                if let Err(e) = game_ref.diagnostics.backup_states("final") {
                     println!("Failed to back up diagnostic states. Reason: {}", e);
                 }
             }
@@ -200,6 +200,12 @@ impl NetController for WorldScene {
         -> BbResult {
         if let Some(player) = self.controller.players.get(&id) {
             // Player removal is done in controller, when appropiate input state is received
+            if reason == DisconnectReason::Desync {
+                if let Err(e) = self.game.borrow_mut().diagnostics
+                    .backup_states(format!("{}-desync", id).as_str()) {
+                    println!("Failed to back up diagnostic states. Reason: {}", e);
+                }
+            }
             self.ui.update_players(ctx, self.game.borrow().network.as_ref().unwrap()
                 .client.get_connections()).convert()?;
             self.ui.chat.add_line(ctx,

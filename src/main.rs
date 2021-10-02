@@ -105,6 +105,8 @@ fn main() -> tetra::Result {
         .debug_info(true)
         .high_dpi(true)
         .show_mouse(true)
+        .fullscreen(startup_params.3)
+        .quit_on_escape(startup_params.3)
         .build()?
         .run(Game::new)
     {
@@ -115,24 +117,33 @@ fn main() -> tetra::Result {
     Ok(())
 }
 
-struct StartupParams(String, i32, i32);
+struct StartupParams(String, i32, i32, bool);
 
 fn process_params() -> StartupParams {
     let mut args: Vec<String> = std::env::args().collect();
     let startup_path = args[0].to_owned();
-    if args.len() >= 3 {
-        let window_size_params = args.drain(1..3);
+    if args.len() == 3 {
+        let window_size_params = &args[1..3];
         let mut x: i32 = DEFAULT_WINDOW_SIZE_WIDTH;
         let mut y: i32 = DEFAULT_WINDOW_SIZE_HEIGHT;
-        for (i, n) in window_size_params.map(|s| s.parse::<i32>().unwrap()).enumerate() {
+        for (i, n) in window_size_params.into_iter()
+            .map(|s| s.parse::<i32>().unwrap()).enumerate() {
             if i == 0 {
                 x = n;
             } else {
                 y = n;
             }
         }
-        StartupParams(startup_path, x, y)
-    } else {
-        StartupParams(startup_path, DEFAULT_WINDOW_SIZE_WIDTH, DEFAULT_WINDOW_SIZE_HEIGHT)
+        return StartupParams(startup_path, x, y, false)
+    } else if args.len() == 2 {
+        if let Some(fs) = args.pop() {
+            if fs == "fullscreen" {
+                return StartupParams(startup_path,
+                    DEFAULT_WINDOW_SIZE_WIDTH, DEFAULT_WINDOW_SIZE_HEIGHT, true)
+            }
+        }
     }
+
+    StartupParams(startup_path,
+        DEFAULT_WINDOW_SIZE_WIDTH, DEFAULT_WINDOW_SIZE_HEIGHT, false)
 }

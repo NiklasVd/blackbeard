@@ -67,8 +67,8 @@ pub fn gen_world(ctx: &mut Context, width: i64, height: i64, base_tile_size: f32
         .add(Tile::new(WorldTile::Empty));
     
     let mut rng = Xoshiro128Plus::seed_from_u64(seed);
-    let base_pos = V2::new(0.0 - (width as f32 * base_tile_size) * 0.5,
-        0.0 - (height as f32 * base_tile_size) * 0.5);
+    let base_pos = V2::zero(); // V2::new(0.0 - (width as f32 * base_tile_size) * 0.5,
+    //     0.0 - (height as f32 * base_tile_size) * 0.5);
     let mut curr_pos = base_pos;
     let mut harbours = 0;
     let mut harbour_col = 0;

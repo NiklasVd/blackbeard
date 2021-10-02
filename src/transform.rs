@@ -1,6 +1,6 @@
 use rapier2d::{data::Index, na::{Vector2}};
 use tetra::graphics::DrawParams;
-use crate::{GC, PhysicsHandle, V2};
+use crate::{GC, PhysicsHandle, V2, conv_rvec};
 
 pub struct Transform {
     pub handle: PhysicsHandle,
@@ -31,6 +31,10 @@ impl Transform {
 
     pub fn get_translation(&self) -> (V2, f32) {
         self.game.borrow().physics.get_translation(self.handle.0)
+    }
+
+    pub fn get_lin_velocity(&self) -> V2 {
+        conv_rvec(*self.game.borrow().physics.get_rb(self.handle.0).linvel())
     }
 
     pub fn get_draw_params(&self, texture_origin: V2) -> DrawParams {

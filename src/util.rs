@@ -62,6 +62,10 @@ pub fn vec_distance(a: V2, b: V2) -> f32 {
     vec_magnitude(a - b)
 }
 
+pub fn round_f32(n: f32) -> f32 {
+    ComplexField::round(n)
+}
+
 pub fn round_to_multiple(n: f32, multiple: f32) -> f32 {
     ComplexField::round(n / multiple) * multiple
 }

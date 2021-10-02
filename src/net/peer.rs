@@ -104,7 +104,7 @@ impl Peer {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DisconnectReason {
     Manual,
     Timeout,

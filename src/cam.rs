@@ -1,4 +1,4 @@
-use tetra::{Context, State, graphics::Camera, input::{Key, is_key_down, is_mouse_scrolled_down, is_mouse_scrolled_up}, window::{get_height, get_width}};
+use tetra::{Context, State, graphics::Camera, input::{Key, is_key_down, is_mouse_scrolled_down, is_mouse_scrolled_up}, math::Clamp, window::{get_height, get_width}};
 use crate::{UNIT_FRAMERATE_TIMESTEP, V2};
 
 pub const CAM_ZOOM_RATE: f32 = 2.0;
@@ -50,13 +50,13 @@ impl State for Cam {
 
         if is_mouse_scrolled_up(ctx) {
             self.instance.scale += CAM_ZOOM_RATE * UNIT_FRAMERATE_TIMESTEP;
-            // self.instance.scale = self.instance.scale.clamped(V2::new(0.2, 0.2),
-            //     V2::one() * 1.3);
+            self.instance.scale = self.instance.scale.clamped(V2::new(0.1, 0.1),
+                V2::one() * 1.5);
         }
         else if is_mouse_scrolled_down(ctx) {
             self.instance.scale -= CAM_ZOOM_RATE * UNIT_FRAMERATE_TIMESTEP;
-            // self.instance.scale = self.instance.scale.clamped(V2::new(0.2, 0.2),
-            //     V2::one() * 1.3);
+            self.instance.scale = self.instance.scale.clamped(V2::new(0.1, 0.1),
+                V2::one() * 1.5);
         }
 
         self.instance.update();
