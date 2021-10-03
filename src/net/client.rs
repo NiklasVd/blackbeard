@@ -82,11 +82,12 @@ impl Client {
                     println!("Connection to server timed out.");
                     ClientEvent::Disconnect(DisconnectReason::Timeout)
                 },
-                SocketEvent::Disconnect(_) => {
-                    println!("Disconnected from server.");
-                    //ClientEvent::Disconnect()
-                    ClientEvent::Empty
-                },
+                // SocketEvent::Disconnect(_) => {
+                //     println!("Disconnected from server.");
+                //     //ClientEvent::Disconnect()
+                //     ClientEvent::Empty
+                // },
+                _ => ClientEvent::Empty
             })
         } else {
             Ok(ClientEvent::Empty)
@@ -98,10 +99,11 @@ impl Client {
             Packet::HandshakeReply { players } => {
                 println!("Server accepted connection attempt!");
                 players.iter().for_each(|id| {
-                    println!("Updating player: {}^{}", id.name, id.n);
                     self.connections.insert(id.n, id.clone());
                     if id.n == sender {
                         self.local_id = Some(id.clone());
+                    } else {
+                        println!("Updating player: {}^{}", id.name, id.n);
                     }
                 });
                 self.connected = true;
@@ -113,16 +115,16 @@ impl Client {
             },
             Packet::PlayerDisconnect { reason } => {
                 if let Some(player) = self.connections.remove(&sender) {
-                    println!("{}^{} disconnected. Reason: {:?}", player.name, sender, reason);
                     if is_auth_client(sender) {
                         println!("Host disconnected - connection terminated.");
                         self.connected = false;
-                        ClientEvent::ReceivePacket(sender, packet)
+                        ClientEvent::Disconnect(*reason)
                     } else if player.n == self.local_id.as_ref().unwrap().n {
-                        println!("Server terminated this connection, potentially due to latency issues.");
+                        println!("Server terminated this connection. Reason: {:?}.", reason);
                         self.connected = false;
                         ClientEvent::Disconnect(*reason)
                     } else {
+                        println!("{}^{} disconnected. Reason: {:?}", player.name, sender, reason);
                         ClientEvent::ReceivePacket(sender, packet)
                     }
                 } else {

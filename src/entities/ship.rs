@@ -12,9 +12,9 @@ const BASE_TORQUE_FORCE: f32 = 1000.0 * MASS_FORCE_SCALE;
 const TARGET_POS_DIST_MARGIN: f32 = 75.0;
 const TARGET_ROT_MARGIN: f32 = PI / 45.0;
 
-const ESCUTO_RAM_STEAL_PERCENTAGE: f32 = 0.15;
-const ESCUTO_SHOOT_STEAL_PERCENTAGE: f32 = 0.1;
-const ESCUTO_ACCIDENT_LOSS_PERCENTAGE: f32 = 0.1;
+const ESCUDO_RAM_STEAL_PERCENTAGE: f32 = 0.15;
+const ESCUDO_SHOOT_STEAL_PERCENTAGE: f32 = 0.1;
+const ESCUDO_ACCIDENT_LOSS_PERCENTAGE: f32 = 0.1;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ShipType {
@@ -289,7 +289,7 @@ impl Ship {
 
         match self.take_damage(ctx, dmg, world) {
             Ok(true) => {
-                let forfeited_escudos = (self.treasury.balance as f32 * ESCUTO_SHOOT_STEAL_PERCENTAGE) as u32;
+                let forfeited_escudos = (self.treasury.balance as f32 * ESCUDO_SHOOT_STEAL_PERCENTAGE) as u32;
                 let generated_payout =  self.game.borrow_mut()
                     .economy.total_payout(self.treasury.networth);
                 shooter_ref.treasury.add(forfeited_escudos + generated_payout);
@@ -327,6 +327,7 @@ impl Ship {
 
     pub fn reset_target_pos(&mut self) {
         self.target_pos = None;
+        // self.rotate_only = false;
     }
 
     fn move_to_target_pos(&mut self) {
@@ -403,7 +404,7 @@ impl Entity for Ship {
         match other_ref.take_damage(ctx, self.attr.ram_damage, world) {
             Ok(true) => {
                 let forfeited_escudos = (other_ref.treasury.balance as f32 *
-                    ESCUTO_RAM_STEAL_PERCENTAGE) as u32;
+                    ESCUDO_RAM_STEAL_PERCENTAGE) as u32;
                 let generated_payout = self.game.borrow_mut()
                     .economy.total_payout(other_ref.treasury.networth);
                 other_ref.treasury.lose(forfeited_escudos);
@@ -441,7 +442,7 @@ impl Entity for Ship {
         self.stun();
         match self.take_damage(ctx, damage, world) {
             Ok(true) => {
-                let forfeited_escudos = (self.treasury.balance as f32 * ESCUTO_ACCIDENT_LOSS_PERCENTAGE) as u32;
+                let forfeited_escudos = (self.treasury.balance as f32 * ESCUDO_ACCIDENT_LOSS_PERCENTAGE) as u32;
                 self.game.borrow_mut().economy.remove(forfeited_escudos); // Lost to the sea...
                 self.treasury.lose(forfeited_escudos);
                 // println!("{} lost {} escudos after sinking their ship in an accident!",
@@ -455,12 +456,12 @@ impl Entity for Ship {
         }
     }
 
-    fn collide_with_neutral(&mut self, ctx: &mut Context)
+    fn collide_with_neutral(&mut self, _: &mut Context)
         -> tetra::Result {
         Ok(())
     }
 
-    fn intersect_with_entity(&mut self, ctx: &mut Context, state: bool,
+    fn intersect_with_entity(&mut self, _: &mut Context, state: bool,
         other: Rcc<dyn Entity>) -> tetra::Result {
         if other.borrow().get_type() == EntityType::Harbour {
             self.is_in_harbour = state;
@@ -472,7 +473,9 @@ impl Entity for Ship {
 impl GameState for Ship {
     fn update(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
         self.stun.update(ctx);
+        let translation = self.transform.get_translation();
         for cannon in self.cannons.iter_mut() {
+            cannon.set_ship_translation(translation);
             cannon.update(ctx)?;
         }
         for ship_mod in self.mods.iter_mut() {
@@ -486,7 +489,6 @@ impl GameState for Ship {
         let translation = self.transform.get_translation();
         self.sprite.draw2(ctx, translation);
         for cannon in self.cannons.iter_mut() {
-            cannon.set_ship_translation(translation);
             cannon.draw(ctx)?;
         }
         self.health_bar.draw(ctx, translation.0);

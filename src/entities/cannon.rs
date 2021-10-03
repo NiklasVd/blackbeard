@@ -21,7 +21,7 @@ pub struct Cannon {
     pub reload: Timer,
     pub reload_time: Attribute<f32>,
     pub shooting_power: Attribute<f32>, // in %
-    ship_translation: (V2, f32),
+    pub ship_translation: (V2, f32),
     ship_index: Index,
     cannon_sprite: Sprite,
     shoot_effect: AnimatedSprite,
@@ -201,7 +201,7 @@ impl CannonBall {
         self.miss(ctx, water_splash_effect)
     }
 
-    fn check_miss_lifetime(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
+    fn check_miss_lifetime(&mut self, _: &mut Context, _world: &mut World) -> tetra::Result {
         if let Some(miss_effect) = self.miss_effect.as_ref() {
             if miss_effect.is_finished() {
                 self.destroy();
@@ -247,8 +247,8 @@ impl Entity for CannonBall {
         }
     }
 
-    fn collide_with_entity(&mut self, ctx: &mut Context, other: Rcc<dyn Entity>,
-        world: &mut World) -> tetra::Result {
+    fn collide_with_entity(&mut self, ctx: &mut Context, _other: Rcc<dyn Entity>,
+        _world: &mut World) -> tetra::Result {
         self.on_hit_object(ctx)
     }
 }

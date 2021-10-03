@@ -92,7 +92,7 @@ impl SyncChecker {
             if let Some(auth_client_state) = gen_states.get(&0) {
                 gen_states
                     .iter()
-                    .filter(|(&id, s)| s.hash != auth_client_state.hash)
+                    .filter(|(_, s)| s.hash != auth_client_state.hash)
                     .map(|(&id, _)| id).collect()
             } else {
                 vec![]

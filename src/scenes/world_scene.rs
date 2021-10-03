@@ -231,7 +231,7 @@ impl NetController for WorldScene {
         self.game.borrow_mut().network.as_mut().unwrap().poll_received_client_packets()
     }
 
-    fn on_server_receive_disconnect(&mut self, sender: u16, reason: DisconnectReason) -> BbResult {
+    fn on_server_receive_disconnect(&mut self, sender: u16, _reason: DisconnectReason) -> BbResult {
         if let Some(input_pool) = self.input_pool.as_mut() {
             input_pool.remove_player(sender);
         }
@@ -258,6 +258,7 @@ impl NetController for WorldScene {
     }
 
     fn on_server_receive_chat_message(&mut self, sender: u16, message: String) -> BbResult {
+        // Check for spam/profanity
         self.game.borrow_mut().network.as_mut().unwrap()
             .server.as_mut().unwrap().send_multicast(Packet::ChatMessage {
             message
@@ -446,7 +447,7 @@ impl State for WorldSceneUI {
         self.update_ship_stats_panel(ctx)
     }
 
-    fn event(&mut self, ctx: &mut Context, event: Event) -> tetra::Result {
+    fn event(&mut self, _ctx: &mut Context, event: Event) -> tetra::Result {
         let is_in_harbour = self.local_player.as_ref().unwrap().borrow()
             .possessed_ship.borrow().is_in_harbour;
         if !is_in_harbour {
