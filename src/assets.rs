@@ -8,6 +8,7 @@ pub struct Assets {
     pub small_font: Font,
     pub font: Font,
     pub header_font: Font,
+    pub header2_font: Font,
     cached_textures: HashMap<String, Texture>
 }
 
@@ -20,7 +21,8 @@ impl Assets {
         Ok(Assets {
             small_font: Font::vector(ctx, font_path.clone(), 17.0)?,
             font: Font::vector(ctx, font_path.clone(), 20.0)?,
-            header_font: Font::vector(ctx, font_path, 35.0)?,
+            header_font: Font::vector(ctx, font_path.clone(), 35.0)?,
+            header2_font: Font::vector(ctx, font_path, 60.0)?,
             cached_textures: HashMap::from_iter([
                 ("Green".to_owned(), green_tex), ("Red".to_owned(), red_tex)])
         })

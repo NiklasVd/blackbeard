@@ -1,11 +1,11 @@
 use std::{collections::HashMap, net::{SocketAddr}, thread, time::Duration};
 use laminar::SocketEvent;
 
-use crate::{BbResult, ID, packet::{Packet, deserialize_packet, serialize_packet_unsigned}, peer::{DisconnectReason, Peer, is_auth_client}};
+use crate::{BbResult, ID, PlayerParams, packet::{Packet, deserialize_packet, serialize_packet_unsigned}, peer::{DisconnectReason, Peer, is_auth_client}};
 
 pub enum ClientEvent {
     ReceivePacket(u16, Packet),
-    Connect(u16),
+    Connect(PlayerParams, Vec<PlayerParams>),
     Disconnect(DisconnectReason),
     Empty
 }
@@ -98,16 +98,19 @@ impl Client {
         Ok(match &packet {
             Packet::HandshakeReply { players } => {
                 println!("Server accepted connection attempt!");
-                players.iter().for_each(|id| {
-                    self.connections.insert(id.n, id.clone());
-                    if id.n == sender {
-                        self.local_id = Some(id.clone());
+                let id = ID::new(self.name.to_owned(), sender);
+                self.local_id = Some(id.clone());
+                self.connections.insert(id.n, id.clone());
+                players.iter().for_each(|p| {
+                    self.connections.insert(p.id.n, p.id.clone());
+                    if is_auth_client(p.id.n) {
+                        println!("Hosting player: {:?}", p.id.clone())
                     } else {
-                        println!("Updating player: {}^{}", id.name, id.n);
+                        println!("Updating player: {:?}", p.id.clone());
                     }
                 });
                 self.connected = true;
-                ClientEvent::Connect(sender)
+                ClientEvent::Connect(PlayerParams::new(id), players.clone())
             },
             Packet::PlayerConnect { name } => {
                 self.connections.insert(sender, ID::new(name.to_owned(), sender));

@@ -1,29 +1,30 @@
 use std::{collections::VecDeque, fs::File, io::{self, Write}, path::Path, time::{SystemTime, UNIX_EPOCH}};
-use crate::{GC, V2, entity::EntityType, sync_checker::SyncState};
+use crate::{GC, V2, entity::EntityType, ship_data::ShipID, sync_checker::SyncState};
 
 pub const DIAGNOSTICS_LOG_PATH: &str = "log";
 const MAX_CACHE_SIZE: usize = 220;
 
 pub struct SyncStateShipData {
     id: u16,
-    pos: V2, rot: f32, curr_health: u16
+    pos: V2, rot: f32,
+    curr_health: u16,
+    cash_balance: u32
 }
 
 impl SyncStateShipData {
-    pub fn new(id: u16, pos: V2, rot: f32, curr_health: u16) -> SyncStateShipData {
+    pub fn new(id: u16, pos: V2, rot: f32, curr_health: u16, cash_balance: u32) -> SyncStateShipData {
         SyncStateShipData {
-            id, pos, rot, curr_health
+            id, pos, rot, curr_health, cash_balance
         }
     }
 }
 
 pub enum StateEvent {
     SyncState(u64, Vec<SyncStateShipData>),
-    ShipShipCollision(u16, u16, u16),
-    ShipEntityCollision(u16, EntityType, u16),
-    ShipCannonBallCollision(u16, u16, u16),
-    CannonBallMiss(u16, V2),
-    ShipShootCannon(u16, V2, u16),
+    ShipShipCollision(ShipID, ShipID, u16),
+    ShipEntityCollision(ShipID, EntityType, u16),
+    ShipCannonBallCollision(ShipID, ShipID, u16),
+    ShipShootCannon(ShipID, V2, u16),
 }
 
 impl StateEvent {
@@ -32,24 +33,22 @@ impl StateEvent {
             StateEvent::SyncState(hash, mut ship_data) => {
                 writeln!(file, "SyncState;{}", hash)?;
                 for ship_data in ship_data.drain(..) {
-                    writeln!(file, ";;;Ship;^{};{:.2},{:.2};{:.2};{}", ship_data.id,
-                        ship_data.pos.x, ship_data.pos.y, ship_data.rot, ship_data.curr_health)?;
+                    writeln!(file, ";;;Ship;^{};{:.2},{:.2};{:.2};{};{}c", ship_data.id,
+                        ship_data.pos.x, ship_data.pos.y, ship_data.rot, ship_data.curr_health, ship_data.cash_balance)?;
                 }
                 Ok(())
             },
             StateEvent::ShipShipCollision(player1_id, player2_id, dmg) =>
-                writeln!(file, "ShipColl;^{};collided with;^{};{} dmg",
+                writeln!(file, "ShipColl;{:?};collided with;{:?};{} dmg",
                 player1_id, player2_id, dmg),
             StateEvent::ShipEntityCollision(player_id, entity_type, dmg) =>
-                writeln!(file, "EntityColl;^{};collided with;{:?};{} dmg",
+                writeln!(file, "EntityColl;{:?};collided with;{:?};{} dmg",
                 player_id, entity_type, dmg),
             StateEvent::ShipCannonBallCollision(player_id, shooter_id, dmg) =>
-                writeln!(file, "CannonColl;^{};shot by;^{};{} dmg",
+                writeln!(file, "CannonColl;{:?};shot by;{:?};{} dmg",
                 player_id, shooter_id, dmg),
-            StateEvent::CannonBallMiss(shooter_id, pos) =>
-                writeln!(file, "CannonMiss;^{};{:.2},{:.2}", shooter_id, pos.x, pos.y),
             StateEvent::ShipShootCannon(shooter_id, starting_pos, dmg) =>
-                writeln!(file, "Shoot;^{};From;{:.2},{:.2};{} dmg",
+                writeln!(file, "Shoot;{:?};From;{:.2},{:.2};{} dmg",
                 shooter_id, starting_pos.x, starting_pos.y, dmg),
             
         }

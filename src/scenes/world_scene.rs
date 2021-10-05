@@ -1,5 +1,5 @@
 use tetra::{Context, Event, State, input::Key};
-use crate::{BbResult, Controller, GC, ID, Player, PlayerParams, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, client::ClientEvent, entity::{GameState}, gen_world, grid::{Grid, UIAlignment, UILayout}, image::Image, input_pool::InputPool, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputState, InputStep, Packet}, peer::DisconnectReason, server::ServerEvent, ship::ShipType, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, sync_checker::{SyncChecker, SyncState}, ui_element::{DefaultUIReactor, UIElement}, world::World};
+use crate::{BbResult, Controller, DEFAULT_SIMULATION_TIMESTEP, GC, ID, Player, PlayerParams, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, client::ClientEvent, entity::{GameState}, gen_world, grid::{Grid, UIAlignment, UILayout}, image::Image, input_pool::{InputPool, STEP_PHASE_FRAME_LENGTH}, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputState, InputStep, Packet}, peer::DisconnectReason, server::ServerEvent, ship_data::{ShipID, ShipType}, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, sync_checker::{SyncChecker, SyncState}, ui_element::{DefaultUIReactor, UIElement}, world::World};
 use super::scenes::{Scene, SceneType};
 
 pub struct WorldScene {
@@ -64,11 +64,15 @@ impl WorldScene {
         players.sort_unstable_by(|a, b| a.id.n.cmp(&b.id.n));
         for player in players.into_iter() {
             let player_instance = self.add_player(ctx, player.id.clone(), player.ship_type)?;
-            if player.id == local_id {
+            if player.id == local_id { // Is local player
                 self.controller.set_local_player(player_instance.clone());
                 // Adjust camera for player
-                let pos = player_instance.borrow()
-                    .possessed_ship.borrow().transform.get_translation().0;
+                let pos = {
+                    let player_ref = player_instance.borrow();
+                    let mut ship_ref = player_ref.possessed_ship.borrow_mut();
+                    ship_ref.data.id = ShipID::Player(local_id.clone(), true);
+                    ship_ref.transform.get_translation().0
+                };
                 self.game.borrow_mut().cam.centre_on(pos);
             }
         }
@@ -101,7 +105,8 @@ impl WorldScene {
 
     fn update_menu_ui(&mut self) -> BbResult {
         let curr_gen = self.controller.get_curr_gen();
-        if curr_gen % 10 == 0 && curr_gen != self.ui.last_info_update_gen {
+        if curr_gen % (DEFAULT_SIMULATION_TIMESTEP as u64 / STEP_PHASE_FRAME_LENGTH as u64) == 0 &&
+            curr_gen != self.ui.last_info_update_gen {
             let (_, _, avg) = self.controller.input_buffer.calc_latency();
             // FIX: Feedback latency is calculated right after latest step is applied, leading to zero
             let feedback_lat = self.controller.calc_input_feedback_latency();
@@ -153,7 +158,7 @@ impl WorldScene {
                 } else if input_pool.curr_gen == 0 && delayed_players.len() > 0
                     && input_pool.is_max_delay_exceeded() {
                     for id in delayed_players.iter() {
-                        println!("Player with ID {} failed to send first input state in time. Terminating connection...", id);
+                        println!("Player ^{} failed to send first input state in time. Terminating connection...", id);
                         self.game.borrow_mut().network.as_mut().unwrap().server.as_mut().unwrap()
                             .disconnect_player(*id, DisconnectReason::Timeout)?;
                     }
@@ -438,7 +443,7 @@ impl State for WorldSceneUI {
             let player_ref = local_player.borrow();
             let ship_ref = player_ref.possessed_ship.borrow();
             self.health_label.borrow_mut().set_text(
-                &format!("{}/{} Health", ship_ref.curr_health, ship_ref.attr.health));
+                &format!("{}/{} Health", ship_ref.data.curr_health, ship_ref.data.attr.health));
             self.escudos_label.borrow_mut().set_text(
                 &format!("{} Escudos", ship_ref.treasury.balance));
         }

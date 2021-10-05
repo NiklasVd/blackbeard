@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use indexmap::IndexMap;
 use rapier2d::{data::Index, prelude::ContactEvent};
 use tetra::{Context, Event, State};
-use crate::{CannonBall, GC, ID, Rcc, V2, entity::{Entity, EntityType}, harbour::Harbour, object::Object, ship::{Ship, ShipType}, wrap_rcc};
+use crate::{CannonBall, GC, ID, Rcc, V2, entity::{Entity, EntityType}, harbour::Harbour, object::Object, ship::{Ship}, ship_data::{ShipID, ShipType}, wrap_rcc};
 
 pub type EntityMap<T = dyn Entity + 'static> = HashMap<Index, Rcc<T>>;
 
@@ -14,21 +14,22 @@ pub struct World {
 }
 
 impl World {
-    pub fn new(ctx: &mut Context, game: GC) -> World  {
+    pub fn new(_: &mut Context, game: GC) -> World  {
         World {
             entities: IndexMap::new(), sensors: HashMap::new(),
             ships: HashMap::new(), game
         }
     }
 
-    pub fn add_player_ship(&mut self, ctx: &mut Context, id: ID, ship_type: ShipType) -> tetra::Result<Rcc<Ship>> {
+    pub fn add_player_ship(&mut self, ctx: &mut Context, id: ID, ship_type: ShipType)
+        -> tetra::Result<Rcc<Ship>> {
         let free_spawn_pos = {
             // This sometimes leads to immediate desync for one (usually the last) player
             // self.game.borrow().physics.check_for_space(V2::right() * id.n as f32 * 1500.0,
             //     V2::new(500.0, 200.0), V2::down())
             V2::new(1000.0 + id.n as f32 * 1000.0, -450.0)
         };
-        self.add_ship(ctx, ship_type, id.name, id.n, free_spawn_pos, true)
+        self.add_ship(ctx, ship_type, ShipID::Player(id, false), free_spawn_pos, true)
     }
 
     pub fn add_island(&mut self, ctx: &mut Context, pos: V2, rot: f32, island_type: u32)
@@ -61,7 +62,7 @@ impl World {
         Ok(harbour_ref)
     }
 
-    pub fn add_cannon_ball(&mut self, ctx: &mut Context, cannon_ball: CannonBall) -> Rcc<CannonBall> {
+    pub fn add_cannon_ball(&mut self, _: &mut Context, cannon_ball: CannonBall) -> Rcc<CannonBall> {
         let index = cannon_ball.get_index();
         let cannon_ball_ref = wrap_rcc(cannon_ball);
         self.add_entity_unchecked(index, cannon_ball_ref.clone());
@@ -115,15 +116,15 @@ impl World {
         self.entities.insert(index, entity);
     }
 
-    fn add_ship(&mut self, ctx: &mut Context, ship_type: ShipType, name: String, id: u16,
+    fn add_ship(&mut self, ctx: &mut Context, ship_type: ShipType, id: ShipID,
         spawn: V2, respawn: bool) -> tetra::Result<Rcc<Ship>> {
         let ship = match ship_type {
             ShipType::Caravel => Ship::caravel(ctx, self.game.clone(),
-                name, id, spawn, respawn),
+                id, spawn, respawn),
             ShipType::Galleon => Ship::galleon(ctx, self.game.clone(),
-                name, id, spawn, respawn),
+                id, spawn, respawn),
             ShipType::Schooner => Ship::schooner(ctx, self.game.clone(),
-                name, id, spawn, respawn)
+                id, spawn, respawn)
         }?;
         let index = ship.get_index();
         let ship_ref = self.add_entity::<Ship>(ship).unwrap();

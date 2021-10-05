@@ -55,7 +55,7 @@ impl Server {
                 reason
             }, player_id)
         } else {
-            println!("Server: Player with ID {} is already disconnected.", player_id);
+            println!("Server: Player ^{} is already disconnected.", player_id);
             Ok(())
         }
     }
@@ -128,7 +128,7 @@ impl Server {
                 // when the client timed out, hence, triggering two socket events in a row.
                 // SocketEvent::Disconnect(addr) => {
                 //     if let Some(id) = self.get_connection_by_addr(addr) {
-                //         println!("Server: Player with ID {} disconnected.", id.n);
+                //         println!("Server: Player ^{} disconnected.", id.n);
                 //         ServerEvent::PlayerDisconnect(id.n, DisconnectReason::Manual)
                 //     } else {
                 //         ServerEvent::Empty

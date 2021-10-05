@@ -1,9 +1,11 @@
 use core::fmt;
 use std::{collections::HashMap, iter::FromIterator};
 use binary_stream::{BinaryStream, Serializable};
-use crate::{Rcc, input_pool::STEP_PHASE_FRAME_LENGTH, round_f32, ship::Ship};
+use indexmap::IndexMap;
+use crate::{DEFAULT_SIMULATION_TIMESTEP, Rcc, input_pool::STEP_PHASE_FRAME_LENGTH, round_f32, ship::Ship};
 
-pub const SYNC_STATE_GEN_INTERVAL: u64 = 1/*60 / STEP_PHASE_FRAME_LENGTH as u64*/;
+pub const SYNC_STATE_GEN_INTERVAL: u64 = 3/*60 / STEP_PHASE_FRAME_LENGTH as u64*/;
+pub const DESIRED_SYNC_STATES_BUFFER_SIZE: usize = (DEFAULT_SIMULATION_TIMESTEP as u32 / STEP_PHASE_FRAME_LENGTH) as usize * 3;
 
 #[derive(Clone, Copy)]
 pub struct SyncState {
@@ -30,7 +32,8 @@ impl SyncState {
 
     pub fn serialize_ship(buffer: &mut Vec<u8>, ship: Rcc<Ship>) {
         let ship_ref = ship.borrow();
-        buffer.extend(ship_ref.curr_health.to_le_bytes());
+        buffer.extend(ship_ref.data.curr_health.to_le_bytes());
+        buffer.extend(ship_ref.treasury.balance.to_le_bytes());
         let translation = ship_ref.transform.get_translation();
         
         let x_state = round_f32(translation.0.x);
@@ -69,17 +72,22 @@ impl fmt::Debug for SyncState {
 }
 
 pub struct SyncChecker {
-    states: HashMap<u64, HashMap<u16, SyncState>>
+    states: IndexMap<u64, HashMap<u16, SyncState>>
 }
 
 impl SyncChecker {
     pub fn new() -> SyncChecker {
         SyncChecker {
-            states: HashMap::new()
+            states: IndexMap::new()
         }
     }
 
     pub fn add_state(&mut self, sender: u16, state: SyncState) {
+        let states_len = self.states.len();
+        if states_len >= DESIRED_SYNC_STATES_BUFFER_SIZE * 2 {
+            self.states.drain(..(states_len / 2));
+        }
+
         if let Some(gen_states) = self.states.get_mut(&state.t) {
             gen_states.insert(sender, state);
         } else {

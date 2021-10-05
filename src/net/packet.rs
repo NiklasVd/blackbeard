@@ -1,6 +1,6 @@
 use binary_stream::{BinaryStream, Serializable};
 use tetra::{Context, input::{Key, MouseButton, get_mouse_position, is_key_down, is_mouse_button_down}};
-use crate::{GC, ID, V2, deserialize_v2, game_settings::GameSettings, peer::DisconnectReason, serialize_v2, ship::ShipType, ship_mod::ShipModType, sync_checker::SyncState};
+use crate::{PlayerParams, V2, deserialize_v2, game_settings::GameSettings, peer::DisconnectReason, serialize_v2, ship_data::ShipType, ship_mod::ShipModType, sync_checker::SyncState};
 use std::fmt;
 
 #[derive(Clone)]
@@ -9,7 +9,8 @@ pub enum Packet {
         name: String
     },
     HandshakeReply {
-        players: Vec<ID>, /* Game Settings */
+        players: Vec<PlayerParams>,
+        /* + Game Settings */
     },
     PlayerConnect {
         name: String
@@ -71,7 +72,7 @@ impl fmt::Debug for Packet {
             Packet::InputStep { step } => write!(f, "Input Step Packet (states: {:?}, gen: {})", step.states, step.gen),
             Packet::Game { phase } => write!(f, "Game Packet (phase: {:?})", phase),
             Packet::Sync { state } => write!(f, "Sync Packet (state: {:?})", state),
-            Packet::Selection { mode, ship, settings } => write!(f, "Selection Packet (ship: {:?}, settings: {:?}", ship, settings)
+            Packet::Selection { ship, settings, .. } => write!(f, "Selection Packet (ship: {:?}, settings: {:?}", ship, settings)
         }
     }
 }
@@ -126,7 +127,7 @@ impl Serializable for Packet {
                 Packet::Handshake { name }
             },
             1 => {
-                let players = stream.read_vec::<ID>().unwrap();
+                let players = stream.read_vec::<PlayerParams>().unwrap();
                 Packet::HandshakeReply {
                     players
                 }
@@ -234,10 +235,12 @@ impl InputState {
         }
     }
 
-    pub fn discover(ctx: &mut Context, game: GC) -> InputState {
+    pub fn discover(ctx: &mut Context) -> InputState {
         let rmb = is_mouse_button_down(ctx, MouseButton::Right);
+        // is_key_down: Returns true if the specified key is currently down.
+        // is_key_pressed: Returns true if the specified key was pressed since the last update.
         let r = is_key_down(ctx, Key::R);
-        let q = is_key_down(ctx, Key::Q); // is_key_down: Returns true if the specified key is currently down. is_key_pressed: Returns true if the specified key was pressed since the last update.
+        let q = is_key_down(ctx, Key::Q);
         let e = is_key_down(ctx, Key::E);
         let mouse_pos = match rmb || r {
             true => Some(get_mouse_position(ctx)),

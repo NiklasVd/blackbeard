@@ -53,7 +53,6 @@ impl Controller {
     }
 
     pub fn buy_ship_mod(&mut self, mod_type: ShipModType) {
-        println!("Attempting to buy {:?} mod", &mod_type);
         self.curr_input_state.buy_mod = true;
         self.curr_input_state.mod_type = Some(mod_type);
     }
@@ -63,16 +62,6 @@ impl Controller {
     }
 
     pub fn is_next_frame_ready(&self) -> bool {
-        // (match self.input_buffer.get_curr_phase() {
-        //     StepPhase::Imminent | StepPhase::Running => true,
-        //     _ => false
-        // } && self.input_buffer.is_next_step_ready())
-        /* This actually blocks the simulation when advancing to a new phase
-        if there is no next step in the buffer. Instead, either check if:
-            -next step is imminent && next step is ready
-            -current phase is still running
-        Now, the simulation runs the furthest it can spare until having to wait
-        for the next step. */
         // The simulation is ready for the next frame, if...
         match self.input_buffer.get_curr_phase() {
             // ...the current phase is imminent or over and the next step is ready
@@ -91,7 +80,7 @@ impl Controller {
     }
 
     pub fn calc_input_feedback_latency(&self) -> f32 {
-        self.input_buffer.get_buffer_size() as f32 * STEP_PHASE_TIME_SECS
+        (self.input_buffer.get_buffer_size() + 1) as f32 * STEP_PHASE_TIME_SECS
     }
 
     pub fn get_curr_gen(&self) -> u64 {
@@ -101,9 +90,15 @@ impl Controller {
     fn adjust_simulation(&mut self, ctx: &mut Context) {
         let buffered_steps = self.input_buffer.get_buffer_size();
         let timestep = {
-            if buffered_steps > 1 { // or zero?
+            // > 2 means simulation will not catch up to the very latest step, and instead
+            // keep the local simulation 3 steps in the past. This shields the player
+            // from stutters and consequent speed-ups by putting a bit of distance between
+            // actual and local steps. Optimally, the playback buffer should adjust the
+            // gap between actual and local
+            // step according to the connection quality/simulation performance.
+            if buffered_steps > 2 {
                 println!("Input feedback delayed by {} steps. Accelerate simulation to {} frames/s",
-                    buffered_steps - 1, ACCELERATED_SIMULATION_TIMESTEP);
+                    buffered_steps, ACCELERATED_SIMULATION_TIMESTEP);
                 ACCELERATED_SIMULATION_TIMESTEP
             } else {
                 DEFAULT_SIMULATION_TIMESTEP
@@ -144,7 +139,7 @@ impl Controller {
                 self.remove_player(sender);
             }
         } else {
-            println!("Failed to apply state. Reason: Player with ID {} does not exist", sender);
+            println!("Failed to apply state. Reason: Player ^{} does not exist", sender);
         }
         Ok(())
     }
@@ -169,7 +164,7 @@ impl Controller {
                     let ship_ref = p_ref.possessed_ship.borrow_mut();
                     let translation = ship_ref.transform.get_translation();
                     SyncStateShipData::new(p_ref.id.n,
-                        translation.0, translation.1, ship_ref.curr_health)
+                        translation.0, translation.1, ship_ref.data.curr_health, ship_ref.treasury.balance)
                 }).collect();
 
                 let mut game_ref = self.game.borrow_mut();
@@ -197,10 +192,9 @@ impl GameState for Controller {
     }
 
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
-        if let Some(mouse_pos) = self.curr_target_pos.as_ref() {
+        Ok(if let Some(mouse_pos) = self.curr_target_pos.as_ref() {
             self.target_x.draw(ctx, mouse_pos.clone(), 0.0);
-        }
-        Ok(())
+        })
     }
 
     fn event(&mut self, ctx: &mut Context, event: Event, _world: &mut World)

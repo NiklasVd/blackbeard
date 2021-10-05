@@ -20,12 +20,12 @@ impl ConnectionScene {
         let back_button = grid.add_element(Button::new(ctx, "Back to Menu",
             V2::new(135.0, 35.0), 5.0, DefaultUIReactor::new(), game.clone())?);
         
-        let create_label = grid.add_element(Label::new(ctx, "Create Match", FontSize::Normal,
+        grid.add_element(Label::new(ctx, "Create Match", FontSize::Normal,
             5.0, game.clone())?);
         let create_button = grid.add_element(Button::new(ctx, "Create", V2::new(80.0, 35.0),
             3.0, DefaultUIReactor::new(), game.clone())?);
         
-        let join_label = grid.add_element(Label::new(ctx, "Join Match", FontSize::Normal,
+        grid.add_element(Label::new(ctx, "Join Match", FontSize::Normal,
             5.0, game.clone())?);
         let mut join_grid = Grid::default(ctx, UIAlignment::Horizontal,
             V2::zero(), V2::new(150.0, 35.0), 5.0)?;
@@ -34,7 +34,7 @@ impl ConnectionScene {
             5.0, game.clone())?);
         let join_button = join_grid.add_element(Button::new(ctx, "Join",
             V2::new(70.0, 35.0), 3.0, DefaultUIReactor::new(), game.clone())?);
-        let join_grid = grid.add_element(join_grid);
+        grid.add_element(join_grid);
         
         Ok(ConnectionScene {
             grid, back_button, create_button, join_button, join_endpoint_txt, game
@@ -88,8 +88,4 @@ impl Scene for ConnectionScene {
 }
 
 impl State for ConnectionScene {
-    fn update(&mut self, ctx: &mut Context) -> tetra::Result {
-        // self.check_buttons();
-        Ok(())
-    }
 }

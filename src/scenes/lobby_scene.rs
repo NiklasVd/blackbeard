@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, net::SocketAddr};
 use tetra::{Context, State};
-use crate::{BbResult, GC, ID, PlayerParams, Rcc, TransformResult, V2, button::{Button, DefaultButton}, chat::Chat, client::ClientEvent, game_settings::GameSettings, grid::{Grid, UIAlignment, UILayout}, label::{FontSize, Label}, loading_scene::LoadingScene, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::{GamePhase, Packet, serialize_packet}, peer::{DisconnectReason, is_auth_client}, rand_u64, server::ServerEvent, ship::ShipType, ui_element::{DefaultUIReactor, UIElement}};
+use crate::{BbResult, GC, ID, PlayerParams, Rcc, TransformResult, V2, button::{Button, DefaultButton}, chat::Chat, client::ClientEvent, game_settings::GameSettings, grid::{Grid, UIAlignment, UILayout}, label::{FontSize, Label}, loading_scene::LoadingScene, menu_scene::MenuScene, net_controller::NetController, net_settings::NetSettings, network::Network, packet::{GamePhase, Packet, serialize_packet}, peer::{DisconnectReason, is_auth_client}, rand_u64, server::ServerEvent, ship_data::ShipType, ui_element::{DefaultUIReactor, UIElement}};
 use super::scenes::{Scene, SceneType};
 
 pub struct LobbyScene {
@@ -54,6 +54,11 @@ impl LobbyScene {
             Ok(())
         }
     }
+
+    fn add_player(&mut self, ctx: &mut Context, player: PlayerParams) -> BbResult {
+        self.players.insert(player.id.n, player.clone());
+        self.ui.add_player(ctx, player.clone())
+    }
 }
 
 impl Scene for LobbyScene {
@@ -94,23 +99,22 @@ impl State for LobbyScene {
 }
 
 impl NetController for LobbyScene {
-    fn poll_received_server_packets(&mut self, ctx: &mut Context) -> BbResult<ServerEvent> {
+    fn poll_received_server_packets(&mut self, _: &mut Context) -> BbResult<ServerEvent> {
         self.game.borrow_mut().network.as_mut().unwrap().poll_received_server_packets()
     }
     
-    fn poll_received_client_packets(&mut self, ctx: &mut Context) -> BbResult<ClientEvent> {
+    fn poll_received_client_packets(&mut self, _: &mut Context) -> BbResult<ClientEvent> {
         self.game.borrow_mut().network.as_mut().unwrap().poll_received_client_packets()
     }
 
-    fn on_server_receive_handshake(&mut self, id: ID, remote_addr: std::net::SocketAddr) -> BbResult {
+    fn on_server_receive_handshake(&mut self, id: ID, remote_addr: SocketAddr) -> BbResult {
         let mut game_ref = self.game.borrow_mut();
         let server = game_ref.network.as_mut().unwrap().server.as_mut().unwrap();
-        // TODO: Implement player params in handshake reply
         server.send_raw_unicast(serialize_packet(Packet::HandshakeReply {
-            players: server.get_connections()
-                .into_iter()
-                .map(|p| p.0.clone())
-                .collect() // Send list of all players to new connection
+            players: self.players
+                .values()
+                .map(|p| p.clone())
+                .collect()
         }, id.n), remote_addr)?;
 
         if server.get_connection_count() > 1 {
@@ -126,29 +130,24 @@ impl NetController for LobbyScene {
         }
     }
 
-    fn on_server_receive_disconnect(&mut self, sender: u16, reason: DisconnectReason) -> BbResult {
-        // server.disconnect_player called automatically
-        // Irrelevant?
-        Ok(())
-    }
-
     fn on_server_set_game_phase(&mut self, sender: u16, phase: GamePhase) -> BbResult {
         let is_valid_phase = match phase {
             GamePhase::World(..) => true,
             _ => false
         };
-        if is_auth_client(sender) && is_valid_phase {
-            self.game.borrow_mut().network.as_mut().unwrap()
+        Ok(match (is_auth_client(sender), is_valid_phase) {
+            (true, true) => self.game.borrow_mut().network.as_mut().unwrap()
                 .server.as_mut().unwrap().send_multicast(Packet::Game {
                     phase
-                }, sender)
-        } else {
-            println!("Server: Player with ID {} failed to set phase {:?}. Insufficient permissions or invalid phase", sender, phase);
-            Ok(())
-        }
+                }, sender)?,
+            (true, false) => println!("^{} failed to set {:?} phase: invalid phase.",
+                sender, phase),
+            (false, _) => println!("^{} failed to set {:?} phase: insufficient permissions.",
+                sender, phase)
+        })
     }
     
-    fn on_server_receive_ship_selection(&mut self, ctx: &mut Context, sender: u16,
+    fn on_server_receive_ship_selection(&mut self, _: &mut Context, sender: u16,
         ship_type: ShipType) -> BbResult {
         self.game.borrow_mut().network.as_mut().unwrap()
             .server.as_mut().unwrap().send_multicast(Packet::Selection {
@@ -156,7 +155,7 @@ impl NetController for LobbyScene {
             }, sender)
     }
 
-    fn on_server_receive_settings(&mut self, ctx: &mut Context, sender: u16, settings: GameSettings) -> BbResult {
+    fn on_server_receive_settings(&mut self, _: &mut Context, sender: u16, settings: GameSettings) -> BbResult {
         self.game.borrow_mut().network.as_mut().unwrap()
             .server.as_mut().unwrap().send_multicast(Packet::Selection {
                 mode: false, ship: None, settings: Some(settings)
@@ -171,39 +170,36 @@ impl NetController for LobbyScene {
             }, sender)
     }
 
-    fn on_establish_connection(&mut self, ctx: &mut Context) -> BbResult {
-        let players = {
-            let game_ref = self.game.borrow();
-            game_ref.network.as_ref().unwrap().client.get_connections()
-        };
-        for id in players.into_iter() {
-            self.on_player_connect(ctx, id)?;
+    fn on_establish_connection(&mut self, ctx: &mut Context, local_player: PlayerParams,
+        players: Vec<PlayerParams>) -> BbResult {
+        self.add_player(ctx, local_player)?;
+        for player in players.into_iter() {
+            self.on_player_connect(ctx, player)?;
         }
         self.ui.match_grid.borrow_mut().remove_element_at(0);
         Ok(())
     }
 
-    fn on_connection_lost(&mut self, ctx: &mut Context, reason: DisconnectReason) -> BbResult {
+    fn on_connection_lost(&mut self, _: &mut Context, reason: DisconnectReason) -> BbResult {
         self.disconnected = true;
         println!("Connection to server was lost. Reason: {:?}. Returning to menu...", reason);
         Ok(())
     }
 
-    fn on_player_connect(&mut self, ctx: &mut Context, id: ID) -> BbResult {
-        self.players.insert(id.n, PlayerParams::new(id.clone(), ShipType::Caravel));
-        self.ui.add_player(ctx, id.clone(), ShipType::Caravel)?;
-        self.ui.chat.add_line(ctx, &format!("{:?} connected to the game!", id)).convert()
+    fn on_player_connect(&mut self, ctx: &mut Context, player: PlayerParams) -> BbResult {
+        self.add_player(ctx, player.clone())?;
+        self.ui.chat.add_line(ctx, &format!("{:?} connected to the game!", player.id)).convert()
     }
 
     fn on_player_disconnect(&mut self, ctx: &mut Context, id: u16, reason: DisconnectReason)
         -> BbResult {
-        if let Some(player) = self.players.remove(&id) {
+        if let Some(_) = self.players.remove(&id) {
             self.ui.update_player_list(ctx, self.players.values()
                 .map(|p| p.clone()).collect())?;
             self.ui.chat.add_line(ctx,
                 &format!("{:?} left the game. Reason: {:?}.", id, reason)).convert()
         } else {
-            println!("Unknown player with id {} left the game. Reason: {:?}", id, reason);
+            println!("Unknown player ^{} left the game. Reason: {:?}", id, reason);
             Ok(())
         }
     }
@@ -215,15 +211,14 @@ impl NetController for LobbyScene {
         self.ui.chat.add_message(ctx, sender.as_str(), text.as_str()).convert()
     }
 
-    fn on_game_phase_changed(&mut self, ctx: &mut Context, phase: GamePhase) -> BbResult {
-        match phase {
+    fn on_game_phase_changed(&mut self, _: &mut Context, phase: GamePhase) -> BbResult {
+        Ok(match phase {
             GamePhase::World(world_seed) => {
                 self.world_seed = world_seed;
                 self.game_started = true;
             },
             _ => ()
-        }
-        Ok(())
+        })
     }
 
     fn on_select_ship(&mut self, ctx: &mut Context, sender: u16, ship: ShipType) -> BbResult {
@@ -233,12 +228,12 @@ impl NetController for LobbyScene {
             self.ui.update_player_list(ctx, self.players.values()
                 .map(|p| p.clone()).collect())?;
         } else {
-            println!("Unknown player with ID {} attempted to change ship type to {:?}", sender, ship)
+            println!("Unknown player ^{} attempted to change ship type to {:?}", sender, ship)
         }
         Ok(())
     }
 
-    fn on_change_settings(&mut self, ctx: &mut Context, settings: GameSettings) -> BbResult {
+    fn on_change_settings(&mut self, _: &mut Context, settings: GameSettings) -> BbResult {
         println!("Updated settings: {:?}", &settings);
         self.game_settings = settings;
         Ok(())
@@ -312,15 +307,15 @@ impl LobbySceneUI {
         })
     }
 
-    fn add_player(&mut self, ctx: &mut Context, id: ID, ship_type: ShipType) -> BbResult {
+    fn add_player(&mut self, ctx: &mut Context, player: PlayerParams) -> BbResult {
         let mut player_list_grid_ref = self.player_list_grid.borrow_mut();
-        let name = format!("  {:?} {} - {:?}", &id, {
-            if id.n == 0 {
+        let name = format!("  {:?} {} - {:?}", &player.id, {
+            if is_auth_client(player.id.n) {
                 "(Host)"
             } else {
                 ""
             }
-        }, ship_type);
+        }, player.ship_type);
         player_list_grid_ref.add_element(
             Label::new(ctx, name.as_str(), FontSize::Normal, 2.0, self.game.clone()).convert()?);
         Ok(())
@@ -333,7 +328,7 @@ impl LobbySceneUI {
             player_list_grid_ref.clear_elements();
         }
         for player in players.into_iter() {
-            self.add_player(ctx, player.id.clone(), player.ship_type)?;
+            self.add_player(ctx, player)?;
         }
         Ok(())
     }

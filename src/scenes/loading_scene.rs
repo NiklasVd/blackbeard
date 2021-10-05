@@ -92,8 +92,4 @@ impl State for LoadingScene {
         }
         Ok(())
     }
-
-    fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
-        Ok(())
-    }
 }

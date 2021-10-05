@@ -2,7 +2,7 @@ use std::{collections::VecDeque, time::Instant};
 use tetra::{Context, State};
 use crate::{input_pool::STEP_PHASE_FRAME_LENGTH, packet::{InputStep}};
 
-const MAX_TIMESTAMPS_CACHED: usize = 500;
+const MAX_TIMESTAMPS_CACHED: usize = 100;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum StepPhase {
@@ -30,7 +30,7 @@ impl PlaybackBuffer {
     pub fn add_step(&mut self, step: InputStep) {
         self.steps.push_back(step);
         
-        if self.timestamps.len() > MAX_TIMESTAMPS_CACHED {
+        if self.timestamps.len() >= MAX_TIMESTAMPS_CACHED {
             self.timestamps.pop_front();
         }
         self.timestamps.push_back(self.startup_time.elapsed().as_secs_f32());
@@ -71,8 +71,9 @@ impl PlaybackBuffer {
         }
         let min = self.timestamps.iter().map(|t| *t).reduce(f32::min).unwrap();
         let max = self.timestamps.iter().map(|t| *t).reduce(f32::max).unwrap();
-        let avg: f32 = self.timestamps.iter().sum::<f32>() / self.timestamps.len() as f32;
-        self.timestamps.drain(0..(self.timestamps.len() / 2));
+        let timestamps_len = self.timestamps.len() as f32;
+        let avg: f32 = self.timestamps.drain(..).sum::<f32>()
+            / timestamps_len;
         (min, max, avg)
     }
 }

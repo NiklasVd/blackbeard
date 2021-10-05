@@ -1,7 +1,7 @@
 use crossbeam_channel::{Receiver};
 use rapier2d::{math::Real, na::{Isometry2}, prelude::{ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, Collider, ColliderBuilder, ColliderHandle, ColliderSet, ContactEvent, Cuboid, IntegrationParameters, InteractionGroups, IntersectionEvent, IslandManager, JointSet, NarrowPhase, PhysicsPipeline, QueryPipeline, Ray, RigidBody, RigidBodyBuilder, RigidBodyHandle, RigidBodySet}};
 use tetra::{State, graphics::{Color, DrawParams}, math::{Vec2}};
-use crate::{conv_vec, conv_vec_point, entity::EntityType, object::ObjectType, ship::ShipType};
+use crate::{conv_vec, conv_vec_point, entity::EntityType, object::ObjectType, ship_data::ShipType};
 
 pub const MASS_FORCE_SCALE: f32 = 1000.0;
 
@@ -238,7 +238,7 @@ impl Physics {
 
     pub fn cast_cuboid(&self, from: V2, size: V2, dir: V2, dist: f32) -> Option<ColliderHandle> {
         let cuboid = Cuboid::new(conv_vec(size));
-        if let Some((coll_handle, hit)) = self.query_pipeline.cast_shape(
+        if let Some((coll_handle, _hit)) = self.query_pipeline.cast_shape(
             &self.coll_set, &Isometry2::new(conv_vec(from), 0.0), &conv_vec(dir), &cuboid,
             dist, InteractionGroups::all(), None) {
             Some(coll_handle)
@@ -250,7 +250,7 @@ impl Physics {
     pub fn check_for_space(&self, mut at: V2, size: V2, dir: V2) -> V2 {
         let rel_dir = size * dir.normalized();
         let dist = rel_dir.magnitude();
-        while let Some(obstacle) = self.cast_cuboid(at, size, dir, dist) {
+        while let Some(_obstacle) = self.cast_cuboid(at, size, dir, dist) {
             // Hit an object, try again
             at += rel_dir;
         }
@@ -259,7 +259,7 @@ impl Physics {
 }
 
 impl State for Physics {
-    fn update(&mut self, ctx: &mut tetra::Context) -> tetra::Result {
+    fn update(&mut self, _ctx: &mut tetra::Context) -> tetra::Result {
         self.physics_pipeline.step(&conv_vec(self.wind), &self.integration_params,
             &mut self.island_manager, &mut self.broad_phase, &mut self.narrow_phase,
             &mut self.rb_set, &mut self.coll_set, &mut self.joint_set,

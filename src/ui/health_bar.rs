@@ -1,8 +1,8 @@
 use tetra::{Context, graphics::{Color, DrawParams, Texture, text::Text}};
 use crate::{GC, V2};
 
-pub const HEALTH_BAR_WIDTH: f32 = 170.0;
-pub const HEALTH_BAR_HEIGHT: f32 = 18.0;
+pub const HEALTH_BAR_WIDTH: f32 = 200.0;
+pub const HEALTH_BAR_HEIGHT: f32 = 20.0;
 
 pub struct HealthBar {
     label: Text,
@@ -16,15 +16,15 @@ pub struct HealthBar {
 }
 
 impl HealthBar {
-    pub fn new(ctx: &mut Context, label: &str, label_color: Color, max_health: u16,
+    pub fn new(ctx: &mut Context, name: String, label_color: Color, max_health: u16,
         game: GC) -> tetra::Result<HealthBar> {
         let (life_tex, red_tex, font) = {
             let game_ref = game.borrow();
             (game_ref.assets.get_cached_texture("Green".to_owned()),
                 game_ref.assets.get_cached_texture("Red".to_owned()),
-                game_ref.assets.header_font.clone())
+                game_ref.assets.header2_font.clone())
         };
-        let mut label = Text::new(label, font);
+        let mut label = Text::new(name, font);
         let label_rel_centre = label.get_bounds(ctx).unwrap().center();
         Ok(HealthBar {
             label, life_tex, red_tex,
@@ -45,7 +45,7 @@ impl HealthBar {
             position: pos - self.label_rel_centre, rotation: 0.0, scale: V2::one(),
             origin: V2::zero(), color: self.label_color
         });
-        pos += V2::new(-HEALTH_BAR_WIDTH * 0.5, self.label_rel_centre.y * 2.1);
+        pos += V2::new(-HEALTH_BAR_WIDTH * 0.5, self.label_rel_centre.y * 1.85);
         self.red_tex.draw(ctx, DrawParams {
             position: pos, rotation: 0.0, origin: V2::zero(),
             scale: V2::new(HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT),

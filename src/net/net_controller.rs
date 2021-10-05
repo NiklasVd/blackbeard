@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use tetra::Context;
-use crate::{BbResult, ID, client::ClientEvent, game_settings::GameSettings, packet::{GamePhase, InputState, InputStep, Packet}, peer::{DisconnectReason, is_auth_client}, server::ServerEvent, ship::ShipType, sync_checker::SyncState};
+use crate::{BbResult, ID, PlayerParams, client::ClientEvent, game_settings::GameSettings, packet::{GamePhase, InputState, InputStep, Packet}, peer::{DisconnectReason, is_auth_client}, server::ServerEvent, ship_data::ShipType, sync_checker::SyncState};
 
 pub trait NetController {
     fn poll_received_server_packets(&mut self, ctx: &mut Context) -> BbResult<ServerEvent>;
@@ -29,7 +29,8 @@ pub trait NetController {
         match self.poll_received_client_packets(ctx)? {
             ClientEvent::ReceivePacket(sender, packet) => {
                 match packet {
-                    Packet::PlayerConnect { name } => self.on_player_connect(ctx, ID::new(name, sender)),
+                    Packet::PlayerConnect { name } => self.on_player_connect(ctx,
+                        PlayerParams::new(ID::new(name, sender))),
                     Packet::PlayerDisconnect { reason } => {
                         if is_auth_client(sender) {
                             self.on_connection_lost(ctx, DisconnectReason::HostShutdown)
@@ -45,7 +46,7 @@ pub trait NetController {
                     _ => Ok(())
                 }
             },
-            ClientEvent::Connect(_) => self.on_establish_connection(ctx), 
+            ClientEvent::Connect(local_player, players) => self.on_establish_connection(ctx, local_player, players), 
             ClientEvent::Disconnect(reason) => self.on_connection_lost(ctx, reason),
             _ => Ok(())
         }
@@ -93,14 +94,15 @@ pub trait NetController {
         Ok(())
     }
 
-    fn on_establish_connection(&mut self, ctx: &mut Context) -> BbResult {
+    fn on_establish_connection(&mut self, ctx: &mut Context, local_player: PlayerParams,
+        players: Vec<PlayerParams>) -> BbResult {
         Ok(())
     }
     fn on_connection_lost(&mut self, ctx: &mut Context, reason: DisconnectReason)-> BbResult {
         Ok(())
     }
 
-    fn on_player_connect(&mut self, ctx: &mut Context, id: ID) -> BbResult {
+    fn on_player_connect(&mut self, ctx: &mut Context, player: PlayerParams) -> BbResult {
         Ok(())
     }
     fn on_player_disconnect(&mut self, ctx: &mut Context, id: u16,

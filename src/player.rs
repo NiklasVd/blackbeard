@@ -1,7 +1,7 @@
 use binary_stream::{BinaryStream, Serializable};
 use rapier2d::data::Index;
 use tetra::Context;
-use crate::{CannonSide, GC, ID, Rcc, TransformResult, World, entity::Entity, packet::InputState, ship::{Ship, ShipType}, ship_mod::{CannonAmmoUpgradeMod, CannonRangeUpgradeMod, CannonReloadUpgradeMod, ShipMod, ShipModType, get_ship_mod_cost}};
+use crate::{CannonSide, GC, ID, Rcc, TransformResult, World, entity::Entity, packet::InputState, ship::{Ship}, ship_data::ShipType, ship_mod::{CannonAmmoUpgradeMod, CannonRangeUpgradeMod, CannonReloadUpgradeMod, ShipMod, ShipModType, get_ship_mod_cost}};
 
 pub struct Player {
     pub id: ID,
@@ -35,7 +35,7 @@ impl Player {
             ship_ref.shoot_cannons(ctx, None, world)?;
         } else if state.q {
             ship_ref.shoot_cannons(ctx, Some(CannonSide::Bowside), world)?;
-        } else if state.q {
+        } else if state.e {
             ship_ref.shoot_cannons(ctx, Some(CannonSide::Portside), world)?;
         }
 
@@ -92,35 +92,24 @@ pub struct PlayerParams {
 }
 
 impl PlayerParams {
-    pub fn new(id: ID, ship_type: ShipType) -> PlayerParams {
+    pub fn new(id: ID) -> PlayerParams {
         PlayerParams {
-            id, ship_type
+            id, ship_type: ShipType::Caravel
         }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct PlayerNetParams(u16, ShipType);
-
-impl PlayerNetParams {
-    pub fn new(id: u16, ship_type: ShipType) -> Self {
-        Self(id, ship_type)
-    }
-
-    pub fn from_player(p_param: PlayerParams) -> Self {
-        Self::new(p_param.id.n, p_param.ship_type)
-    }
-}
-
-impl Serializable for PlayerNetParams {
+impl Serializable for PlayerParams {
     fn to_stream(&self, stream: &mut BinaryStream) {
-        stream.write_u16(self.0).unwrap();
-        self.1.to_stream(stream);
+        self.id.to_stream(stream);
+        self.ship_type.to_stream(stream);
     }
 
     fn from_stream(stream: &mut BinaryStream) -> Self {
-        let id = stream.read_u16().unwrap();
+        let id = ID::from_stream(stream);
         let ship_type = ShipType::from_stream(stream);
-        Self::new(id, ship_type)
+        PlayerParams {
+            id, ship_type
+        }
     }
 }

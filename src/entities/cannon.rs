@@ -1,9 +1,9 @@
 use rapier2d::{data::Index, na::Vector2};
-use tetra::{Context, State, graphics::text::Text};
+use tetra::{Context, State, graphics::text::Text, math::Clamp};
 use crate::{AnimatedSprite, CANNON_BALL_COLL_GROUP, EMPTY_COLL_GROUP, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, build_water_splash_sprite, conv_vec, entity::{Entity, EntityType, GameState}, get_angle, polar_to_cartesian, ship::Ship, ship_mod::Attribute, world::World};
 
-pub const POWER_FORCE_FACTOR: f32 = 40.0 * MASS_FORCE_SCALE;
-pub const POWER_DROP_THRESHOLD: f32 = 5.0 * POWER_FORCE_FACTOR / MASS_FORCE_SCALE;
+pub const POWER_FORCE_FACTOR: f32 = 35.0 * MASS_FORCE_SCALE;
+pub const POWER_DROP_THRESHOLD: f32 = 4.0 * POWER_FORCE_FACTOR / MASS_FORCE_SCALE;
 
 #[derive(PartialEq)]
 pub enum CannonSide {
@@ -147,7 +147,9 @@ impl CannonBall {
         {
             let mut game_ref = game.borrow_mut();
             let rb = game_ref.physics.get_rb_mut(physics_handle.0);
-            rb.apply_impulse(conv_vec(dir * POWER_FORCE_FACTOR * shooting_power), true);
+            let impulse = dir * POWER_FORCE_FACTOR * shooting_power;
+            // TODO: Check if impulse magnitude is not over limit
+            rb.apply_impulse(conv_vec(impulse), true);
         };
 
         Ok(CannonBall {
@@ -176,7 +178,7 @@ impl CannonBall {
         ship.borrow_mut().take_cannon_ball_hit(ctx, self.dmg, self.shooter_index, world)       
     }
 
-    fn miss(&mut self, ctx: &mut Context, miss_effect: AnimatedSprite) -> tetra::Result {
+    fn miss(&mut self, _ctx: &mut Context, miss_effect: AnimatedSprite) -> tetra::Result {
         self.state = CannonBallState::Miss;
         let mut game_ref = self.game.borrow_mut();
         let rb = game_ref.physics.get_rb_mut(
