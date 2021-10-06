@@ -1,7 +1,7 @@
 use std::{collections::{HashMap, HashSet}, iter::FromIterator};
 use crate::{DEFAULT_SIMULATION_TIMESTEP, packet::{InputState, InputStep}};
 
-pub const STEP_PHASE_FRAME_LENGTH: u32 = 5;
+pub const STEP_PHASE_FRAME_LENGTH: u32 = 3;
 pub const STEP_PHASE_TIME_SECS: f32 = STEP_PHASE_FRAME_LENGTH as f32 / DEFAULT_SIMULATION_TIMESTEP as f32;
 pub const MAX_CLIENT_STATE_SEND_DELAY: u32 = DEFAULT_SIMULATION_TIMESTEP as u32 * 15; // 15 secs
 

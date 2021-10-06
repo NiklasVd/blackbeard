@@ -4,8 +4,10 @@ use binary_stream::{BinaryStream, Serializable};
 use indexmap::IndexMap;
 use crate::{DEFAULT_SIMULATION_TIMESTEP, Rcc, input_pool::STEP_PHASE_FRAME_LENGTH, round_f32, ship::Ship};
 
-pub const SYNC_STATE_GEN_INTERVAL: u64 = 3/*60 / STEP_PHASE_FRAME_LENGTH as u64*/;
-pub const DESIRED_SYNC_STATES_BUFFER_SIZE: usize = (DEFAULT_SIMULATION_TIMESTEP as u32 / STEP_PHASE_FRAME_LENGTH) as usize * 3;
+pub const SYNC_STATE_GEN_INTERVAL: u64 = (DEFAULT_SIMULATION_TIMESTEP as u64 / 2)
+    / STEP_PHASE_FRAME_LENGTH as u64;
+pub const DESIRED_SYNC_STATES_BUFFER_SIZE: usize = (DEFAULT_SIMULATION_TIMESTEP as u32 /
+    STEP_PHASE_FRAME_LENGTH) as usize * 3;
 
 #[derive(Clone, Copy)]
 pub struct SyncState {

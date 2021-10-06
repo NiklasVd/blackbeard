@@ -1,8 +1,10 @@
 use std::{collections::VecDeque, time::Instant};
-use tetra::{Context, State};
-use crate::{input_pool::STEP_PHASE_FRAME_LENGTH, packet::{InputStep}};
+use tetra::{Context, State, math::Clamp};
+use crate::{DEFAULT_SIMULATION_TIMESTEP, input_pool::{STEP_PHASE_FRAME_LENGTH, STEP_PHASE_TIME_SECS}, packet::{InputStep}};
 
-const MAX_TIMESTAMPS_CACHED: usize = 100;
+const MAX_BUFFER_SIZE: usize = (DEFAULT_SIMULATION_TIMESTEP * 0.5) as usize
+    / STEP_PHASE_FRAME_LENGTH as usize;
+const MIN_BUFFER_SIZE: usize = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum StepPhase {
@@ -12,28 +14,28 @@ pub enum StepPhase {
 }
 
 pub struct PlaybackBuffer {
+    pub curr_frames: u64,
     steps: VecDeque<InputStep>,
     curr_frame_index: u32,
-    pub curr_frames: u64,
-    timestamps: VecDeque<f32>,
+    received_steps: u64,
+    step_wait_time: f32,
     startup_time: Instant
 }
 
 impl PlaybackBuffer {
     pub fn new() -> PlaybackBuffer {
         PlaybackBuffer {
-            steps: VecDeque::new(), curr_frame_index: 0, curr_frames: 0,
-            timestamps: VecDeque::new(), startup_time: Instant::now()
+            curr_frames: 0, steps: VecDeque::new(), curr_frame_index: 0, received_steps: 0,
+            step_wait_time: 0.0, startup_time: Instant::now()
         }
     }
 
     pub fn add_step(&mut self, step: InputStep) {
         self.steps.push_back(step);
-        
-        if self.timestamps.len() >= MAX_TIMESTAMPS_CACHED {
-            self.timestamps.pop_front();
-        }
-        self.timestamps.push_back(self.startup_time.elapsed().as_secs_f32());
+        self.received_steps += 1;
+
+        let curr_step_wait_time = self.startup_time.elapsed().as_secs_f32();
+        self.step_wait_time += curr_step_wait_time.min(STEP_PHASE_TIME_SECS);
         self.startup_time = Instant::now();
     }
 
@@ -65,16 +67,18 @@ impl PlaybackBuffer {
         }
     }
 
-    pub fn calc_latency(&mut self) -> (f32, f32, f32) {
-        if self.timestamps.len() == 0 {
-            return (0.0, 0.0, 0.0)
+    pub fn get_latency(&self) -> f32 {
+        if self.received_steps == 0 {
+            0.0
+        } else {
+            self.step_wait_time / self.received_steps as f32
         }
-        let min = self.timestamps.iter().map(|t| *t).reduce(f32::min).unwrap();
-        let max = self.timestamps.iter().map(|t| *t).reduce(f32::max).unwrap();
-        let timestamps_len = self.timestamps.len() as f32;
-        let avg: f32 = self.timestamps.drain(..).sum::<f32>()
-            / timestamps_len;
-        (min, max, avg)
+    }
+
+    pub fn estimate_optimal_buffer_size(&self) -> usize {
+        let latency = self.get_latency();
+        let optimal_latency = STEP_PHASE_TIME_SECS;
+        ((latency / optimal_latency).round() as usize).clamped(MIN_BUFFER_SIZE, MAX_BUFFER_SIZE)
     }
 }
 

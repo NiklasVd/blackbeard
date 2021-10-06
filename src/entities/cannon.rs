@@ -1,5 +1,5 @@
 use rapier2d::{data::Index, na::Vector2};
-use tetra::{Context, State, graphics::text::Text, math::Clamp};
+use tetra::{Context, State, graphics::text::Text};
 use crate::{AnimatedSprite, CANNON_BALL_COLL_GROUP, EMPTY_COLL_GROUP, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, Timer, Transform, V2, build_water_splash_sprite, conv_vec, entity::{Entity, EntityType, GameState}, get_angle, polar_to_cartesian, ship::Ship, ship_mod::Attribute, world::World};
 
 pub const POWER_FORCE_FACTOR: f32 = 35.0 * MASS_FORCE_SCALE;

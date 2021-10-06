@@ -5,7 +5,7 @@ use crate::{BbResult, DiagnosticState, GC, Player, Rcc, Sprite, SpriteOrigin, Sy
 
 pub const MAX_INPUT_STEP_BLOCK_TIME: f32 = 20.0;
 pub const DEFAULT_SIMULATION_TIMESTEP: f64 = 60.0;
-pub const ACCELERATED_SIMULATION_TIMESTEP: f64 = DEFAULT_SIMULATION_TIMESTEP * 6.0;
+pub const MAX_ACCELERATED_TIMESTEP: f64 = DEFAULT_SIMULATION_TIMESTEP * 6.0; // Stability?
 
 pub struct Controller {
     pub players: IndexMap<u16, Rcc<Player>>,
@@ -40,7 +40,6 @@ impl Controller {
         let player_idn = player.id.n;
         let player_ref = wrap_rcc(player);
         self.players.insert(player_idn, player_ref.clone());
-        // Sort by ID?
         player_ref
     }
 
@@ -89,17 +88,20 @@ impl Controller {
 
     fn adjust_simulation(&mut self, ctx: &mut Context) {
         let buffered_steps = self.input_buffer.get_buffer_size();
+        let optimal_buffer_size = self.input_buffer.estimate_optimal_buffer_size();
         let timestep = {
-            // > 2 means simulation will not catch up to the very latest step, and instead
-            // keep the local simulation 3 steps in the past. This shields the player
-            // from stutters and consequent speed-ups by putting a bit of distance between
-            // actual and local steps. Optimally, the playback buffer should adjust the
-            // gap between actual and local
-            // step according to the connection quality/simulation performance.
-            if buffered_steps > 2 {
-                println!("Input feedback delayed by {} steps. Accelerate simulation to {} frames/s",
-                    buffered_steps, ACCELERATED_SIMULATION_TIMESTEP);
-                ACCELERATED_SIMULATION_TIMESTEP
+            // > optimal buffer size means simulation will not catch up to the very latest step,
+            // and instead keep the local simulation a couple steps in the past. This shields the player
+            // from some stutters and consequent speed-ups by putting a bit of distance between
+            // actual and local steps.
+            // Optimally, the playback buffer should adjust the gap between actual and
+            // local step according to the connection quality/simulation performance.
+            if buffered_steps > optimal_buffer_size * 2 { // Hard catch-up required
+                DEFAULT_SIMULATION_TIMESTEP * 10.0
+            } else if buffered_steps > optimal_buffer_size { // Gently catch up to optimal state
+                let acceleration = (buffered_steps - optimal_buffer_size) as f64 * 5.0;
+                (DEFAULT_SIMULATION_TIMESTEP
+                    + acceleration).min(MAX_ACCELERATED_TIMESTEP) as f64
             } else {
                 DEFAULT_SIMULATION_TIMESTEP
             }

@@ -44,8 +44,8 @@ impl StateEvent {
             StateEvent::ShipEntityCollision(player_id, entity_type, dmg) =>
                 writeln!(file, "EntityColl;{:?};collided with;{:?};{} dmg",
                 player_id, entity_type, dmg),
-            StateEvent::ShipCannonBallCollision(player_id, shooter_id, dmg) =>
-                writeln!(file, "CannonColl;{:?};shot by;{:?};{} dmg",
+            StateEvent::ShipCannonBallCollision(shooter_id, player_id, dmg) =>
+                writeln!(file, "CannonColl;{:?};shot;{:?};{} dmg",
                 player_id, shooter_id, dmg),
             StateEvent::ShipShootCannon(shooter_id, starting_pos, dmg) =>
                 writeln!(file, "Shoot;{:?};From;{:.2},{:.2};{} dmg",

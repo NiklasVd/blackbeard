@@ -1,5 +1,5 @@
 use tetra::{Context, Event, State, input::Key};
-use crate::{BbResult, Controller, DEFAULT_SIMULATION_TIMESTEP, GC, ID, Player, PlayerParams, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, client::ClientEvent, entity::{GameState}, gen_world, grid::{Grid, UIAlignment, UILayout}, image::Image, input_pool::{InputPool, STEP_PHASE_FRAME_LENGTH}, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputState, InputStep, Packet}, peer::DisconnectReason, server::ServerEvent, ship_data::{ShipID, ShipType}, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, sync_checker::{SyncChecker, SyncState}, ui_element::{DefaultUIReactor, UIElement}, world::World};
+use crate::{BbResult, Controller, GC, ID, Player, PlayerParams, Rcc, TransformResult, V2, WorldEvent, button::{Button, DefaultButton}, chat::Chat, client::ClientEvent, entity::{GameState}, gen_world, grid::{Grid, UIAlignment, UILayout}, image::Image, input_pool::{InputPool, STEP_PHASE_FRAME_LENGTH}, label::{FontSize, Label}, menu_scene::MenuScene, net_controller::NetController, packet::{InputState, InputStep, Packet}, peer::DisconnectReason, server::ServerEvent, ship_data::{ShipID, ShipType}, ship_mod::{HARBOUR_REPAIR_COST, ShipModType}, sync_checker::{SyncChecker, SyncState}, ui_element::{DefaultUIReactor, UIElement}, world::World};
 use super::scenes::{Scene, SceneType};
 
 pub struct WorldScene {
@@ -64,12 +64,13 @@ impl WorldScene {
         players.sort_unstable_by(|a, b| a.id.n.cmp(&b.id.n));
         for player in players.into_iter() {
             let player_instance = self.add_player(ctx, player.id.clone(), player.ship_type)?;
-            if player.id == local_id { // Is local player
+            if player.id == local_id { // Is local player?
                 self.controller.set_local_player(player_instance.clone());
                 // Adjust camera for player
                 let pos = {
                     let player_ref = player_instance.borrow();
                     let mut ship_ref = player_ref.possessed_ship.borrow_mut();
+                    // As id.is_local_player is required in constructor, this wont cut it
                     ship_ref.data.id = ShipID::Player(local_id.clone(), true);
                     ship_ref.transform.get_translation().0
                 };
@@ -104,15 +105,12 @@ impl WorldScene {
     }
 
     fn update_menu_ui(&mut self) -> BbResult {
-        let curr_gen = self.controller.get_curr_gen();
-        if curr_gen % (DEFAULT_SIMULATION_TIMESTEP as u64 / STEP_PHASE_FRAME_LENGTH as u64) == 0 &&
-            curr_gen != self.ui.last_info_update_gen {
-            let (_, _, avg) = self.controller.input_buffer.calc_latency();
-            // FIX: Feedback latency is calculated right after latest step is applied, leading to zero
-            let feedback_lat = self.controller.calc_input_feedback_latency();
+        if self.controller.input_buffer.curr_frames
+            % (STEP_PHASE_FRAME_LENGTH as u64 * 5) == 0 {
+            let step_latency = self.controller.input_buffer.get_latency();
+            let feedback_latency = self.controller.calc_input_feedback_latency();
             self.ui.update_match_info(&format!("Latency: Step ~ {:.2}s, Feedback ~ {:.2}s",
-                avg, feedback_lat));
-            self.ui.last_info_update_gen = curr_gen;
+                step_latency, feedback_latency));
         }
 
         if self.ui.leave_button.borrow().is_pressed() {
@@ -314,7 +312,6 @@ struct WorldSceneUI {
     menu_grid: Rcc<Grid>,
     leave_button: Rcc<DefaultButton>,
     match_info_label: Rcc<Label>,
-    last_info_update_gen: u64,
     players_grid: Rcc<Grid>,
     health_label: Rcc<Label>,
     escudos_label: Rcc<Label>,
@@ -358,8 +355,7 @@ impl WorldSceneUI {
             UILayout::BottomRight, V2::new(350.0, 80.0), 0.0)?);
 
         Ok(WorldSceneUI {
-            chat, menu_button, menu_grid, leave_button, match_info_label,
-            last_info_update_gen: 0, players_grid,
+            chat, menu_button, menu_grid, leave_button, match_info_label, players_grid,
             health_label, escudos_label, harbour_ui, ship_stats_panel: ship_stats_grid,
             local_player: None, game
         })

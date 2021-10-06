@@ -201,7 +201,7 @@ impl Ship {
         let shooter = world.get_ship(shooter_index).unwrap(); // Bold unwrap but what else...
         let mut shooter_ref = shooter.borrow_mut();
         log_state_event(self.data.game.clone(), StateEvent::ShipCannonBallCollision(
-                self.data.id.clone(), shooter_ref.data.id.clone(), dmg));
+                shooter_ref.data.id.clone(), self.data.id.clone(), dmg));
 
         match self.take_damage(ctx, dmg, world) {
             Ok(true) => {
