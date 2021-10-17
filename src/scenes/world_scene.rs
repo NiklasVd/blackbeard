@@ -122,7 +122,7 @@ impl WorldScene {
 
     fn update_harbour_ui(&mut self) -> BbResult {
         if !self.controller.local_player.as_ref().unwrap().borrow()
-            .possessed_ship.borrow().is_in_harbour {
+            .possessed_ship.borrow().status.is_in_harbour {
             return Ok(())
         }
         
@@ -450,7 +450,7 @@ impl State for WorldSceneUI {
 
     fn event(&mut self, _ctx: &mut Context, event: Event) -> tetra::Result {
         let is_in_harbour = self.local_player.as_ref().unwrap().borrow()
-            .possessed_ship.borrow().is_in_harbour;
+            .possessed_ship.borrow().status.is_in_harbour;
         if !is_in_harbour {
             self.harbour_ui.set_visibility(false);
         }

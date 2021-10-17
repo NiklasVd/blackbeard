@@ -177,10 +177,26 @@ impl World {
         for contact in contacts.iter() {
             match contact {
                 ContactEvent::Started(coll1_handle, coll2_handle) => {
+                    // Order is important! Rarely, ships do not have same
+                    // collision orders across clients, which leads to incorrect
+                    // ship placements. Unfortunately simply ordering the entities
+                    // here does not fix the error, as the collision has already
+                    // been played out.
                     let entity1 = self.get_entity(coll1_handle.0);
                     let entity2 = self.get_entity(coll2_handle.0);
                     if let Some(entity1) = entity1 {
                         if let Some(entity2) = entity2 {
+                            {
+                                let e1_ref = entity1.borrow();
+                                let e1i = e1_ref.get_index();
+                                let e2_ref = entity2.borrow();
+                                let e2i = e2_ref.get_index();
+                                if e1i.into_raw_parts().0 > e2i.into_raw_parts().0
+                                    && e1_ref.get_type() == EntityType::Ship && e2_ref.get_type() == EntityType::Ship {
+                                    println!("{} (i: {:?}) and {} (i: {:?}) have incorrect collision order",
+                                        e1_ref.get_name(), e1i, e2_ref.get_name(), e2i);
+                                }
+                            }
                             self.handle_contact_with(ctx, entity1.clone(), entity2.clone())?;
                             self.handle_contact_with(ctx, entity2, entity1)?;
                         }

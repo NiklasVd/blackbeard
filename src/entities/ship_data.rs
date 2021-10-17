@@ -1,7 +1,5 @@
 use core::fmt;
-
 use binary_stream::{BinaryStream, Serializable};
-
 use crate::{GC, ID, V2, ship::{BASE_STUN_LENGTH, MAX_SHIP_DEFENSE}};
 
 #[derive(Debug, Clone, Copy)]
@@ -105,6 +103,13 @@ impl fmt::Debug for ShipID {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum DamageResult {
+    Hit(u16),
+    Sink,
+    Empty
+}
+
 pub struct ShipData {
     pub curr_health: u16,
     pub ship_type: ShipType,
@@ -113,4 +118,15 @@ pub struct ShipData {
     pub spawn_pos: Option<V2>,
     pub destroy: bool,
     pub game: GC
+}
+
+impl ShipData {
+    pub fn is_sunk(&self) -> bool {
+        self.curr_health == 0
+    }
+
+    pub fn set_health(&mut self, curr_health: u16) {
+        assert!(curr_health <= self.attr.health);
+        self.curr_health = curr_health;
+    }
 }

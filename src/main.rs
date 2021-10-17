@@ -6,6 +6,7 @@ mod entities {
     pub mod object;
     pub mod ship;
     pub mod ship_data;
+    pub mod ship_status;
     pub mod cannon;
     pub mod harbour;
 }

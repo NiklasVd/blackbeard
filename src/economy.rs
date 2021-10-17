@@ -1,5 +1,5 @@
 pub const BASE_SHIP_ESCUDO_BALANCE: u32 = 80;
-pub const BASE_ESCUDO_PAYOUT: u32 = 35;
+pub const BASE_ESCUDO_PAYOUT: u32 = 50;
 pub const NETWORTH_PAYOUT_PERCENTAGE: f32 = 0.4;
 
 pub struct Deposit {

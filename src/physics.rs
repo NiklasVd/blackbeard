@@ -83,7 +83,6 @@ impl Physics {
             .user_data(EntityType::Ship.to_num()).build();
         let coll_handle = self.coll_set.insert_with_parent(coll, rb_handle,
             &mut self.rb_set);
-        
         PhysicsHandle(rb_handle, coll_handle)
     }
 

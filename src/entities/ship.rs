@@ -1,7 +1,7 @@
 use std::{f32::consts::PI};
 use rapier2d::{data::Index};
-use tetra::{Context, State, graphics::{Color}, math::Clamp};
-use crate::{Cannon, CannonSide, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, StateEvent, Timer, Transform, V2, WorldEvent, conv_vec, disassemble_iso, economy::{Deposit}, entity::{Entity, EntityType, GameState}, get_angle, health_bar::HealthBar, log_state_event, pi_to_pi2_range, polar_to_cartesian, ship_data::{ShipAttributes, ShipData, ShipID, ShipType}, ship_mod::{ShipMod, ShipModType}, vec_distance, world::World};
+use tetra::{Context, State, graphics::{Color}};
+use crate::{Cannon, CannonSide, GC, MASS_FORCE_SCALE, Rcc, Sprite, SpriteOrigin, StateEvent, Timer, Transform, V2, WorldEvent, conv_vec, disassemble_iso, economy::{Deposit}, entity::{Entity, EntityType, GameState}, get_angle, health_bar::HealthBar, log_state_event, pi_to_pi2_range, polar_to_cartesian, ship_data::{DamageResult, ShipAttributes, ShipData, ShipID, ShipType}, ship_mod::{ShipMod, ShipModType}, ship_status::ShipStatus, vec_distance, world::World};
 
 pub const BASE_STUN_LENGTH: f32 = 0.5;
 pub const MAX_SHIP_DEFENSE: u16 = 100;
@@ -18,14 +18,11 @@ const ESCUDO_ACCIDENT_LOSS_PERCENTAGE: f32 = 0.1;
 
 pub struct Ship {
     pub data: ShipData,
-    pub stun: Timer,
-    pub target_pos: Option<V2>,
-    pub rotate_only: bool,
+    pub status: ShipStatus,
     pub cannons: Vec<Cannon>,
     pub transform: Transform,
     pub treasury: Deposit,
     pub mods: Vec<Box<dyn ShipMod>>,
-    pub is_in_harbour: bool,
     sprite: Sprite,
     health_bar: HealthBar,
 }
@@ -91,11 +88,14 @@ impl Ship {
 
         Ok(Ship {
             data: ShipData {
-                curr_health: attr.health, ship_type, id: controller.clone(), attr, spawn_pos,
-                destroy: false, game: game.clone()
-            }, target_pos: None, rotate_only: false, cannons,
-            transform, treasury: Deposit::default(), mods: Vec::new(),
-            is_in_harbour: false, stun: Timer::new(stun_length), sprite,
+                curr_health: attr.health, ship_type, id: controller.clone(),
+                attr, spawn_pos, destroy: false, game: game.clone()
+            },
+            status: ShipStatus {
+                target_pos: None, rotate_only: false,
+                is_in_harbour: false, stun: Timer::new(stun_length)
+            }, cannons,
+            transform, treasury: Deposit::default(), mods: Vec::new(), sprite,
             health_bar: HealthBar::new(ctx, controller.to_string(), Color::WHITE /* Customise for local player? */,
             attr.health, game.clone())?
         })
@@ -119,43 +119,26 @@ impl Ship {
         None
     }
 
-    pub fn set_health(&mut self, curr_health: u16) {
-        assert!(curr_health <= self.data.attr.health);
-        self.data.curr_health = curr_health;
-        self.health_bar.set_info(curr_health);
+    pub fn set_health(&mut self, val: u16) {
+        self.data.set_health(val);
+        self.health_bar.set_info(val);
     }
 
-    pub fn repair(&mut self) {
-        self.set_health(self.data.attr.health);
-    }
-
-    pub fn stun(&mut self) {
-        self.stun.reset();
-    }
-
-    pub fn is_stunned(&mut self) -> bool {
-        self.stun.is_running()
-    }
-
-    pub fn take_damage(&mut self, ctx: &mut Context, damage: u16, world: &mut World)
-        -> tetra::Result<bool> {
+    pub fn take_damage(&mut self, ctx: &mut Context, mut damage: u16, world: &mut World)
+        -> tetra::Result<DamageResult> {
         if damage <= 0 {
-            return Ok(false)
+            return Ok(DamageResult::Empty)
         }
-
+        
         if self.data.curr_health < damage {
-            self.data.curr_health = 0;
+            damage = self.data.curr_health;
         }
-        else {
-            self.data.curr_health -= damage;
-        }
+        let remaining_health = self.data.curr_health - damage;
+        self.set_health(remaining_health);
 
-        self.set_health(self.data.curr_health.clamped(0, self.data.attr.health));
-        if self.data.curr_health == 0 {
-            self.sink(ctx, world)?;
-            Ok(true)
-        } else {
-            Ok(false)
+        match self.data.is_sunk() {
+            true => self.sink(ctx, world).and(Ok(DamageResult::Sink)),
+            false => Ok(DamageResult::Hit(damage))
         }
     }
 
@@ -185,14 +168,14 @@ impl Ship {
         Ok(())
     }
 
-    pub fn is_sunk(&self) -> bool {
-        self.data.curr_health == 0
+    pub fn repair(&mut self) {
+        self.set_health(self.data.attr.health);
     }
 
     pub fn reset(&mut self) {
         self.transform.reset_velocity();
-        self.reset_target_pos();
-        self.stun.end();
+        self.status.reset_target_pos();
+        self.status.reset_stun();
         self.repair();
     }
 
@@ -203,8 +186,8 @@ impl Ship {
         log_state_event(self.data.game.clone(), StateEvent::ShipCannonBallCollision(
                 shooter_ref.data.id.clone(), self.data.id.clone(), dmg));
 
-        match self.take_damage(ctx, dmg, world) {
-            Ok(true) => {
+        match self.take_damage(ctx, dmg, world)? {
+            DamageResult::Sink => {
                 let forfeited_escudos = (self.treasury.balance as f32 * ESCUDO_SHOOT_STEAL_PERCENTAGE) as u32;
                 let generated_payout =  self.data.game.borrow_mut()
                     .economy.total_payout(self.treasury.networth);
@@ -214,8 +197,7 @@ impl Ship {
                     WorldEvent::PlayerSunkByCannon(shooter_ref.get_name(), self.get_name()));
                 Ok(())
             },
-            Ok(false) => Ok(()),
-            Err(e) => Err(e)
+            _ => Ok(())
         }
     }
 
@@ -236,31 +218,21 @@ impl Ship {
         Ok(())
     }
 
-    pub fn set_target_pos(&mut self, pos: V2, rotate_only: bool) {
-        self.target_pos = Some(pos);
-        self.rotate_only = rotate_only;
-    }
-
-    pub fn reset_target_pos(&mut self) {
-        self.target_pos = None;
-        // self.rotate_only = false;
-    }
-
     fn move_to_target_pos(&mut self) {
-        if self.is_stunned() {
+        if self.status.is_stunned() {
             return;
         }
         
-        if let Some(target_pos) = self.target_pos {
+        if let Some(target_pos) = self.status.target_pos {
             let mut game_ref = self.data.game.borrow_mut();
             let rb = game_ref.physics.get_rb_mut(self.transform.handle.0);
             let (pos, rot) = disassemble_iso(rb.position());
             if vec_distance(pos, target_pos) <= TARGET_POS_DIST_MARGIN {
-                self.target_pos = None;
+                self.status.target_pos = None;
                 return;
             }
 
-            if !self.rotate_only {
+            if !self.status.rotate_only {
                 let mut facing_dir = polar_to_cartesian(1.0, rot);
                 facing_dir *= BASE_MOVEMENT_FORCE * self.data.attr.movement_speed;
                 rb.apply_impulse(conv_vec(facing_dir), true);
@@ -309,29 +281,33 @@ impl Entity for Ship {
     }
 
     fn collide_with_ship(&mut self, ctx: &mut Context, other: Rcc<Ship>, world: &mut World) -> tetra::Result {
+        // ---
+        // TODO: Rewrite logic to apply ram effects to oneself instead of opponent
+        // ---
         let mut other_ref = other.borrow_mut();
         println!("{} collided with {} and dealt {} ram damage!",
             self.get_name(), other_ref.get_name(), self.data.attr.ram_damage);
         log_state_event(self.data.game.clone(), StateEvent::ShipShipCollision(
             self.data.id.clone(), other_ref.data.id.clone(), self.data.attr.ram_damage));
         
-        other_ref.stun();
-        match other_ref.take_damage(ctx, self.data.attr.ram_damage, world) {
-            Ok(true) => {
+        other_ref.status.stun();
+        match other_ref.take_damage(ctx, self.data.attr.ram_damage, world)? {
+            DamageResult::Sink => {
                 let forfeited_escudos = (other_ref.treasury.balance as f32 *
                     ESCUDO_RAM_STEAL_PERCENTAGE) as u32;
                 let generated_payout = self.data.game.borrow_mut()
                     .economy.total_payout(other_ref.treasury.networth);
+                println!("{} loses {}c. {} earns lost coins + {}c.",
+                    other_ref.get_name(), forfeited_escudos,
+                    self.get_name(), generated_payout);
+                
                 other_ref.treasury.lose(forfeited_escudos);
                 self.treasury.add(forfeited_escudos + generated_payout);
-                // println!("{} sunk {}'s ship via ramming and stole {} escudos!",
-                //     self.get_name(), other_ref.get_name(), forfeited_escudos);
                 self.data.game.borrow_mut().world.add_event(
                     WorldEvent::PlayerSunkByRamming(self.get_name(), other_ref.get_name()));
                 Ok(())
             },
-            Ok(false) => Ok(()),
-            Err(e) => Err(e)
+            _ => Ok(())
         }
     }
 
@@ -339,7 +315,7 @@ impl Entity for Ship {
         -> tetra::Result {
         let other_ref = other.borrow();
         let other_entity_type = other_ref.get_type();
-        if self.is_stunned() ||
+        if self.status.is_stunned() ||
             other_entity_type == EntityType::CannonBall /* Cannon ball does the damage part */ {
             return Ok(())
         }
@@ -355,9 +331,9 @@ impl Entity for Ship {
         log_state_event(self.data.game.clone(), StateEvent::ShipEntityCollision(
             self.data.id.clone(), other_entity_type, damage));
 
-        self.stun();
-        match self.take_damage(ctx, damage, world) {
-            Ok(true) => {
+        self.status.stun();
+        match self.take_damage(ctx, damage, world)? {
+            DamageResult::Sink => {
                 let forfeited_escudos = (self.treasury.balance as f32 * ESCUDO_ACCIDENT_LOSS_PERCENTAGE) as u32;
                 self.data.game.borrow_mut().economy.remove(forfeited_escudos); // Lost to the sea...
                 self.treasury.lose(forfeited_escudos);
@@ -367,8 +343,7 @@ impl Entity for Ship {
                     WorldEvent::PlayerSunkByAccident(self.get_name()));
                 Ok(())
             },
-            Ok(false) => Ok(()),
-            Err(e) => Err(e)
+            _ => Ok(())
         }
     }
 
@@ -380,7 +355,7 @@ impl Entity for Ship {
     fn intersect_with_entity(&mut self, _: &mut Context, state: bool,
         other: Rcc<dyn Entity>) -> tetra::Result {
         if other.borrow().get_type() == EntityType::Harbour {
-            self.is_in_harbour = state;
+            self.status.is_in_harbour = state;
         }
         Ok(())
     }
@@ -388,7 +363,7 @@ impl Entity for Ship {
 
 impl GameState for Ship {
     fn update(&mut self, ctx: &mut Context, world: &mut World) -> tetra::Result {
-        self.stun.update(ctx);
+        self.status.stun.update(ctx);
         let translation = self.transform.get_translation();
         for cannon in self.cannons.iter_mut() {
             cannon.set_ship_translation(translation);

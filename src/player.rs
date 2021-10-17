@@ -40,10 +40,10 @@ impl Player {
         }
 
         if let Some(mouse_pos) = state.mouse_pos {
-            ship_ref.set_target_pos(mouse_pos, state.r);
+            ship_ref.status.set_target_pos(mouse_pos, state.r);
         }
 
-        if state.buy_mod && ship_ref.is_in_harbour {
+        if state.buy_mod && ship_ref.status.is_in_harbour {
             if let Some(mod_type) = state.mod_type {
                 let cost = get_ship_mod_cost(mod_type);
                 if ship_ref.treasury.balance < cost {
@@ -70,7 +70,7 @@ impl Player {
                             self.possessed_ship.borrow_mut().apply_mod(ship_mod);
                         },
                         ShipModType::CannonRangeUpgrade => {
-                            let mut ship_mod = CannonRangeUpgradeMod::new(ctx, 
+                            let mut ship_mod = CannonRangeUpgradeMod::new(ctx,
                                 self.possessed_ship.clone(), self.game.clone())?;
                             ship_mod.on_apply().convert()?;
                             self.possessed_ship.borrow_mut().apply_mod(ship_mod);

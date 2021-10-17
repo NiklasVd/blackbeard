@@ -96,7 +96,7 @@ impl Controller {
             // actual and local steps.
             // Optimally, the playback buffer should adjust the gap between actual and
             // local step according to the connection quality/simulation performance.
-            if buffered_steps > optimal_buffer_size * 2 { // Hard catch-up required
+            if buffered_steps > (optimal_buffer_size as f32 * 1.5) as usize { // Hard catch-up required
                 DEFAULT_SIMULATION_TIMESTEP * 10.0
             } else if buffered_steps > optimal_buffer_size { // Gently catch up to optimal state
                 let acceleration = (buffered_steps - optimal_buffer_size) as f64 * 5.0;
