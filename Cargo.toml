@@ -10,7 +10,7 @@ tetra = "0.6"
 rapier2d = { version = "0.9.2", features = ["enhanced-determinism"] }
 crossbeam-channel = "0.5.1"
 rand = "0.8.4"
-binary_stream = { path = "../binary_stream" }
+plain-binary-stream = "0.1.0"
 laminar = "0.5.0"
 #laminar = { path = "../laminar" }
 nalgebra = "0.29"

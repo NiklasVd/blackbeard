@@ -88,10 +88,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4521f3e3d031370679b3b140beb36dfe4801b09ac77e30c61941f97df3ef28b"
 
 [[package]]
-name = "binary_stream"
-version = "0.1.0"
-
-[[package]]
 name = "bindgen"
 version = "0.56.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -126,11 +122,11 @@ checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 name = "blackbeard"
 version = "0.1.0"
 dependencies = [
- "binary_stream",
  "crossbeam-channel",
  "indexmap",
  "laminar",
  "nalgebra 0.29.0",
+ "plain-binary-stream",
  "rand",
  "rand_xoshiro",
  "rapier2d",
@@ -871,6 +867,12 @@ name = "pkg-config"
 version = "0.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3831453b3449ceb48b6d9c7ad7c96d5ea673e9b470a1dc578c2ce6521230884c"
+
+[[package]]
+name = "plain-binary-stream"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e91ac914704d49acdd1a19c0a06a36acdb9a12ecaefb17e652dee47f322dc84d"
 
 [[package]]
 name = "png"
